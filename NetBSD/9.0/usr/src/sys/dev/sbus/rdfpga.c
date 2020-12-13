@@ -56,12 +56,13 @@ CFATTACH_DECL_NEW(rdfpga, sizeof(struct rdfpga_softc),
 dev_type_open(rdfpga_open);
 dev_type_close(rdfpga_close);
 dev_type_ioctl(rdfpga_ioctl);
+dev_type_write(rdfpga_write);
 
 const struct cdevsw rdfpga_cdevsw = {
 	.d_open = rdfpga_open,
 	.d_close = rdfpga_close,
 	.d_read = noread,
-	.d_write = nowrite,
+	.d_write = rdfpga_write,
 	.d_ioctl = rdfpga_ioctl,
 	.d_stop = nostop,
 	.d_tty = notty,
@@ -153,6 +154,26 @@ rdfpga_close(dev_t dev, int flags, int mode, struct lwp *l)
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + (i*4)), 0);
 	
 	return (0);
+}
+
+int
+rdfpga_write(dev_t dev, struct uio *uio, int flags)
+{
+        struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
+	int error = 0;
+	
+	while (uio->uio_resid > 0) {
+		uint64_t bp[2] = {0, 0};
+		size_t len = uimin(16, uio->uio_resid);
+
+		if ((error = uiomove(bp, len, uio)) != 0)
+			break;
+
+		bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + 0), bp[0]);
+		bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + 8), bp[1]);
+	}
+
+	return (error);
 }
 
 int
