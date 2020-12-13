@@ -8,6 +8,8 @@ So unless you're a retrocomputing enthusiast with such a machine, this is useles
 
 I'm a software guy and know next to nothing about hardware design, so this is very much a work-in-progress and is likely full of rookie mistakes.
 
+To save on PCB cost, the board is smaller than a 'true' SBus board; the directory includes an OpenSCAD 3D-printable extension to make the board compliant to the form factor (visible in the pictures in 'Pictures').
+
 ## The hardware
 
 Directory 'sbus-to-ztex'
