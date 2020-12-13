@@ -1,0 +1,41 @@
+### Module positions - created on Tue Oct 20 11:56:13 2020 ###
+### Printed by Pcbnew version kicad 5.0.2+dfsg1-1~bpo9+1
+## Unit = mm, Angle = deg.
+## Side : All
+# Ref     Val                Package                        PosX       PosY       Rot  Side
+C1        22uF               C_0805_2012Metric            9.4450   -65.3405  180.0000  top
+C10       100nF              C_0603_1608Metric           84.6510   -14.9835   90.0000  top
+C11       100nF              C_0603_1608Metric           84.6510   -36.5989   90.0000  top
+C12       100nF              C_0603_1608Metric           84.6510   -56.3855   90.0000  top
+C13       100nF              C_0603_1608Metric           83.1600   -77.2665  270.0000  top
+C31       100nF              C_0603_1608Metric           69.7920   -24.9911    0.0000  top
+D1        RED                LED_0805_2012Metric          5.4260   -43.9616    0.0000  top
+D2        ORANGE             LED_0805_2012Metric          5.4260   -41.1356    0.0000  top
+D3        GREEN              LED_0805_2012Metric          5.4260   -38.3085    0.0000  top
+D4        BLUE               LED_0805_2012Metric          5.4260   -35.4825    0.0000  top
+D5        RED                LED_0805_2012Metric          5.4260   -22.0601    0.0000  top
+D6        ORANGE             LED_0805_2012Metric          5.4260   -19.2341    0.0000  top
+D7        GREEN              LED_0805_2012Metric          5.4260   -16.4071    0.0000  top
+D8        BLUE               LED_0805_2012Metric          5.4260   -13.5811    0.0000  top
+DOE1      RED                LED_0805_2012Metric          4.5260   -29.8491  270.0000  top
+DOE2      RED                LED_0805_2012Metric         11.1810   -27.2075  270.0000  top
+R1        549                R_0603_1608Metric           10.7400   -43.9616  180.0000  top
+R2        549                R_0603_1608Metric           10.7400   -41.1356  180.0000  top
+R3        549                R_0603_1608Metric           10.7400   -38.3085  180.0000  top
+R4        549                R_0603_1608Metric           10.7400   -35.4825  180.0000  top
+R5        549                R_0603_1608Metric           10.7400   -22.0601  180.0000  top
+R6        549                R_0603_1608Metric           10.7400   -19.2341  180.0000  top
+R7        549                R_0603_1608Metric           10.7400   -16.4071  180.0000  top
+R8        549                R_0603_1608Metric           10.7400   -13.5811  180.0000  top
+R9        0.47               R_0603_1608Metric           12.9510   -65.3405    0.0000  top
+R13       10k                R_0603_1608Metric           69.0300   -45.1046    0.0000  top
+R30       10k                R_0603_1608Metric           64.3340   -22.1176  180.0000  top
+R31       10k                R_0603_1608Metric           64.3340   -27.8961  180.0000  top
+ROE1      549                R_0603_1608Metric            8.1710   -30.8143  180.0000  top
+ROE2      549                R_0603_1608Metric           14.9020   -28.2235  180.0000  top
+U1        SN74CB3T16211DGGR  74CB3T16211                 77.2720   -16.7455  180.0000  top
+U2        SN74CB3T16211DGGR  74CB3T16211                 77.2720   -38.3416  180.0000  top
+U3        SN74CB3T16211DGGR  74CB3T16211                 77.2720   -58.1405  180.0000  top
+U4        SN74CB3T3125PW     TSSOP-14_4.4x5mm_P0.65mm    79.0320   -73.4945  270.0000  top
+U_INT1    74LVC2G07          SOT-23-6                    64.7540   -24.9878    0.0000  top
+## End

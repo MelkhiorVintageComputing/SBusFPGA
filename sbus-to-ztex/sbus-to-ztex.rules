@@ -1,0 +1,204 @@
+
+(rules PCB sbus-to-ztex
+  (snap_angle 
+    fortyfive_degree
+  )
+  (autoroute_settings
+    (fanout on)
+    (autoroute on)
+    (postroute on)
+    (vias on)
+    (via_costs 10)
+    (plane_via_costs 5)
+    (start_ripup_costs 100)
+    (start_pass_no 9807)
+    (layer_rule F.Cu
+      (active on)
+      (preferred_direction horizontal)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 1.2)
+    )
+    (layer_rule In1.Cu
+      (active on)
+      (preferred_direction vertical)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 1.2)
+    )
+    (layer_rule In2.Cu
+      (active on)
+      (preferred_direction horizontal)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 1.2)
+    )
+    (layer_rule B.Cu
+      (active on)
+      (preferred_direction horizontal)
+      (preferred_direction_trace_costs 1.0)
+      (against_preferred_direction_trace_costs 1.2)
+    )
+  )
+  (rule
+    (width 152.4)
+    (clear 152.6)
+    (clear 0.0 (type smd_to_turn_gap))
+    (clear 180.2 (type default_+3V3))
+    (clear 200.2 (type default_+5V))
+    (clear 180.2 (type default_GND))
+    (clear 38.2 (type smd_smd))
+    (clear 180.2 (type smd_+3V3))
+    (clear 200.2 (type smd_+5V))
+    (clear 180.2 (type smd_GND))
+    (clear 180.2 (type "kicad_default"_+3V3))
+    (clear 200.2 (type "kicad_default"_+5V))
+    (clear 180.2 (type "kicad_default"_GND))
+    (clear 180.2 (type +3V3_+3V3))
+    (clear 200.2 (type +3V3_+5V))
+    (clear 180.2 (type +3V3_GND))
+    (clear 180.2 (type +3V3_Led))
+    (clear 200.2 (type +5V_+5V))
+    (clear 200.2 (type +5V_GND))
+    (clear 200.2 (type +5V_Led))
+    (clear 180.2 (type GND_GND))
+    (clear 180.2 (type GND_Led))
+  )
+  (padstack "Via[0-3]_800:400_um"
+    (shape
+      (circle F.Cu 800.0 0.0 0.0)
+    )
+    (shape
+      (circle In1.Cu 800.0 0.0 0.0)
+    )
+    (shape
+      (circle In2.Cu 800.0 0.0 0.0)
+    )
+    (shape
+      (circle B.Cu 800.0 0.0 0.0)
+    )
+    (attach off)
+  )
+  (via 
+    "Via[0-3]_800:400_um" "Via[0-3]_800:400_um" default
+  )
+  (via 
+    "Via[0-3]_800:400_um-kicad_default" "Via[0-3]_800:400_um" "kicad_default"
+  )
+  (via 
+    "Via[0-3]_800:400_um-+3V3" "Via[0-3]_800:400_um" +3V3
+  )
+  (via 
+    "Via[0-3]_800:400_um-+5V" "Via[0-3]_800:400_um" +5V
+  )
+  (via 
+    "Via[0-3]_800:400_um-GND" "Via[0-3]_800:400_um" GND
+  )
+  (via 
+    "Via[0-3]_800:400_um-Led" "Via[0-3]_800:400_um" Led
+  )
+  (via_rule
+    default "Via[0-3]_800:400_um"
+  )
+  (via_rule
+    "kicad_default" "Via[0-3]_800:400_um-kicad_default"
+  )
+  (via_rule
+    +3V3 "Via[0-3]_800:400_um-+3V3"
+  )
+  (via_rule
+    +5V "Via[0-3]_800:400_um-+5V"
+  )
+  (via_rule
+    GND "Via[0-3]_800:400_um-GND"
+  )
+  (via_rule
+    Led "Via[0-3]_800:400_um-Led"
+  )
+  (class default
+    (clearance_class default)
+    (via_rule default)
+    (rule
+      (width 152.4)
+    )
+    (circuit 
+      (use_layer F.Cu In1.Cu In2.Cu B.Cu)
+    )
+  )
+  (class "kicad_default"
+    "SBUS_3V3_D[00]" "SBUS_3V3_D[01]" "SBUS_3V3_D[02]" "SBUS_3V3_D[03]" "SBUS_3V3_D[04]" "SBUS_3V3_D[05]" "SBUS_3V3_D[06]" "SBUS_3V3_D[07]"
+    "SBUS_5V_D[07]" "SBUS_5V_D[06]" "SBUS_5V_D[05]" "SBUS_5V_D[04]" "SBUS_5V_D[03]" "SBUS_5V_D[02]" "SBUS_5V_D[01]" "SBUS_5V_D[00]"
+    "SBUS_5V_D[15]" "SBUS_5V_D[14]" "SBUS_5V_D[13]" "SBUS_5V_D[12]" "SBUS_5V_D[11]" "SBUS_5V_D[10]" "SBUS_5V_D[09]" "SBUS_5V_D[08]"
+    "SBUS_3V3_D[08]" "SBUS_3V3_D[09]" "SBUS_3V3_D[10]" "SBUS_3V3_D[11]" "SBUS_3V3_D[12]" "SBUS_3V3_D[13]" "SBUS_3V3_D[14]" "SBUS_3V3_D[15]"
+    "SBUS_3V3_INT[1]*" "SBUS_3V3_CLK" "SBUS_5V_CLK" "SBUS_5V_INT[1]*" "SBUS_5V_INT[2]*" "SBUS_5V_INT[3]*" "SBUS_5V_INT[4]*" "SBUS_5V_INT[5]*"
+    "SBUS_5V_INT[6]*" "SBUS_5V_INT[7]*" "SBUS_5V_PA[00]" "SBUS_5V_PA[01]" "SBUS_5V_PA[02]" "SBUS_5V_PA[03]" "SBUS_5V_PA[04]" "SBUS_5V_PA[05]"
+    "SBUS_5V_PA[06]" "SBUS_5V_PA[07]" "SBUS_3V3_PA[07]" "SBUS_3V3_PA[06]" "SBUS_3V3_PA[05]" "SBUS_3V3_PA[04]" "SBUS_3V3_PA[03]" "SBUS_3V3_PA[02]"
+    "SBUS_3V3_PA[01]" "SBUS_3V3_PA[00]" "SBUS_3V3_D[16]" "SBUS_3V3_D[17]" "SBUS_3V3_D[18]" "SBUS_3V3_D[19]" "SBUS_3V3_D[20]" "SBUS_3V3_D[21]"
+    "SBUS_3V3_D[22]" "SBUS_3V3_D[23]" "SBUS_5V_D[23]" "SBUS_5V_D[22]" "SBUS_5V_D[21]" "SBUS_5V_D[20]" "SBUS_5V_D[19]" "SBUS_5V_D[18]"
+    "SBUS_5V_D[17]" "SBUS_5V_D[16]" "SBUS_5V_D[31]" "SBUS_5V_D[30]" "SBUS_5V_D[29]" "SBUS_5V_D[28]" "SBUS_5V_D[27]" "SBUS_5V_D[26]"
+    "SBUS_5V_D[25]" "SBUS_5V_D[24]" "SBUS_3V3_D[24]" "SBUS_3V3_D[25]" "SBUS_3V3_D[26]" "SBUS_3V3_D[27]" "SBUS_3V3_D[28]" "SBUS_3V3_D[29]"
+    "SBUS_3V3_D[30]" "SBUS_3V3_D[31]" "SBUS_3V3_PA[15]" "SBUS_3V3_PA[14]" "SBUS_3V3_PA[13]" "SBUS_3V3_PA[12]" "SBUS_3V3_PA[11]" "SBUS_3V3_PA[10]"
+    "SBUS_3V3_PA[09]" "SBUS_3V3_PA[08]" "SBUS_5V_PA[08]" "SBUS_5V_PA[09]" "SBUS_5V_PA[10]" "SBUS_5V_PA[11]" "SBUS_5V_PA[12]" "SBUS_5V_PA[13]"
+    "SBUS_5V_PA[14]" "SBUS_5V_PA[15]" "SBUS_5V_PA[16]" "SBUS_5V_PA[17]" "SBUS_5V_PA[18]" "SBUS_5V_PA[19]" "SBUS_5V_PA[20]" "SBUS_5V_PA[21]"
+    "SBUS_5V_PA[22]" "SBUS_5V_PA[23]" "SBUS_3V3_PA[23]" "SBUS_3V3_PA[22]" "SBUS_3V3_PA[21]" "SBUS_3V3_PA[20]" "SBUS_3V3_PA[19]" "SBUS_3V3_PA[18]"
+    "SBUS_3V3_PA[17]" "SBUS_3V3_PA[16]" "SBUS_3V3_RST*" "SBUS_3V3_PA[27]" "SBUS_3V3_PA[26]" "SBUS_3V3_PA[25]" "SBUS_3V3_PA[24]" "SBUS_5V_PA[24]"
+    "SBUS_5V_PA[25]" "SBUS_5V_PA[26]" "SBUS_5V_PA[27]" "SBUS_5V_DP" "SBUS_5V_RST*" "SBUS_5V_BG*" "SBUS_5V_AS*" "SBUS_5V_BR*"
+    "SBUS_5V_SEL*" "SBUS_3V3_SEL*" "SBUS_3V3_AS*" "SBUS_3V3_ACK[2]*" "SBUS_3V3_ACK[1]*" "SBUS_3V3_ACK[0]*" "SBUS_3V3_PPRD" "SBUS_3V3_EER*"
+    "SBUS_3V3_SIZ[0]" "SBUS_3V3_SIZ[1]" "SBUS_3V3_SIZ[2]" "SBUS_5V_SIZ[2]" "SBUS_5V_SIZ[1]" "SBUS_5V_SIZ[0]" "SBUS_5V_EER*" "SBUS_5V_PPRD"
+    "SBUS_5V_ACK[0]*" "SBUS_5V_ACK[1]*" "SBUS_5V_ACK[2]*" "SBUS_5V_-12V" "SBUS_5V_+12V" "Net-(JCD1-Pad1)" "Net-(JCD1-Pad2)" /B2B/RX
+    "Net-(J1-Pad2)" "Net-(J1-Pad3)" "Net-(J1-Pad6)" "SD_D1" "SD_D0" "SD_CLK" "SD_CMD" "SD_D3"
+    "SD_D2" /B2B/TX "/sdcard.sch/SD-3V3" "SBUS_3V3_INT[7]*" "SBUS_DATA_OE_LED" "/B2B/DATA_OE_LED" "SBUS_DATA_OE_LED_2" "/B2B/DATA_OE_LED_2"
+    "Net-(J3-Pad12)" "Net-(J3-Pad14)" "/B2B/JTAG_VIO" "/B2B/JTAG_TCK" "/B2B/JTAG_TDI" "/B2B/JTAG_TDO" "/B2B/JTAG_TMS" "Net-(U1-Pad1)"
+    "Net-(U2-Pad1)" "Net-(U3-Pad1)" "SBUS_3V3_BG*" "SBUS_3V3_BR*" "SBUS_OE" "Net-(JCD1-Pad20)"
+    (clearance_class "kicad_default")
+    (via_rule kicad_default)
+    (rule
+      (width 152.4)
+    )
+    (circuit 
+      (use_layer F.Cu In1.Cu In2.Cu B.Cu)
+    )
+  )
+  (class +3V3
+    +3V3
+    (clearance_class +3V3)
+    (via_rule +3V3)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu In1.Cu In2.Cu B.Cu)
+    )
+  )
+  (class +5V
+    +5V
+    (clearance_class +5V)
+    (via_rule +5V)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu In1.Cu In2.Cu B.Cu)
+    )
+  )
+  (class GND
+    GND
+    (clearance_class GND)
+    (via_rule GND)
+    (rule
+      (width 250.0)
+    )
+    (circuit 
+      (use_layer F.Cu In1.Cu In2.Cu B.Cu)
+    )
+  )
+  (class Led
+    LED1 /blinkey/ALED1 /blinkey/ALED0 LED0 /blinkey/ALED3 /blinkey/ALED2 LED2 LED3
+    /blinkey/ALED4 LED4 LED5 /blinkey/ALED5 /blinkey/ALED6 LED6 LED7 /blinkey/ALED7
+    (clearance_class Led)
+    (via_rule Led)
+    (rule
+      (width 152.4)
+    )
+    (circuit 
+      (use_layer F.Cu In1.Cu In2.Cu B.Cu)
+    )
+  )
+)

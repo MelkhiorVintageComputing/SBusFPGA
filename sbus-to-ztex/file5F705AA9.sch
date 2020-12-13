@@ -1,0 +1,165 @@
+EESchema Schematic File Version 4
+LIBS:sbus-to-ztex-cache
+EELAYER 26 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 6 6
+Title ""
+Date ""
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Comp
+L Diode:BAT54C D_D00_D01
+U 1 1 5F705EFC
+P 2750 1650
+F 0 "D_D00_D01" H 2750 1875 50  0000 C CNN
+F 1 "BAT54C" H 2750 1784 50  0000 C CNN
+F 2 "Package_TO_SOT_SMD:SOT-23" H 2825 1775 50  0001 L CNN
+F 3 "http://www.diodes.com/_files/datasheets/ds11005.pdf" H 2670 1650 50  0001 C CNN
+	1    2750 1650
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:R R_D00
+U 1 1 5F70600E
+P 2450 1500
+F 0 "R_D00" H 2520 1546 50  0000 L CNN
+F 1 "100" H 2520 1455 50  0000 L CNN
+F 2 "" V 2380 1500 50  0001 C CNN
+F 3 "~" H 2450 1500 50  0001 C CNN
+	1    2450 1500
+	-1   0    0    1   
+$EndComp
+$Comp
+L Device:R R_D01
+U 1 1 5F706074
+P 3050 1500
+F 0 "R_D01" H 3120 1546 50  0000 L CNN
+F 1 "100" H 3120 1455 50  0000 L CNN
+F 2 "" V 2980 1500 50  0001 C CNN
+F 3 "~" H 3050 1500 50  0001 C CNN
+	1    3050 1500
+	1    0    0    -1  
+$EndComp
+Text GLabel 2450 1100 0    50   Input ~ 0
+SBUS_5V_D[00]
+Text GLabel 3050 1100 2    50   Input ~ 0
+SBUS_5V_D[01]
+Wire Wire Line
+	2450 1350 2450 1100
+Wire Wire Line
+	3050 1350 3050 1100
+Text GLabel 2450 2150 0    50   Input ~ 0
+SBUS_3V3_D[00]
+Text GLabel 3050 2150 2    50   Input ~ 0
+SBUS_3V3_D[01]
+Wire Wire Line
+	2450 1650 2450 2150
+Wire Wire Line
+	3050 2150 3050 1650
+Connection ~ 3050 1650
+$Comp
+L Reference_Voltage:TL431D D_SHUNT_D00_D01
+U 1 1 5F7067EF
+P 4550 1650
+F 0 "D_SHUNT_D00_D01" V 4596 1581 50  0000 R CNN
+F 1 "TL431D" V 4505 1581 50  0000 R CNN
+F 2 "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" H 4550 1400 50  0001 C CIN
+F 3 "http://www.ti.com/lit/ds/symlink/tl431.pdf" H 4550 1650 50  0001 C CIN
+	1    4550 1650
+	0    -1   -1   0   
+$EndComp
+$Comp
+L Device:R R_SHUNT_00_01_DIVLOW
+U 1 1 5F70690D
+P 4250 1850
+F 0 "R_SHUNT_00_01_DIVLOW" H 4320 1896 50  0000 L CNN
+F 1 "2490" H 4320 1805 50  0000 L CNN
+F 2 "" V 4180 1850 50  0001 C CNN
+F 3 "~" H 4250 1850 50  0001 C CNN
+	1    4250 1850
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:R R_SHUNT_D00_D01_DIVHIGH
+U 1 1 5F706A5F
+P 4250 1450
+F 0 "R_SHUNT_D00_D01_DIVHIGH" H 4320 1496 50  0000 L CNN
+F 1 "796" H 4320 1405 50  0000 L CNN
+F 2 "" V 4180 1450 50  0001 C CNN
+F 3 "~" H 4250 1450 50  0001 C CNN
+	1    4250 1450
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:R R_SHUNT_D00_D01_ABOVE
+U 1 1 5F706BE5
+P 4250 1050
+F 0 "R_SHUNT_D00_D01_ABOVE" H 4320 1096 50  0000 L CNN
+F 1 "750" H 4320 1005 50  0000 L CNN
+F 2 "" V 4180 1050 50  0001 C CNN
+F 3 "~" H 4250 1050 50  0001 C CNN
+	1    4250 1050
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4250 1600 4250 1650
+Wire Wire Line
+	4450 1650 4250 1650
+Connection ~ 4250 1650
+Wire Wire Line
+	4250 1650 4250 1700
+Wire Wire Line
+	4550 1750 4550 2000
+Wire Wire Line
+	4550 2000 4250 2000
+$Comp
+L power:GND #PWR?
+U 1 1 5F706D8F
+P 4250 2000
+F 0 "#PWR?" H 4250 1750 50  0001 C CNN
+F 1 "GND" H 4255 1827 50  0000 C CNN
+F 2 "" H 4250 2000 50  0001 C CNN
+F 3 "" H 4250 2000 50  0001 C CNN
+	1    4250 2000
+	1    0    0    -1  
+$EndComp
+Connection ~ 4250 2000
+Wire Wire Line
+	4250 1300 4250 1250
+Wire Wire Line
+	4550 1550 4550 1250
+Wire Wire Line
+	4550 1250 4250 1250
+Connection ~ 4250 1250
+Wire Wire Line
+	4250 1250 4250 1200
+$Comp
+L power:+5V #PWR?
+U 1 1 5F706F24
+P 4250 900
+F 0 "#PWR?" H 4250 750 50  0001 C CNN
+F 1 "+5V" H 4265 1073 50  0000 C CNN
+F 2 "" H 4250 900 50  0001 C CNN
+F 3 "" H 4250 900 50  0001 C CNN
+	1    4250 900 
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	2750 1850 4000 1850
+Wire Wire Line
+	4000 1850 4000 1250
+Wire Wire Line
+	4000 1250 4250 1250
+Text Notes 2600 1150 0    50   ~ 0
+Bus Side
+Text Notes 2600 2200 0    50   ~ 0
+FPGA side
+Connection ~ 2450 1650
+$EndSCHEMATC

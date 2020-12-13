@@ -1,0 +1,9 @@
+(fp_lib_table
+  (lib (name FCN-234P096-GY)(type KiCad)(uri ${KIPRJMOD}/SBus/FCN-234P096-GY.pretty)(options "")(descr ""))
+  (lib (name micro-sd-schd3a0100)(type KiCad)(uri ${KIPRJMOD}/ulx3s-micro-sd/micro-sd-schd3a0100.pretty)(options "")(descr ""))
+  (lib (name micro-sd)(type KiCad)(uri ${KIPRJMOD}/ulx3s-micro-sd/micro-sd.pretty)(options "")(descr ""))
+  (lib (name MOLEX_47219-2001)(type KiCad)(uri ${KIPRJMOD}/SBus/MOLEX_47219-2001.pretty)(options "")(descr ""))
+  (lib (name XilinxJtag)(type KiCad)(uri ${KIPRJMOD}/XilinxJtag.pretty)(options "")(descr ""))
+  (lib (name Molex2x32)(type KiCad)(uri ${KIPRJMOD}/Molex2x32.pretty)(options "")(descr ""))
+  (lib (name 74CB3T16211)(type KiCad)(uri ${KIPRJMOD}/74CB3T16211.pretty)(options "")(descr ""))
+)

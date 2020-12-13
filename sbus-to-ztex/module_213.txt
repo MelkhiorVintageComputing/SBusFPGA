@@ -1,0 +1,128 @@
+A1																VIN		
+B1																VIN		
+A2																GND		
+B2																GND		
+A3																K16~IO_25_15		K16
+B3																J18~IO_L23N_T3_FWE_B_15		J18
+A4																K15~IO_L24P_T3_RS1_15		K15
+B4																J17~IO_L23P_T3_FOE_B_15		J17
+A5																J15~IO_L24N_T3_RS0_15		J15
+B5																K13~IO_L17P_T2_A26_15		K13
+A6																H15~IO_L19N_T3_A21_VREF_15		H15
+B6																J13~IO_L17N_T2_A25_15		J13
+A7																J14~IO_L19P_T3_A22_15		J14
+B7																H14~IO_L15P_T2_DQS_15		H14
+A8																H17~IO_L18P_T2_A24_15		H17
+B8																G14~IO_L15N_T2_DQS_ADV_B_15		G14
+A9																G17~IO_L18N_T2_A23_15		G17
+B9																G16~IO_L13N_T2_MRCC_15		G16
+A10																G18~IO_L22P_T3_A17_15		G18
+B10																H16~IO_L13P_T2_MRCC_15		H16
+A11																F18~IO_L22N_T3_A16_15		F18
+B11																F16~IO_L14N_T2_SRCC_15		F16
+A12																E18~IO_L21P_T3_DQS_15		E18
+B12																F15~IO_L14P_T2_SRCC_15		F15
+A13																D18~IO_L21N_T3_DQS_A18_15		D18
+B13																E17~IO_L16P_T2_A28_15		E17
+A14																G13~IO_0_15		G13
+B14																D17~IO_L16N_T2_A27_15		D17
+A15																3.3V		
+B15																3.3V		
+A16																GND		
+B16																GND		
+A17																VCCO_AB		
+B17																VCCO_AB		
+A18																F13~IO_L5P_T0_AD9P_15		F13
+B18																F14~IO_L5N_T0_AD9N_15		F14
+A19																E16~IO_L11N_T1_SRCC_15		E16
+B19																E15~IO_L11P_T1_SRCC_15		E15
+A20																C17~IO_L20N_T3_A19_15		C17
+B20																C16~IO_L20P_T3_A20_15		C16
+A21																A18~IO_L10N_T1_AD11N_15		A18
+B21																B18~IO_L10P_T1_AD11P_15		B18
+A22																C15~IO_L12N_T1_MRCC_15		C15
+B22																D15~IO_L12P_T1_MRCC_15		D15
+A23																B17~IO_L7N_T1_AD2N_15		B17
+B23																B16~IO_L7P_T1_AD2P_15		B16
+A24																C14~IO_L1N_T0_AD0N_15		C14
+B24																D14~IO_L1P_T0_AD0P_15		D14
+A25																D13~IO_L6N_T0_VREF_15		D13
+B25																D12~IO_L6P_T0_15		D12
+A26																A16~IO_L8N_T1_AD10N_15		A16
+B26																A15~IO_L8P_T1_AD10P_15		A15
+A27																B14~IO_L2N_T0_AD8N_15		B14
+B27																B13~IO_L2P_T0_AD8P_15		B13
+A28																B12~IO_L3N_T0_DQS_AD1N_15		B12
+B28																C12~IO_L3P_T0_DQS_AD1P_15		C12
+A29																A14~IO_L9N_T1_DQS_AD3N_15		A14
+B29																A13~IO_L9P_T1_DQS_AD3P_15		A13
+A30																B11~IO_L4P_T0_15		B11
+B30																A11~IO_L4N_T0_15		A11
+A31																JTAG_TDI		E11
+B31																JTAG_TCK		E10
+A32																JTAG_VIO		
+B32																GND		
+C1																USB_5V		
+D1																RESET#		
+C2																GND		
+D2																GND		
+C3																U9~IO_L21P_T3_DQS_34		U9
+D3																V9~IO_L21N_T3_DQS_34		V9
+C4																U8~IO_25_34		U8
+D4																V7~IO_L20P_T3_34		V7
+C5																U7~IO_L22P_T3_34		U7
+D5																V6~IO_L20N_T3_34		V6
+C6																U6~IO_L22N_T3_34		U6
+D6																V5~IO_L10P_T1_34		V5
+C7																T8~IO_L24N_T3_34		T8
+D7																V4~IO_L10N_T1_34		V4
+C8																R8~IO_L24P_T3_34		R8
+D8																T5~IO_L12P_T1_MRCC_34		T5
+C9																R7~IO_L23P_T3_34		R7
+D9																T4~IO_L12N_T1_MRCC_34		T4
+C10																T6~IO_L23N_T3_34		T6
+D10																U4~IO_L8P_T1_34		U4
+C11																R6~IO_L19P_T3_34		R6
+D11																U3~IO_L8N_T1_34		U3
+C12																R5~IO_L19N_T3_VREF_34		R5
+D12																V1~IO_L7N_T1_34		V1
+C13																V2~IO_L9N_T1_DQS_34		V2
+D13																U1~IO_L7P_T1_34		U1
+C14																U2~IO_L9P_T1_DQS_34		U2
+D14																T3~IO_L11N_T1_SRCC_34		T3
+C15																K6~IO_0_34		K6
+D15																R3~IO_L11P_T1_SRCC_34		R3
+C16																VCCO_CD		
+D16																VCCO_CD		
+C17																GND		
+D17																GND		
+C18																3.3V		
+D18																3.3V		
+C19																N6~IO_L18N_T2_34		N6
+D19																P5~IO_L13N_T2_MRCC_34		P5
+C20																M6~IO_L18P_T2_34		M6
+D20																N5~IO_L13P_T2_MRCC_34		N5
+C21																L6~IO_L6P_T0_34		L6
+D21																P4~IO_L14P_T2_SRCC_34		P4
+C22																L5~IO_L6N_T0_VREF_34		L5
+D22																P3~IO_L14N_T2_SRCC_34		P3
+C23																N4~IO_L16N_T2_34		N4
+D23																T1~IO_L17N_T2_34		T1
+C24																M4~IO_L16P_T2_34		M4
+D24																R1~IO_L17P_T2_34		R1
+C25																M3~IO_L4P_T0_34		M3
+D25																R2~IO_L15N_T2_DQS_34		R2
+C26																M2~IO_L4N_T0_34		M2
+D26																P2~IO_L15P_T2_DQS_34		P2
+C27																K5~IO_L5P_T0_34		K5
+D27																N2~IO_L3P_T0_DQS_34		N2
+C28																L4~IO_L5N_T0_34		L4
+D28																N1~IO_L3N_T0_DQS_34		N1
+C29																L3~IO_L2N_T0_34		L3
+D29																M1~IO_L1N_T0_34		M1
+C30																K3~IO_L2P_T0_34		K3
+D30																L1~IO_L1P_T0_34		L1
+C31																JTAG_TDO		
+D31																JTAG_TMS		E12
+C32																GND		
+D32																GND		

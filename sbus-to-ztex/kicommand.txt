@@ -1,0 +1,21 @@
+#To display the length of a single signal (here SBUS_5V_PA[00]):
+
+#clear tracks copy getnetname SBUS_5V_PA[00] = filter length sum stack
+
+#to exclude the via:
+
+#clear tracks copy getnetname SBUS_5V_PA[00] = filter copy VIA istype not filter length sum stack
+
+#to generate commands for a // bus:
+
+for X in $(seq 0 27); do echo "clear tracks copy getnetname SBUS_3V3_PA[$X] = filter length sum stack" | sed -e 's/\[\([0-9]\)\]/[0\1]/g'; done
+
+for X in $(seq 0 27); do echo "clear tracks copy getnetname SBUS_5V_PA[$X] = filter length sum stack" | sed -e 's/\[\([0-9]\)\]/[0\1]/g'; done
+                              
+for X in $(seq 0 31); do echo "clear tracks copy getnetname SBUS_3V3_D[$X] = filter length sum stack" | sed -e 's/\[\([0-9]\)\]/[0\1]/g'; done
+
+for X in $(seq 0 31); do echo "clear tracks copy getnetname SBUS_5V_D[$X] = filter length sum stack" | sed -e 's/\[\([0-9]\)\]/[0\1]/g'; done    
+
+for X in "SBUS_3V3_ACK[0]*" "SBUS_3V3_ACK[1]*" "SBUS_3V3_ACK[2]*" "SBUS_3V3_AS*" "SBUS_3V3_BG*" "SBUS_3V3_BR*" "SBUS_3V3_CLK" "SBUS_3V3_DP" "SBUS_3V3_EER*" "SBUS_3V3_INT[1]*" "SBUS_3V3_INT[2]*" "SBUS_3V3_INT[3]*" "SBUS_3V3_INT[4]*" "SBUS_3V3_INT[5]*" "SBUS_3V3_INT[6]*" "SBUS_3V3_INT[7]*" "SBUS_3V3_PPRD" "SBUS_3V3_RST*" "SBUS_3V3_SEL*" "SBUS_3V3_SIZ[0]" "SBUS_3V3_SIZ[1]" "SBUS_3V3_SIZ[2]" ; do echo "clear tracks copy getnetname $X = filter length sum stack" ; done
+                                                                  
+for X in "SBUS_5V_ACK[0]*" "SBUS_5V_ACK[1]*" "SBUS_5V_ACK[2]*" "SBUS_5V_AS*" "SBUS_5V_BG*" "SBUS_5V_BR*" "SBUS_5V_CLK" "SBUS_5V_DP" "SBUS_5V_EER*" "SBUS_5V_INT[1]*" "SBUS_5V_INT[2]*" "SBUS_5V_INT[3]*" "SBUS_5V_INT[4]*" "SBUS_5V_INT[5]*" "SBUS_5V_INT[6]*" "SBUS_5V_INT[7]*" "SBUS_5V_PPRD" "SBUS_5V_RST*" "SBUS_5V_SEL*" "SBUS_5V_SIZ[0]" "SBUS_5V_SIZ[1]" "SBUS_5V_SIZ[2]" ; do echo "clear tracks copy getnetname $X = filter length sum stack" ; done
