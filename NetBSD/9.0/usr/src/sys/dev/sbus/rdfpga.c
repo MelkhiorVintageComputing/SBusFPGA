@@ -78,6 +78,9 @@ extern struct cfdriver rdfpga_cd;
 struct rdfpga_128bits {
 	uint32_t x[4];
 };
+struct rdfpga_128bits_alt {
+	uint64_t x[2];
+};
 
 #define RDFPGA_WC   _IOW(0, 1, struct rdfpga_128bits)
 #define RDFPGA_WH   _IOW(0, 2, struct rdfpga_128bits)
@@ -89,25 +92,25 @@ int
 rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 {
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
-	struct rdfpga_128bits *bits = (struct rdfpga_128bits*)data;
+	struct rdfpga_128bits_alt *bits = (struct rdfpga_128bits_alt*)data;
         int err = 0, i;
 
         switch (cmd) {
         case RDFPGA_WC:
-		for (i = 0 ; i < 4 ; i++)
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*4)), bits->x[i] );
+		for (i = 0 ; i < 2 ; i++)
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*8)), bits->x[i] );
                 break;
         case RDFPGA_WH:
-		for (i = 0 ; i < 4 ; i++)
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_H + (i*4)), bits->x[i] );
+		for (i = 0 ; i < 2 ; i++)
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_H + (i*8)), bits->x[i] );
                 break;
         case RDFPGA_WI:
-		for (i = 0 ; i < 4 ; i++)
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + (i*4)), bits->x[i] );
+		for (i = 0 ; i < 2 ; i++)
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + (i*8)), bits->x[i] );
                 break;
         case RDFPGA_RC:
-		for (i = 0 ; i < 4 ; i++)
-			bits->x[i] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*4)));
+		for (i = 0 ; i < 2 ; i++)
+			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*8)));
                 break;
         case RDFPGA_WL:
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_LED, *(uint32_t*)data);
