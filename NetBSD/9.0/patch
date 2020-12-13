@@ -1,0 +1,38 @@
+diff -ur usr.orig/src/sys/arch/sparc/conf/majors.sparc usr/src/sys/arch/sparc/conf/majors.sparc
+--- usr.orig/src/sys/arch/sparc/conf/majors.sparc	2019-01-28 03:29:00.000000000 +0100
++++ usr/src/sys/arch/sparc/conf/majors.sparc	2020-12-13 13:58:42.239971068 +0100
+@@ -122,6 +122,7 @@
+ 
+ device-major	joy		char 137		joy
+ #device-major	obsolete	char 138		obsolete (opencrypto)
++device-major	rdfpga		char 139		rdfpga
+ 
+ # Majors up to 143 are reserved for machine-dependent drivers.
+ # New machine-independent driver majors are assigned in 
+diff -ur usr.orig/src/sys/dev/DEVNAMES usr/src/sys/dev/DEVNAMES
+--- usr.orig/src/sys/dev/DEVNAMES	2019-11-25 21:47:25.000000000 +0100
++++ usr/src/sys/dev/DEVNAMES	2020-12-13 13:14:08.522443504 +0100
+@@ -1144,6 +1144,7 @@
+ rbox			hp300
+ rd			hp300
+ rd			vax
++rdfpga			sparc
+ re			MI
+ repulse			amiga
+ repulse			amigappc
+diff -ur usr.orig/src/sys/dev/sbus/files.sbus usr/src/sys/dev/sbus/files.sbus
+--- usr.orig/src/sys/dev/sbus/files.sbus	2019-05-08 15:40:19.000000000 +0200
++++ usr/src/sys/dev/sbus/files.sbus	2020-12-13 08:16:49.587203688 +0100
+@@ -156,3 +156,10 @@
+ device	mgx: fb, rasops8, rasops32, wsemuldisplaydev, vcons, glyphcache
+ attach	mgx at sbus
+ file	dev/sbus/mgx.c			mgx
++
++#
++# Others
++#
++device	rdfpga {}
++attach	rdfpga at sbus
++file	dev/sbus/rdfpga.c
+Only in usr/src/sys/dev/sbus: rdfpga.c
+Only in usr/src/sys/dev/sbus: rdfpga.h
