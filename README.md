@@ -14,7 +14,9 @@ To save on PCB cost, the board is smaller than a 'true' SBus board; the director
 
 Directory 'sbus-to-ztex'
 
-The board is a SBus-compliant (I hope...) board, designed to receive a ZTex USB-FPGA Module 2.13 as a daughterboard. The ZTex module contains the actual FPGA (Artix-7), some RAM, programming hardware, etc. The SBus board contains level-shifters ICs to interface between the SBus signals and the FPGA, some Leds, a JTAG header, and a micro-sd card slot.
+The board is a SBus-compliant (I hope...) board, designed to receive a [ZTex USB-FPGA Module 2.13](https://www.ztex.de/usb-fpga-2/usb-fpga-2.13.e.html) as a daughterboard. The ZTex module contains the actual FPGA (Artix-7), some RAM, programming hardware, etc. The SBus board contains level-shifters ICs to interface between the SBus signals and the FPGA, some Leds, a JTAG header, and a micro-sd card slot.
+
+This was designed with Kicad 5.0.
 
 ## The gateware
 
