@@ -127,9 +127,6 @@ ARCHITECTURE RTL OF SBusFSM IS
     -- cycle after ACK is idle, everything goes back to Z before Idle
     -- also check for deasserting of AS
                        SBus_Slave_Ack_Reg_Write_Final,
-    -- cycle after ACK is idle, everything goes back to Z before Idle
-    -- we have already seen the deasserting of AS                       
-                       SBus_Slave_Ack_Reg_Write_Final_Idle,
     -- cycle(s) with data acquired from the bus & ACK of the next acquisition
     -- between 1 and 16 words (so 1 to 16 cycles in the state)
                        SBus_Slave_Ack_Reg_Write_Burst,
@@ -164,8 +161,9 @@ ARCHITECTURE RTL OF SBusFSM IS
                        SBus_Slave_Delay_Error,
     -- cycle where master detect the error (ACK or late)
     -- everything goes to Z before Idle
-                       SBus_Slave_Error,
-                       SBus_Slave_Heartbeat);
+                       SBus_Slave_Error
+--                       ,SBus_Slave_Heartbeat
+                       );
   TYPE Uart_States IS ( UART_IDLE, UART_WAITING );
                        
   SIGNAL State : SBus_States := SBus_Start;
@@ -193,10 +191,10 @@ ARCHITECTURE RTL OF SBusFSM IS
   
   
 --  SIGNAL LIFE_COUNTER48 : natural range 0 to 48000000 := 300;
-  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
+--  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
   SIGNAL RES_COUNTER : natural range 0 to 5 := 5;
-  -- counter to wait 12s before enabling SBus signals, without this the SS20 won't POST reliably...
-  -- this means a need to probe-sbus from the PROM to find the board
+  -- counter to wait 20s before enabling SBus signals, without this the SS20 won't POST reliably...
+  -- this means a need to probe-sbus from the PROM to find the board (or warm reset)
   SIGNAL OE_COUNTER : natural range 0 to 960000000 := 960000000;
 
   type GCM_REGISTERS_TYPE is array(0 to 15) of std_logic_vector(31 downto 0);
@@ -431,6 +429,7 @@ BEGIN
   variable BURST_COUNTER : integer range 0 to 15 := 0;
   variable BURST_LIMIT : integer range 1 to 16 := 1;
   variable BURST_INDEX : integer range 0 to 15;
+  variable seen_ack : boolean := false;
   BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
@@ -439,22 +438,22 @@ BEGIN
     ELSIF RISING_EDGE(SBUS_3V3_CLK) THEN
       fifo_rst <= '0';
       fifo_wr_en <= '0';
-      LIFE_COUNTER25 <= LIFE_COUNTER25 - 1;
+--      LIFE_COUNTER25 <= LIFE_COUNTER25 - 1;
       
       CASE State IS
         WHEN SBus_Idle =>
-          IF (LIFE_COUNTER25 <= 200000) THEN
-            LIFE_COUNTER25 <= 25000000;
-            fifo_wr_en <= '1';
-            -- fifo_din <= x"40"; -- "@"
-            fifo_din <= b"01" & SBUS_3V3_SELs & SBUS_3V3_ASs & SBUS_3V3_PPRD & SBUS_3V3_SIZ;
-            State <= SBus_Slave_Heartbeat;
+--          IF (LIFE_COUNTER25 <= 200000) THEN
+--            LIFE_COUNTER25 <= 25000000;
+--            fifo_wr_en <= '1';
+--            fifo_din <= b"01" & SBUS_3V3_SELs & SBUS_3V3_ASs & SBUS_3V3_PPRD & SBUS_3V3_SIZ;
+--            State <= SBus_Slave_Heartbeat;
 -- Anything pointing to SBus_Idle should SBus_Set_Default
 -- 			    SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
 --			                     SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
 --			                     p_addr, DATA_T, LED_RESET);
 -- READ READ READ --
-          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(SBUS_3V3_SIZ) AND SBUS_3V3_PPRD='1' THEN
+--          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(SBUS_3V3_SIZ) AND SBUS_3V3_PPRD='1' THEN
+          IF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(SBUS_3V3_SIZ) AND SBUS_3V3_PPRD='1' THEN
             fifo_wr_en <= '1'; fifo_din <= x"41"; -- "A"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED <= '1';
@@ -590,10 +589,9 @@ BEGIN
             mas_b(127 downto 96) <= reverse_bit_in_byte(GCM_REGISTERS(3));
           END IF;
           IF (SBUS_3V3_ASs='1') THEN
-            State <= SBus_Slave_Ack_Reg_Write_Final_Idle;
-          ELSE
-            State <= SBus_Slave_Ack_Reg_Write_Final;
+            seen_ack := true;
           END IF;
+          State <= SBus_Slave_Ack_Reg_Write_Final;
           
         WHEN SBus_Slave_Ack_Reg_Write_Final =>
           fifo_wr_en <= '1'; fifo_din <= x"46"; -- "F"
@@ -607,23 +605,10 @@ BEGIN
             GCM_REGISTERS(6) <= reverse_bit_in_byte(mas_c(95  downto 64));
             GCM_REGISTERS(7) <= reverse_bit_in_byte(mas_c(127 downto 96));
           END IF;
-          IF (SBUS_3V3_ASs='1') THEN
+          IF ((seen_ack) OR (SBUS_3V3_ASs='1')) THEN
+            seen_ack := false;
             State <= SBus_Idle;
           END IF;
-
-        WHEN SBus_Slave_Ack_Reg_Write_Final_Idle =>
-          fifo_wr_en <= '1'; fifo_din <= x"47"; -- "G"
-          SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
-                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, LED_RESET);
-          IF (do_gcm) THEN
-            do_gcm := false;
-            GCM_REGISTERS(4) <= reverse_bit_in_byte(mas_c(31  downto  0));
-            GCM_REGISTERS(5) <= reverse_bit_in_byte(mas_c(63  downto 32));
-            GCM_REGISTERS(6) <= reverse_bit_in_byte(mas_c(95  downto 64));
-            GCM_REGISTERS(7) <= reverse_bit_in_byte(mas_c(127 downto 96));
-          END IF;
-          State <= SBus_Idle;
           
         WHEN SBus_Slave_Ack_Reg_Write_Burst =>
           fifo_wr_en <= '1'; fifo_din <= x"48"; -- "H"
@@ -740,14 +725,14 @@ BEGIN
           SBUS_3V3_ERRs <= '0'; -- two cycles after ACK
           State <= SBus_Slave_Error;
           
-        WHEN SBus_Slave_Heartbeat =>
-          State <= SBus_Idle;
+--        WHEN SBus_Slave_Heartbeat =>
+--          State <= SBus_Idle;
           
         WHEN OTHERS => -- include SBus_Start
           SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                            p_addr, DATA_T, LED_RESET);
-          -- SBUS_OE <= '0'; -- enable all signals
+          -- SBUS_OE <= '0'; -- enable all signals -- moved to COUNTER48 timer
           if SBUS_3V3_RSTs = '1' then
             IF (RES_COUNTER = 0) THEN
               fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
