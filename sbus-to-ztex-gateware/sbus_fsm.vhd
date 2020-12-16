@@ -392,6 +392,8 @@ BEGIN
         IO => SBUS_3V3_D(i),         -- Buffer INOUT PORT (connect directly to top-level PORT)
         I => BUF_DATA_O(i),         -- Buffer input (warning - data going to SBUS so O)
         T => DATA_T              -- 3-state enable input, high=input, low=output
+        -- DATA_T is 1 by default, so input from the SBus (e.g. during slave *write* cycle)
+        -- DATA_T should be set to 1 during slave *read* cycle, when we send data to the SBus (IOBUS is an output)
         );
   end generate GENDATABUF;
 
