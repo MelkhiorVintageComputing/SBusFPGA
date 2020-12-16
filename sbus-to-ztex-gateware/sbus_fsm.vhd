@@ -19,12 +19,12 @@ ENTITY SBusFSM is
     -- true SBus signals
     SBUS_3V3_CLK : 	IN STD_LOGIC; -- 16.67..25 MHz SBus Clock
     SBUS_3V3_RSTs : 	IN STD_LOGIC;
-    SBUS_3V3_SELs : 	IN STD_LOGIC;
+    SBUS_3V3_SELs : 	IN STD_LOGIC; -- slave only
     SBUS_3V3_ASs : 	IN STD_LOGIC;
     SBUS_3V3_PPRD : 	IN STD_LOGIC; -- OUT during extended transfers and on masters; input for masters only during ET
     SBUS_3V3_SIZ :     IN std_logic_vector(2 downto 0); -- OUT during extended transfers and on masters; input for masters only during ET
     SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0) := (others => 'Z'); -- IN on masters
-    SBUS_3V3_PA :      IN std_logic_vector(27 downto 0); -- OUT during extended transfers and on masters
+    SBUS_3V3_PA :      IN std_logic_vector(27 downto 0); -- OUT during extended transfers
     SBUS_3V3_ERRs : 	OUT STD_LOGIC := 'Z'; -- IN on masters
     SBUS_3V3_D :      INOUT std_logic_vector(31 downto 0);
     SBUS_3V3_INT1s : 	OUT STD_LOGIC := 'Z';
