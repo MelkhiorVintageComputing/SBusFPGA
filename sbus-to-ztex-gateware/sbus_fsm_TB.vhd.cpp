@@ -77,11 +77,11 @@ PORT (
       SBUS_3V3_RSTs : 	IN STD_LOGIC;
       SBUS_3V3_SELs : 	IN STD_LOGIC;
       SBUS_3V3_ASs : 	IN STD_LOGIC;
-      SBUS_3V3_PPRD : 	IN STD_LOGIC;
-      SBUS_3V3_SIZ :     IN std_logic_vector(2 downto 0);
-      SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0);
+      SBUS_3V3_PPRD : 	INOUT STD_LOGIC;
+      SBUS_3V3_SIZ :     INOUT std_logic_vector(2 downto 0);
+      SBUS_3V3_ACKs :     INOUT std_logic_vector(2 downto 0);
       SBUS_3V3_PA :      IN std_logic_vector(27 downto 0);
-      SBUS_3V3_ERRs : 	OUT STD_LOGIC;
+      SBUS_3V3_ERRs : 	INOUT STD_LOGIC;
       SBUS_3V3_D :      INOUT std_logic_vector(31 downto 0);
       SBUS_3V3_INT1s : 	OUT STD_LOGIC;
       SBUS_3V3_INT7s : 	OUT STD_LOGIC;
@@ -306,7 +306,7 @@ SBUS_3V3_D <= (others => 'Z');
 SBUS_3V3_PA <= (others => 'Z');
 SBUS_3V3_SIZ <= (others => 'Z');
 SBUS_3V3_BGs <= 'Z';
-wait for 220 ns;                        -- wait for reset to be done
+wait for 420 ns;                        -- wait for reset to be done
 
 #ifdef WRITE_LEDS_WORD
 -- test 32 bits write to leds

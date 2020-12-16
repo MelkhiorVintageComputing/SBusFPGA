@@ -18,15 +18,16 @@ ENTITY SBusFSM is
     fxclk_in: IN std_logic; -- 48 MHz FX2 clock
     -- true SBus signals
     SBUS_3V3_CLK : 	IN STD_LOGIC; -- 16.67..25 MHz SBus Clock
-    SBUS_3V3_RSTs : 	IN STD_LOGIC;
-    SBUS_3V3_SELs : 	IN STD_LOGIC; -- slave only
+    SBUS_3V3_RSTs : IN STD_LOGIC;
+    SBUS_3V3_SELs : IN STD_LOGIC; -- slave only
     SBUS_3V3_ASs : 	IN STD_LOGIC;
-    SBUS_3V3_PPRD : 	IN STD_LOGIC; -- OUT during extended transfers and on masters; input for masters only during ET
-    SBUS_3V3_SIZ :     IN std_logic_vector(2 downto 0); -- OUT during extended transfers and on masters; input for masters only during ET
-    SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0) := (others => 'Z'); -- IN on masters
-    SBUS_3V3_PA :      IN std_logic_vector(27 downto 0); -- OUT during extended transfers
-    SBUS_3V3_ERRs : 	OUT STD_LOGIC := 'Z'; -- IN on masters
-    SBUS_3V3_D :      INOUT std_logic_vector(31 downto 0);
+    SBUS_3V3_PPRD : INOUT STD_LOGIC; -- IN slaves; OUT during extended transfers and on masters; input for masters only during ET
+    SBUS_3V3_SIZ :  INOUT std_logic_vector(2 downto 0); -- IN slaves; OUT during extended transfers and on masters; input for masters only during ET
+    SBUS_3V3_ACKs : INOUT std_logic_vector(2 downto 0); -- OUT slaves; IN on masters
+    SBUS_3V3_ERRs : INOUT STD_LOGIC; -- OUT slaves; IN on masters
+    SBUS_3V3_D :    INOUT std_logic_vector(31 downto 0);
+    SBUS_3V3_PA :   IN std_logic_vector(27 downto 0); -- IN all; OUT during extended transfers
+    -- two interupts line
     SBUS_3V3_INT1s : 	OUT STD_LOGIC := 'Z';
     SBUS_3V3_INT7s : 	OUT STD_LOGIC := 'Z';
     -- master-only signals
@@ -170,10 +171,18 @@ ARCHITECTURE RTL OF SBusFSM IS
   SIGNAL Uart_State : Uart_States := UART_IDLE;
   SIGNAL LED_RESET: std_logic := '0';
   SIGNAL LED_DATA: std_logic_vector(31 downto 0) := (others => '0');
-  signal DATA_T : std_logic := '1'; -- I/O control for IOBUF, default to input
-  signal BUF_DATA_I, BUF_DATA_O : std_logic_vector(31 downto 0); --buffers for data from/to
+  signal DATA_T : std_logic := '1'; -- I/O control for DATA IOBUF, default to input
+  signal BUF_DATA_I, BUF_DATA_O : std_logic_vector(31 downto 0); -- buffers for data from/to
   SIGNAL p_addr : std_logic_vector(6 downto 0) := "1111111"; -- addr lines to prom
   SIGNAL p_data : std_logic_vector(31 downto 0); -- data lines to prom
+  
+  signal SM_T : std_logic := '1'; -- I/O control for others (Slave/Master) IOBUF, default to Slave (in)
+  signal SMs_T : std_logic := '1'; -- I/O control for others (Slave/Master) IOBUF, default to Master (in)
+  -- so PPRD and SIZ are IN, ACKs and ERRs are OUT (and use 'SMs_T')
+  signal BUF_PPRD_I, BUF_PPRD_O : std_logic; -- buffers for PPRD from/to
+  signal BUF_SIZ_I, BUF_SIZ_O : std_logic_vector(2 downto 0); -- buffers for SIZs from/to
+  signal BUF_ACKs_I, BUF_ACKs_O : std_logic_vector(2 downto 0); -- buffers for ACK from/to
+  signal BUF_ERRs_I, BUF_ERRs_O : std_logic; -- buffers for ERRs from/to
   
   -- signal uart_clk : std_logic; -- 5.76 MHz clock for FIFO write & UART
   
@@ -192,7 +201,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   
 --  SIGNAL LIFE_COUNTER48 : natural range 0 to 48000000 := 300;
 --  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
-  SIGNAL RES_COUNTER : natural range 0 to 5 := 5;
+  SIGNAL RES_COUNTER : natural range 0 to 4 := 4;
   -- counter to wait 20s before enabling SBus signals, without this the SS20 won't POST reliably...
   -- this means a need to probe-sbus from the PROM to find the board (or warm reset)
   SIGNAL OE_COUNTER : natural range 0 to 960000000 := 960000000;
@@ -354,8 +363,8 @@ ARCHITECTURE RTL OF SBusFSM IS
   end component clk_wiz_0;
 
   PROCEDURE SBus_Set_Default(
-    signal SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0);
-    signal SBUS_3V3_ERRs : 	OUT STD_LOGIC;
+--    signal SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0);
+--    signal SBUS_3V3_ERRs : 	OUT STD_LOGIC;
     signal SBUS_3V3_INT1s : 	OUT STD_LOGIC;
     signal SBUS_3V3_INT7s : 	OUT STD_LOGIC;
     -- support leds
@@ -364,25 +373,29 @@ ARCHITECTURE RTL OF SBusFSM IS
     -- ROM
     signal p_addr : OUT std_logic_vector(6 downto 0); -- TODO: how to reference the add_bits from PROM ?
     -- Data buffers
-    signal DATA_T : OUT std_logic; -- I/O control for IOBUF
+    signal DATA_T : OUT std_logic; -- I/O control for data IOBUF
+    signal SM_T : OUT std_logic; -- I/O control for SM IOBUF
+    signal SMs_T : OUT std_logic; -- I/O control for SM IOBUF, negated
     -- Data LEDS
     signal LED_RESET: OUT std_logic -- force LED cycling from start
     ) IS
   BEGIN
     SBUS_DATA_OE_LED <= '0'; -- off
     SBUS_DATA_OE_LED_2 <= '0'; -- off
-    SBUS_3V3_ACKs <= ACK_DISABLED; -- no drive
-    SBUS_3V3_ERRs <= 'Z'; -- idle
+--    SBUS_3V3_ACKs <= ACK_DISABLED; -- no drive
+--    SBUS_3V3_ERRs <= 'Z'; -- idle
     SBUS_3V3_INT1s <= 'Z';
     SBUS_3V3_INT7s <= 'Z';
     p_addr <= "1111111"; -- look-up last element, all-0
     DATA_T <= '1'; -- set buffer as input
+    SM_T <= '1'; -- set buffer as slave mode (in)
+    SMs_T <= '1'; -- set buffer as master mode (in)
     LED_RESET <= '0'; -- let data LEDs do their thing
   END PROCEDURE;
   
 BEGIN
-  GENDATABUF: for i IN 0 to 31 generate     
-    IOBx : IOBUF
+  GENDATABUF: for i IN 0 to 31 generate
+    IOBdata : IOBUF
       GENERIC MAP(
         DRIVE => 12,
         IOSTANDARD => "DEFAULT",
@@ -396,6 +409,19 @@ BEGIN
         -- DATA_T should be set to 1 during slave *read* cycle, when we send data to the SBus (IOBUS is an output)
         );
   end generate GENDATABUF;
+
+  IOBpprd : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
+                  PORT MAP(O => BUF_PPRD_I, IO => SBUS_3V3_PPRD, I => BUF_PPRD_O, T => SM_T);
+  GENSIZBUF: for i IN 0 to 2 generate
+    IOBsiz : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
+                   PORT MAP (O => BUF_SIZ_I(i), IO => SBUS_3V3_SIZ(i), I => BUF_SIZ_O(i), T => SM_T);
+  end generate GENSIZBUF;
+  GENACKBUF: for i IN 0 to 2 generate
+    IOBacks : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
+                   PORT MAP (O => BUF_ACKs_I(i), IO => SBUS_3V3_ACKs(i), I => BUF_ACKs_O(i), T => SMs_T);
+  end generate GENACKBUF;
+  IOBerrs : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
+                  PORT MAP(O => BUF_ERRs_I, IO => SBUS_3V3_ERRs, I => BUF_ERRs_O, T => SMs_T);
 
   --label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => LED_DATA, l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3 );
   label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => LED_DATA, l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
@@ -436,9 +462,9 @@ BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
       fifo_rst <= '1';
+      RES_COUNTER <= 4;
       
     ELSIF RISING_EDGE(SBUS_3V3_CLK) THEN
-      fifo_rst <= '0';
       fifo_wr_en <= '0';
 --      LIFE_COUNTER25 <= LIFE_COUNTER25 - 1;
       
@@ -447,101 +473,106 @@ BEGIN
 --          IF (LIFE_COUNTER25 <= 200000) THEN
 --            LIFE_COUNTER25 <= 25000000;
 --            fifo_wr_en <= '1';
---            fifo_din <= b"01" & SBUS_3V3_SELs & SBUS_3V3_ASs & SBUS_3V3_PPRD & SBUS_3V3_SIZ;
+--            fifo_din <= b"01" & SBUS_3V3_SELs & SBUS_3V3_ASs & SBUS_3V3_PPRD & BUF_SIZ_I;
 --            State <= SBus_Slave_Heartbeat;
 -- Anything pointing to SBus_Idle should SBus_Set_Default
 -- 			    SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
 --			                     SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
---			                     p_addr, DATA_T, LED_RESET);
+--			                     p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
 -- READ READ READ --
---          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(SBUS_3V3_SIZ) AND SBUS_3V3_PPRD='1' THEN
-          IF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(SBUS_3V3_SIZ) AND SBUS_3V3_PPRD='1' THEN
+--          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(BUF_SIZ_I) AND BUF_PPRD_I='1' THEN
+          IF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(BUF_SIZ_I) AND BUF_PPRD_I='1' THEN
+            SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
             fifo_wr_en <= '1'; fifo_din <= x"41"; -- "A"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED <= '1';
             BURST_COUNTER := 0;
-            BURST_LIMIT := SIZ_TO_BURSTSIZE(SBUS_3V3_SIZ);
+            BURST_LIMIT := SIZ_TO_BURSTSIZE(BUF_SIZ_I);
             IF ((last_pa(27 downto 9) = ROM_ADDR_PFX) AND (last_pa(1 downto 0) = "00")) then
               -- 32 bits read from aligned memory IN PROM space ------------------------------------
-              SBUS_3V3_ACKs <= ACK_WORD;
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_WORD;
+              BUF_ERRs_O <= '1'; -- no late error
               -- word address goes to the p_addr lines
               p_addr <= last_pa(8 downto 2);
               State <= SBus_Slave_Ack_Read_Prom_Burst;
             ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) AND REG_OFFSET_IS_ANYGCM(last_pa(8 downto 0))) then
               -- 32 bits read from aligned memory IN REG space ------------------------------------
-              SBUS_3V3_ACKs <= ACK_WORD;
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_WORD;
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Ack_Read_Reg_Burst;
             ELSE
-              SBUS_3V3_ACKs <= ACK_ERR;
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_ERR;
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Error;
             END IF;
-          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SBUS_3V3_SIZ = SIZ_BYTE AND SBUS_3V3_PPRD='1' THEN
+          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I = SIZ_BYTE AND BUF_PPRD_I='1' THEN
+            SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
             fifo_wr_en <= '1'; fifo_din <= x"42"; -- "B"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED <= '1';
             IF (last_pa(27 downto 9) = ROM_ADDR_PFX) then
               -- 8 bits read from memory IN PROM space ------------------------------------
-              SBUS_3V3_ACKs <= ACK_BYTE;
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_BYTE;
+              BUF_ERRs_O <= '1'; -- no late error
               -- word address goes to the p_addr lines
               p_addr <= last_pa(8 downto 2);
               State <= SBus_Slave_Ack_Read_Prom_Byte;
             ELSE
-              SBUS_3V3_ACKs <= ACK_ERR;
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_ERR;
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Error;
             END IF;
-          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SBUS_3V3_SIZ = SIZ_HWORD AND SBUS_3V3_PPRD='1' THEN
+          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I = SIZ_HWORD AND BUF_PPRD_I='1' THEN
+            SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
             fifo_wr_en <= '1'; fifo_din <= x"43"; -- "C"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED <= '1';
             IF ((last_pa(27 downto 9) = ROM_ADDR_PFX) and (last_pa(0) = '0')) then
               -- 16 bits read from memory IN PROM space ------------------------------------
-              SBUS_3V3_ACKs <= ACK_HWORD;
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_HWORD;
+              BUF_ERRs_O <= '1'; -- no late error
               -- word address goes to the p_addr lines
               p_addr <= last_pa(8 downto 2);
               State <= SBus_Slave_Ack_Read_Prom_HWord;
             ELSE
-              SBUS_3V3_ACKs <= ACK_ERR;
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_ERR;
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Error;
             END IF;
 -- WRITE WRITE WRITE --
-          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(SBUS_3V3_SIZ) AND SBUS_3V3_PPRD='0' THEN
+          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SIZ_IS_WORD(BUF_SIZ_I) AND BUF_PPRD_I='0' THEN
+            SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
             fifo_wr_en <= '1'; fifo_din <= x"44"; -- "D"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED_2 <= '1';
             BURST_COUNTER := 0;
-            BURST_LIMIT := SIZ_TO_BURSTSIZE(SBUS_3V3_SIZ);
+            BURST_LIMIT := SIZ_TO_BURSTSIZE(BUF_SIZ_I);
             IF ((last_pa(27 downto 9) = REG_ADDR_PFX) and (last_pa(8 downto 0) = REG_OFFSET_LED)) then
               -- 32 bits write to LED register  ------------------------------------
-              if (SBUS_3V3_SIZ = SIZ_WORD) THEN
+              if (BUF_SIZ_I = SIZ_WORD) THEN
                 LED_RESET <= '1'; -- reset led cycle
                 --DATA_T <= '1'; -- set buffer as input
                 LED_DATA <= BUF_DATA_I; -- display data
-                SBUS_3V3_ACKs <=  ACK_WORD; -- acknowledge the Word
-                SBUS_3V3_ERRs <= '1'; -- no late error
+                BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
+                BUF_ERRs_O <= '1'; -- no late error
                 State <= SBus_Slave_Ack_Reg_Write;
               ELSE
-                SBUS_3V3_ACKs <=  ACK_ERR;
-                SBUS_3V3_ERRs <= '1'; -- no late error
+                BUF_ACKs_O <=  ACK_ERR;
+                BUF_ERRs_O <= '1'; -- no late error
                 State <= SBus_Slave_Error;
               END IF;
             ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANYGCM(last_pa(8 downto 0))) then
               -- 32 bits write to GCM register  ------------------------------------
-              SBUS_3V3_ACKs <=  ACK_WORD; -- acknowledge the Word
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Ack_Reg_Write_Burst;
             ELSE
-              SBUS_3V3_ACKs <= ACK_ERR; -- unsupported address, signal error
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_ERR; -- unsupported address, signal error
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Error; 
             END IF;
-          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SBUS_3V3_SIZ = SIZ_BYTE AND SBUS_3V3_PPRD='0' THEN
+          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I = SIZ_BYTE AND BUF_PPRD_I='0' THEN
+            SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
             fifo_wr_en <= '1'; fifo_din <= x"45"; -- "E"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED_2 <= '1';
@@ -561,25 +592,26 @@ BEGIN
               WHEN OTHERS =>
                 -- TODO: FIXME, probably should generate an error
               END CASE;
-              SBUS_3V3_ACKs <=  ACK_BYTE; -- acknowledge the Byte
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <=  ACK_BYTE; -- acknowledge the Byte
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Ack_Reg_Write;
             ELSE
-              SBUS_3V3_ACKs <= ACK_ERR; -- unsupported address, signal error
-              SBUS_3V3_ERRs <= '1'; -- no late error
+              BUF_ACKs_O <= ACK_ERR; -- unsupported address, signal error
+              BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Error; 
             END IF;
 -- ERROR ERROR ERROR 
-          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND SBUS_3V3_SIZ /= SIZ_WORD THEN
+          ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I /= SIZ_WORD THEN
+            SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
             fifo_wr_en <= '1'; fifo_din <= x"58"; -- "X"
-            SBUS_3V3_ACKs <= ACK_ERR; -- unsupported config, signal error
-            SBUS_3V3_ERRs <= '1'; -- no late error
+            BUF_ACKs_O <= ACK_ERR; -- unsupported config, signal error
+            BUF_ERRs_O <= '1'; -- no late error
             State <= SBus_Slave_Error; 
           END IF;
 -- -- -- --
         WHEN SBus_Slave_Ack_Reg_Write =>
           fifo_wr_en <= '1'; fifo_din <= x"45"; -- "E"
-          SBUS_3V3_ACKs <= ACK_IDLE; -- need one cycle of idle
+          BUF_ACKs_O <= ACK_IDLE; -- need one cycle of idle
           IF (do_gcm) THEN
             mas_a(31  downto  0) <= reverse_bit_in_byte(GCM_REGISTERS(8) xor GCM_REGISTERS(4));
             mas_a(63  downto 32) <= reverse_bit_in_byte(GCM_REGISTERS(9) xor GCM_REGISTERS(5));
@@ -597,9 +629,9 @@ BEGIN
           
         WHEN SBus_Slave_Ack_Reg_Write_Final =>
           fifo_wr_en <= '1'; fifo_din <= x"46"; -- "F"
-          SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+          SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, LED_RESET);
+                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
           IF (do_gcm) THEN
             do_gcm := false;
             GCM_REGISTERS(4) <= reverse_bit_in_byte(mas_c(31  downto  0));
@@ -616,7 +648,7 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"48"; -- "H"
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
           GCM_REGISTERS(BURST_INDEX) <= BUF_DATA_I;
-          SBUS_3V3_ACKs <= ACK_WORD; -- acknowledge the Word
+          BUF_ACKs_O <= ACK_WORD; -- acknowledge the Word
           IF (BURST_INDEX = REG_INDEX_GCM_INPUT4) THEN
             do_gcm := true;
           END IF;
@@ -634,10 +666,10 @@ BEGIN
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP((BURST_COUNTER + 1), BURST_LIMIT, last_pa(5 downto 2)));
           p_addr <= last_pa(8 downto 6) & conv_std_logic_vector(BURST_INDEX,4); -- for next cycle
           if (BURST_COUNTER = (BURST_LIMIT-1)) then
-            SBUS_3V3_ACKs <= ACK_IDLE;
+            BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Do_Read;
           else
-            SBUS_3V3_ACKs <= ACK_WORD;
+            BUF_ACKs_O <= ACK_WORD;
             BURST_COUNTER := BURST_COUNTER + 1;
           end if;
           
@@ -647,18 +679,18 @@ BEGIN
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
           BUF_DATA_O <= GCM_REGISTERS(BURST_INDEX);
           if (BURST_COUNTER = (BURST_LIMIT-1)) then
-            SBUS_3V3_ACKs <= ACK_IDLE;
+            BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Do_Read;
           else
-            SBUS_3V3_ACKs <= ACK_WORD;
+            BUF_ACKs_O <= ACK_WORD;
             BURST_COUNTER := BURST_COUNTER + 1;
           end if;
           
         WHEN SBus_Slave_Do_Read => -- this is the (last) cycle IN which the master read
           fifo_wr_en <= '1'; fifo_din <= x"4B"; -- "K"
-          SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+          SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, LED_RESET);
+                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
           IF (SBUS_3V3_ASs='1') THEN
             State <= SBus_Idle;
           END IF;
@@ -666,7 +698,7 @@ BEGIN
         WHEN SBus_Slave_Ack_Read_Prom_Byte =>
           fifo_wr_en <= '1'; fifo_din <= x"4C"; -- "L"
           IF (last_pa(27 downto 9) = ROM_ADDR_PFX) then -- do we need to re-test ?
-            SBUS_3V3_ACKs <= ACK_IDLE;
+            BUF_ACKs_O <= ACK_IDLE;
             -- put data from PROM on the bus
             DATA_T <= '0'; -- set buffer as output
             CASE last_pa(1 downto 0) IS
@@ -687,14 +719,14 @@ BEGIN
             END CASE;
             State <= SBus_Slave_Do_Read;
           ELSE
-            SBUS_3V3_ACKs <= ACK_IDLE;
+            BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Delay_Error; 
           END IF;
           
         WHEN SBus_Slave_Ack_Read_Prom_HWord =>
           fifo_wr_en <= '1'; fifo_din <= x"4D"; -- "M"
           IF ((last_pa(27 downto 9) = ROM_ADDR_PFX) and (last_pa(0) = '0'))then -- do we need to re-test ?
-            SBUS_3V3_ACKs <= ACK_IDLE;
+            BUF_ACKs_O <= ACK_IDLE;
             -- put data from PROM on the bus
             DATA_T <= '0'; -- set buffer as output
             CASE last_pa(1) IS
@@ -709,41 +741,43 @@ BEGIN
             END CASE;
             State <= SBus_Slave_Do_Read;
           ELSE
-            SBUS_3V3_ACKs <= ACK_IDLE;
+            BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Delay_Error; 
           END IF;
           
         WHEN SBus_Slave_Error =>
           fifo_wr_en <= '1'; fifo_din <= x"59"; -- "Y"
-          SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+          SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, LED_RESET);
+                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
           IF (SBUS_3V3_ASs='1') THEN
             State <= SBus_Idle;
           END IF;
           
         WHEN SBus_Slave_Delay_Error =>
           fifo_wr_en <= '1'; fifo_din <= x"5A"; -- "Z"
-          SBUS_3V3_ERRs <= '0'; -- two cycles after ACK
+          BUF_ERRs_O <= '0'; -- two cycles after ACK
           State <= SBus_Slave_Error;
           
 --        WHEN SBus_Slave_Heartbeat =>
 --          State <= SBus_Idle;
           
         WHEN OTHERS => -- include SBus_Start
-          SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
-                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, LED_RESET);
           -- SBUS_OE <= '0'; -- enable all signals -- moved to COUNTER48 timer
           if SBUS_3V3_RSTs = '1' then
+          SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             IF (RES_COUNTER = 0) THEN
-              fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
+              -- fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
               State <= SBus_Idle;
             ELSE
+              fifo_rst <= '0';
               RES_COUNTER <= RES_COUNTER - 1;
             END IF;
-          else
-            RES_COUNTER <= 5;
+          else -- shouldn't happen ?
+            fifo_rst <= '1';
+            RES_COUNTER <= 4;
           END IF;
       END CASE;
     END IF;
