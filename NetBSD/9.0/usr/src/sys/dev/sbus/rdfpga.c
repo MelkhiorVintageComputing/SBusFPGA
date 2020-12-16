@@ -230,7 +230,7 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	if (sbusburst == 0)
 		sbusburst = SBUS_BURST_32 - 1; /* 1->16 */
 
-	sc->sc_burst = prom_getpropint(node, "burst-sizes", -1);
+	sc->sc_burst = prom_getpropint(node, "slave-burst-sizes", -1);
 	if (sc->sc_burst == -1)
 		/* take SBus burst sizes */
 		sc->sc_burst = sbusburst;
@@ -238,8 +238,10 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	/* Clamp at parent's burst sizes */
 	sc->sc_burst &= sbusburst;
 
-	aprint_normal_dev(self, " nid %d, burst %x\n",
+	aprint_normal("\n");
+	aprint_normal_dev(self, " nid 0x%x, bustag %p, slave-burst 0x%x\n",
 			  sc->sc_node,
+			  sc->sc_bustag,
 			  sc->sc_burst);
 
 	/* change blink pattern */

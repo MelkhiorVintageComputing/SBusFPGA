@@ -41,7 +41,6 @@ struct rdfpga_softc {
 	bus_space_handle_t sc_bhregs;	/* bus handle */
 	//void *	sc_buffer;		/* VA of the registers */
 	int	sc_bufsiz;		/* Size of buffer */
-	int	attached;		/* 1: in use by `le' device */
 };
 
 #define RDFPGA_REG_LED 0x0
