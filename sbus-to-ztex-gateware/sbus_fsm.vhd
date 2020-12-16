@@ -91,6 +91,10 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_GCM_INPUT6 : integer := 13; -- placeholder
   CONSTANT REG_INDEX_GCM_INPUT7 : integer := 14; -- placeholder
   CONSTANT REG_INDEX_GCM_INPUT8 : integer := 15; -- placeholder
+  CONSTANT REG_INDEX_DMA_ADDR   : integer := 16;
+  CONSTANT REG_INDEX_DMA_CTRL   : integer := 17;
+  CONSTANT REG_INDEX_DMA_CTRL2  : integer := 18; -- placeholder
+  CONSTANT REG_INDEX_DMA_CTRL3  : integer := 19; -- placeholder
   
   CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_H1*4, 9);
   CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_H2*4, 9);
@@ -108,6 +112,10 @@ ENTITY SBusFSM is
   CONSTANT REG_OFFSET_GCM_INPUT6 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT6*4, 9); -- placeholder
   CONSTANT REG_OFFSET_GCM_INPUT7 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT7*4, 9); -- placeholder
   CONSTANT REG_OFFSET_GCM_INPUT8 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT8*4, 9); -- placeholder
+  CONSTANT REG_OFFSET_DMA_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_ADDR  *4, 9);
+  CONSTANT REG_OFFSET_DMA_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_CTRL  *4, 9);
+  CONSTANT REG_OFFSET_DMA_CTRL2  : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_CTRL2 *4, 9); -- placeholder
+  CONSTANT REG_OFFSET_DMA_CTRL3  : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_CTRL3 *4, 9); -- placeholder
   
   constant c_CLKS_PER_BIT : integer := 417; -- 48M/115200
   -- constant c_CLKS_PER_BIT : integer := 50; -- 5.76M/115200
@@ -206,8 +214,9 @@ ARCHITECTURE RTL OF SBusFSM IS
   -- this means a need to probe-sbus from the PROM to find the board (or warm reset)
   SIGNAL OE_COUNTER : natural range 0 to 960000000 := 960000000;
 
-  type GCM_REGISTERS_TYPE is array(0 to 15) of std_logic_vector(31 downto 0);
-  SIGNAL GCM_REGISTERS : GCM_REGISTERS_TYPE;
+  -- 16 registers for GCM (12 used), 4 for DMA (2 used ATM)
+  type REGISTERS_TYPE is array(0 to 19) of std_logic_vector(31 downto 0);
+  SIGNAL REGISTERS : REGISTERS_TYPE;
   
   pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(8 downto 0)) return boolean is
   begin
@@ -230,10 +239,22 @@ ARCHITECTURE RTL OF SBusFSM IS
            (REG_OFFSET_GCM_C3 = value) OR
            (REG_OFFSET_GCM_C4 = value);
   end function;
+  pure function REG_OFFSET_IS_DMA(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return (REG_OFFSET_DMA_ADDR  = value) OR
+           (REG_OFFSET_DMA_CTRL  = value) OR
+           (REG_OFFSET_DMA_CTRL2  = value) OR
+           (REG_OFFSET_DMA_CTRL3  = value);
+  end function;
 
-  pure function REG_OFFSET_IS_ANYGCM (value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANYGCM(value : in std_logic_vector(8 downto 0)) return boolean is
   begin
     return REG_OFFSET_IS_GCMINPUT(value) or REG_OFFSET_IS_GCMH(value) or REG_OFFSET_IS_GCMC(value);
+  end function;
+
+  pure function REG_OFFSET_IS_ANY(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return REG_OFFSET_IS_ANYGCM(value) or REG_OFFSET_IS_DMA(value);
   end function;
   
   pure function SIZ_IS_WORD(value : in std_logic_vector(2 downto 0)) return boolean is
@@ -495,7 +516,7 @@ BEGIN
               -- word address goes to the p_addr lines
               p_addr <= last_pa(8 downto 2);
               State <= SBus_Slave_Ack_Read_Prom_Burst;
-            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) AND REG_OFFSET_IS_ANYGCM(last_pa(8 downto 0))) then
+            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) AND REG_OFFSET_IS_ANY(last_pa(8 downto 0))) then
               -- 32 bits read from aligned memory IN REG space ------------------------------------
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
@@ -561,7 +582,7 @@ BEGIN
                 BUF_ERRs_O <= '1'; -- no late error
                 State <= SBus_Slave_Error;
               END IF;
-            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANYGCM(last_pa(8 downto 0))) then
+            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANY(last_pa(8 downto 0))) then
               -- 32 bits write to GCM register  ------------------------------------
               BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
               BUF_ERRs_O <= '1'; -- no late error
@@ -613,14 +634,14 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"45"; -- "E"
           BUF_ACKs_O <= ACK_IDLE; -- need one cycle of idle
           IF (do_gcm) THEN
-            mas_a(31  downto  0) <= reverse_bit_in_byte(GCM_REGISTERS(8) xor GCM_REGISTERS(4));
-            mas_a(63  downto 32) <= reverse_bit_in_byte(GCM_REGISTERS(9) xor GCM_REGISTERS(5));
-            mas_a(95  downto 64) <= reverse_bit_in_byte(GCM_REGISTERS(10) xor GCM_REGISTERS(6));
-            mas_a(127 downto 96) <= reverse_bit_in_byte(GCM_REGISTERS(11) xor GCM_REGISTERS(7));
-            mas_b(31  downto  0) <= reverse_bit_in_byte(GCM_REGISTERS(0));
-            mas_b(63  downto 32) <= reverse_bit_in_byte(GCM_REGISTERS(1));
-            mas_b(95  downto 64) <= reverse_bit_in_byte(GCM_REGISTERS(2));
-            mas_b(127 downto 96) <= reverse_bit_in_byte(GCM_REGISTERS(3));
+            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(8) xor REGISTERS(4));
+            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(9) xor REGISTERS(5));
+            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(10) xor REGISTERS(6));
+            mas_a(127 downto 96) <= reverse_bit_in_byte(REGISTERS(11) xor REGISTERS(7));
+            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(0));
+            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(1));
+            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(2));
+            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(3));
           END IF;
           IF (SBUS_3V3_ASs='1') THEN
             seen_ack := true;
@@ -634,10 +655,10 @@ BEGIN
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
           IF (do_gcm) THEN
             do_gcm := false;
-            GCM_REGISTERS(4) <= reverse_bit_in_byte(mas_c(31  downto  0));
-            GCM_REGISTERS(5) <= reverse_bit_in_byte(mas_c(63  downto 32));
-            GCM_REGISTERS(6) <= reverse_bit_in_byte(mas_c(95  downto 64));
-            GCM_REGISTERS(7) <= reverse_bit_in_byte(mas_c(127 downto 96));
+            REGISTERS(4) <= reverse_bit_in_byte(mas_c(31  downto  0));
+            REGISTERS(5) <= reverse_bit_in_byte(mas_c(63  downto 32));
+            REGISTERS(6) <= reverse_bit_in_byte(mas_c(95  downto 64));
+            REGISTERS(7) <= reverse_bit_in_byte(mas_c(127 downto 96));
           END IF;
           IF ((seen_ack) OR (SBUS_3V3_ASs='1')) THEN
             seen_ack := false;
@@ -647,7 +668,7 @@ BEGIN
         WHEN SBus_Slave_Ack_Reg_Write_Burst =>
           fifo_wr_en <= '1'; fifo_din <= x"48"; -- "H"
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          GCM_REGISTERS(BURST_INDEX) <= BUF_DATA_I;
+          REGISTERS(BURST_INDEX) <= BUF_DATA_I;
           BUF_ACKs_O <= ACK_WORD; -- acknowledge the Word
           IF (BURST_INDEX = REG_INDEX_GCM_INPUT4) THEN
             do_gcm := true;
@@ -677,7 +698,7 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"4A"; -- "J"
           DATA_T <= '0'; -- set buffer as output
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          BUF_DATA_O <= GCM_REGISTERS(BURST_INDEX);
+          BUF_DATA_O <= REGISTERS(BURST_INDEX);
           if (BURST_COUNTER = (BURST_LIMIT-1)) then
             BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Do_Read;
