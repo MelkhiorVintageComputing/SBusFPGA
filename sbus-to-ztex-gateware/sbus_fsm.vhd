@@ -32,7 +32,7 @@ ENTITY SBusFSM is
     SBUS_3V3_INT7s : 	OUT STD_LOGIC := 'Z';
     -- master-only signals
     SBUS_3V3_BGs : IN STD_LOGIC; -- bus granted
-    SBUS_3V3_BRs : OUT STD_LOGIC := 'Z'; -- bus request
+    SBUS_3V3_BRs : OUT STD_LOGIC := '1'; -- bus request
     -- support signals
     SBUS_OE : OUT STD_LOGIC := '1'; -- always off when powered up
     -- support leds
@@ -75,47 +75,47 @@ ENTITY SBusFSM is
   -- OFFSET to REGS; (8 downto 0) so 9 bits
   CONSTANT REG_OFFSET_LED        : std_logic_vector(8 downto 0) := conv_std_logic_vector( 0, 9);
   -- starts at 64 so we can do 64 bytes burst (see address wrapping)
-  CONSTANT REG_INDEX_GCM_H1     : integer := 0;
-  CONSTANT REG_INDEX_GCM_H2     : integer := 1;
-  CONSTANT REG_INDEX_GCM_H3     : integer := 2;
-  CONSTANT REG_INDEX_GCM_H4     : integer := 3;
-  CONSTANT REG_INDEX_GCM_C1     : integer := 4;
-  CONSTANT REG_INDEX_GCM_C2     : integer := 5;
-  CONSTANT REG_INDEX_GCM_C3     : integer := 6;
-  CONSTANT REG_INDEX_GCM_C4     : integer := 7;
-  CONSTANT REG_INDEX_GCM_INPUT1 : integer := 8;
-  CONSTANT REG_INDEX_GCM_INPUT2 : integer := 9;
-  CONSTANT REG_INDEX_GCM_INPUT3 : integer := 10;
-  CONSTANT REG_INDEX_GCM_INPUT4 : integer := 11;
-  CONSTANT REG_INDEX_GCM_INPUT5 : integer := 12; -- placeholder
-  CONSTANT REG_INDEX_GCM_INPUT6 : integer := 13; -- placeholder
-  CONSTANT REG_INDEX_GCM_INPUT7 : integer := 14; -- placeholder
-  CONSTANT REG_INDEX_GCM_INPUT8 : integer := 15; -- placeholder
-  CONSTANT REG_INDEX_DMA_ADDR   : integer := 16;
-  CONSTANT REG_INDEX_DMA_CTRL   : integer := 17;
-  CONSTANT REG_INDEX_DMA_CTRL2  : integer := 18; -- placeholder
-  CONSTANT REG_INDEX_DMA_CTRL3  : integer := 19; -- placeholder
+  CONSTANT REG_INDEX_GCM_H1     : integer := 16;
+  CONSTANT REG_INDEX_GCM_H2     : integer := 17;
+  CONSTANT REG_INDEX_GCM_H3     : integer := 18;
+  CONSTANT REG_INDEX_GCM_H4     : integer := 19;
+  CONSTANT REG_INDEX_GCM_C1     : integer := 20;
+  CONSTANT REG_INDEX_GCM_C2     : integer := 21;
+  CONSTANT REG_INDEX_GCM_C3     : integer := 22;
+  CONSTANT REG_INDEX_GCM_C4     : integer := 23;
+  CONSTANT REG_INDEX_GCM_INPUT1 : integer := 24;
+  CONSTANT REG_INDEX_GCM_INPUT2 : integer := 25;
+  CONSTANT REG_INDEX_GCM_INPUT3 : integer := 26;
+  CONSTANT REG_INDEX_GCM_INPUT4 : integer := 27;
+  CONSTANT REG_INDEX_GCM_INPUT5 : integer := 28; -- placeholder
+  CONSTANT REG_INDEX_GCM_INPUT6 : integer := 29; -- placeholder
+  CONSTANT REG_INDEX_GCM_INPUT7 : integer := 30; -- placeholder
+  CONSTANT REG_INDEX_GCM_INPUT8 : integer := 31; -- placeholder
+  CONSTANT REG_INDEX_DMA_ADDR   : integer := 32;
+  CONSTANT REG_INDEX_DMA_CTRL   : integer := 33;
+  CONSTANT REG_INDEX_DMA_CTRL2  : integer := 34; -- placeholder
+  CONSTANT REG_INDEX_DMA_CTRL3  : integer := 35; -- placeholder
   
-  CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_H1*4, 9);
-  CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_H2*4, 9);
-  CONSTANT REG_OFFSET_GCM_H3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_H3*4, 9);
-  CONSTANT REG_OFFSET_GCM_H4     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_H4*4, 9);
-  CONSTANT REG_OFFSET_GCM_C1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_C1*4, 9);
-  CONSTANT REG_OFFSET_GCM_C2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_C2*4, 9);
-  CONSTANT REG_OFFSET_GCM_C3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_C3*4, 9);
-  CONSTANT REG_OFFSET_GCM_C4     : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_C4*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT1*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT2*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT3*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT4*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT5 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT5*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_GCM_INPUT6 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT6*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_GCM_INPUT7 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT7*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_GCM_INPUT8 : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_GCM_INPUT8*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_DMA_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_ADDR  *4, 9);
-  CONSTANT REG_OFFSET_DMA_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_CTRL  *4, 9);
-  CONSTANT REG_OFFSET_DMA_CTRL2  : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_CTRL2 *4, 9); -- placeholder
-  CONSTANT REG_OFFSET_DMA_CTRL3  : std_logic_vector(8 downto 0) := conv_std_logic_vector(64 + REG_INDEX_DMA_CTRL3 *4, 9); -- placeholder
+  CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H1*4, 9);
+  CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H2*4, 9);
+  CONSTANT REG_OFFSET_GCM_H3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H3*4, 9);
+  CONSTANT REG_OFFSET_GCM_H4     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H4*4, 9);
+  CONSTANT REG_OFFSET_GCM_C1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C1*4, 9);
+  CONSTANT REG_OFFSET_GCM_C2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C2*4, 9);
+  CONSTANT REG_OFFSET_GCM_C3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C3*4, 9);
+  CONSTANT REG_OFFSET_GCM_C4     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C4*4, 9);
+  CONSTANT REG_OFFSET_GCM_INPUT1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT1*4, 9);
+  CONSTANT REG_OFFSET_GCM_INPUT2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT2*4, 9);
+  CONSTANT REG_OFFSET_GCM_INPUT3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT3*4, 9);
+  CONSTANT REG_OFFSET_GCM_INPUT4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT4*4, 9);
+  CONSTANT REG_OFFSET_GCM_INPUT5 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT5*4, 9); -- placeholder
+  CONSTANT REG_OFFSET_GCM_INPUT6 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT6*4, 9); -- placeholder
+  CONSTANT REG_OFFSET_GCM_INPUT7 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT7*4, 9); -- placeholder
+  CONSTANT REG_OFFSET_GCM_INPUT8 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT8*4, 9); -- placeholder
+  CONSTANT REG_OFFSET_DMA_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_ADDR  *4, 9);
+  CONSTANT REG_OFFSET_DMA_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL  *4, 9);
+  CONSTANT REG_OFFSET_DMA_CTRL2  : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL2 *4, 9); -- placeholder
+  CONSTANT REG_OFFSET_DMA_CTRL3  : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL3 *4, 9); -- placeholder
   
   constant c_CLKS_PER_BIT : integer := 417; -- 48M/115200
   -- constant c_CLKS_PER_BIT : integer := 50; -- 5.76M/115200
@@ -170,8 +170,11 @@ ARCHITECTURE RTL OF SBusFSM IS
                        SBus_Slave_Delay_Error,
     -- cycle where master detect the error (ACK or late)
     -- everything goes to Z before Idle
-                       SBus_Slave_Error
---                       ,SBus_Slave_Heartbeat
+                       SBus_Slave_Error,
+--                       SBus_Slave_Heartbeat,
+                       SBus_Master_Translation,
+                       SBus_Master_Read,
+                       SBus_Master_Read_Finish
                        );
   TYPE Uart_States IS ( UART_IDLE, UART_WAITING );
                        
@@ -215,7 +218,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   SIGNAL OE_COUNTER : natural range 0 to 960000000 := 960000000;
 
   -- 16 registers for GCM (12 used), 4 for DMA (2 used ATM)
-  type REGISTERS_TYPE is array(0 to 19) of std_logic_vector(31 downto 0);
+  type REGISTERS_TYPE is array(16 to 35) of std_logic_vector(31 downto 0);
   SIGNAL REGISTERS : REGISTERS_TYPE;
   
   pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(8 downto 0)) return boolean is
@@ -497,7 +500,7 @@ BEGIN
 --            fifo_din <= b"01" & SBUS_3V3_SELs & SBUS_3V3_ASs & SBUS_3V3_PPRD & BUF_SIZ_I;
 --            State <= SBus_Slave_Heartbeat;
 -- Anything pointing to SBus_Idle should SBus_Set_Default
--- 			    SBus_Set_Default(SBUS_3V3_ACKs, SBUS_3V3_ERRs, SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+-- 			    SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
 --			                     SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
 --			                     p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
 -- READ READ READ --
@@ -619,8 +622,27 @@ BEGIN
             ELSE
               BUF_ACKs_O <= ACK_ERR; -- unsupported address, signal error
               BUF_ERRs_O <= '1'; -- no late error
-              State <= SBus_Slave_Error; 
+              State <= SBus_Slave_Error;
             END IF;
+-- _MASTER_
+          ELSIF (SBUS_3V3_BGs='1' AND REGISTERS(REG_INDEX_DMA_CTRL)(31)='1' AND REGISTERS(REG_INDEX_DMA_CTRL)(30)='0' and REGISTERS(REG_INDEX_DMA_CTRL)(29)='0') then
+-- we have a DMA request pending and not been granted the bus
+              fifo_wr_en <= '1'; fifo_din <= x"61"; -- "a"
+              SBUS_3V3_BRs <= '0'; -- request the bus
+          ELSIF (SBUS_3V3_BGs='0') THEN
+              fifo_wr_en <= '1'; fifo_din <= x"62"; -- "b"
+-- we were granted the bus
+              SBUS_3V3_BRs <= '1'; -- relinquish the request (required)
+              DATA_T <= '0'; -- set data buffer as output
+              SM_T <= '0'; -- PPRD, SIZ becomes output (master mode)
+              SMs_T <= '1';
+              BUF_DATA_O <= REGISTERS(REG_INDEX_DMA_ADDR); -- virt address
+              BUF_PPRD_O <= '1'; -- reading from slave
+              BUF_SIZ_O <= SIZ_BURST4;
+              LED_DATA <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
+              BURST_COUNTER := 0;
+              BURST_LIMIT := 4;
+              State <= SBus_Master_Translation;
 -- ERROR ERROR ERROR 
           ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I /= SIZ_WORD THEN
             SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
@@ -634,14 +656,14 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"45"; -- "E"
           BUF_ACKs_O <= ACK_IDLE; -- need one cycle of idle
           IF (do_gcm) THEN
-            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(8) xor REGISTERS(4));
-            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(9) xor REGISTERS(5));
-            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(10) xor REGISTERS(6));
-            mas_a(127 downto 96) <= reverse_bit_in_byte(REGISTERS(11) xor REGISTERS(7));
-            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(0));
-            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(1));
-            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(2));
-            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(3));
+            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
+            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
+            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
+            mas_a(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT4) xor REGISTERS(REG_INDEX_GCM_C4));
+            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
+            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
+            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
+            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
           END IF;
           IF (SBUS_3V3_ASs='1') THEN
             seen_ack := true;
@@ -655,10 +677,10 @@ BEGIN
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
           IF (do_gcm) THEN
             do_gcm := false;
-            REGISTERS(4) <= reverse_bit_in_byte(mas_c(31  downto  0));
-            REGISTERS(5) <= reverse_bit_in_byte(mas_c(63  downto 32));
-            REGISTERS(6) <= reverse_bit_in_byte(mas_c(95  downto 64));
-            REGISTERS(7) <= reverse_bit_in_byte(mas_c(127 downto 96));
+            REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
+            REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
+            REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
+            REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
           END IF;
           IF ((seen_ack) OR (SBUS_3V3_ASs='1')) THEN
             seen_ack := false;
@@ -668,9 +690,9 @@ BEGIN
         WHEN SBus_Slave_Ack_Reg_Write_Burst =>
           fifo_wr_en <= '1'; fifo_din <= x"48"; -- "H"
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          REGISTERS(BURST_INDEX) <= BUF_DATA_I;
+          REGISTERS(conv_integer(last_pa(8 downto 6))*16 + BURST_INDEX) <= BUF_DATA_I;
           BUF_ACKs_O <= ACK_WORD; -- acknowledge the Word
-          IF (BURST_INDEX = REG_INDEX_GCM_INPUT4) THEN
+          IF (last_pa(8 downto 0) = REG_OFFSET_GCM_INPUT4) THEN
             do_gcm := true;
           END IF;
           if (BURST_COUNTER = (BURST_LIMIT-1)) THEN
@@ -698,7 +720,7 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"4A"; -- "J"
           DATA_T <= '0'; -- set buffer as output
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          BUF_DATA_O <= REGISTERS(BURST_INDEX);
+          BUF_DATA_O <= REGISTERS(conv_integer(last_pa(8 downto 6))*16 + BURST_INDEX);
           if (BURST_COUNTER = (BURST_LIMIT-1)) then
             BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Do_Read;
@@ -782,13 +804,87 @@ BEGIN
           
 --        WHEN SBus_Slave_Heartbeat =>
 --          State <= SBus_Idle;
-          
+
+-- _MASTER_
+        when SBus_Master_Translation =>
+          fifo_wr_en <= '1'; fifo_din <= x"63"; -- "c"
+          DATA_T <= '1'; -- set buffer back to input
+          IF ((SBUS_3V3_BGs='0') and (SBUS_3V3_ASs = '0')) THEN
+            State <= SBus_Master_Read;
+          ELSIF (BUF_ACKs_I = ACK_ERR) THEN
+            fifo_din <= x"2F"; -- "/"
+            REGISTERS(REG_INDEX_DMA_CTRL)(29) <= '1';
+            SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            State <= SBus_Idle;
+          ELSIF (SBUS_3V3_BGs='1') THEN
+            -- oups, we lost our bus access without error ?!?
+            fifo_din <= x"21"; -- "!"
+            SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            State <= SBus_Idle;
+          END IF;
+
+        when SBus_Master_Read =>
+          fifo_wr_en <= '1'; fifo_din <= x"64"; -- "d"
+          if (BUF_ACKs_I = ACK_WORD) THEN
+            REGISTERS(REG_INDEX_GCM_INPUT1 + BURST_COUNTER) <= BUF_DATA_I;
+            BURST_COUNTER := BURST_COUNTER + 1;
+            if (BURST_COUNTER = BURST_LIMIT) THEN
+              mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
+              mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
+              mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
+              mas_a(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT4) xor REGISTERS(REG_INDEX_GCM_C4));
+              mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
+              mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
+              mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
+              mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
+              State <= SBus_Master_Read_Finish;
+            end IF;
+          elsif (BUF_ACKS_I = ACK_RERUN) THEN
+            -- TODO FIXME
+            -- fall back to idle without changing CTRL
+            SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            State <= SBus_Idle;
+          elsif (BUF_ACKS_I /= ACK_IDLE) then -- (BUF_ACKS_I = ACK_ERR) or other
+            -- TODO FIXME
+            -- fall back to idle while setting error
+            SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            REGISTERS(REG_INDEX_DMA_CTRL)(29) <= '1';
+            State <= SBus_Idle;
+          end IF;
+
+        when SBus_Master_Read_Finish =>
+          fifo_wr_en <= '1'; fifo_din <= x"65"; -- "e"
+          REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
+          REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
+          REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
+          REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+          if (REGISTERS(REG_INDEX_DMA_CTRL)(7 downto 0) = x"00") THEN
+            REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
+          else
+            REGISTERS(REG_INDEX_DMA_CTRL)(7 downto 0) <= REGISTERS(REG_INDEX_DMA_CTRL)(7 downto 0) - 1;
+            REGISTERS(REG_INDEX_DMA_ADDR) <= REGISTERS(REG_INDEX_DMA_ADDR) + 16;
+          end IF;
+          SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+          State <= SBus_Idle;
+
+-- FALLBACK
         WHEN OTHERS => -- include SBus_Start
           -- SBUS_OE <= '0'; -- enable all signals -- moved to COUNTER48 timer
           if SBUS_3V3_RSTs = '1' then
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
             IF (RES_COUNTER = 0) THEN
               -- fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
               State <= SBus_Idle;
@@ -800,6 +896,7 @@ BEGIN
             fifo_rst <= '1';
             RES_COUNTER <= 4;
           END IF;
+
       END CASE;
     END IF;
   END PROCESS;
