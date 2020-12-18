@@ -158,6 +158,7 @@ rdfpga_close(dev_t dev, int flags, int mode, struct lwp *l)
 	return (0);
 }
 
+#define MAX_DMA_SZ 4096
 int
 rdfpga_write(dev_t dev, struct uio *uio, int flags)
 {
@@ -165,6 +166,35 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	int error = 0, ctr = 0, res, oldres;
 	
 	aprint_normal_dev(sc->sc_dev, "dma uio: %zu in %d\n", uio->uio_resid, uio->uio_iovcnt);
+
+	if (uio->uio_resid >= 16 && uio->uio_iovcnt == 1) {
+	  bus_dma_segment_t segs;
+	  int rsegs;
+	  if (bus_dmamem_alloc(sc->sc_dmatag, MAX_DMA_SZ, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
+	     aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
+	    return ENXIO;
+	  }
+	  /* else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dmamem alloc: %d\n", rsegs); */
+	  /* } */
+
+	  void* kvap;
+	  if (bus_dmamem_map(sc->sc_dmatag, &segs, 1, MAX_DMA_SZ, &kvap, BUS_DMA_NOWAIT)) {
+	    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
+	    return ENXIO;
+	  }
+	  /* else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dmamem map: %p\n", kvap); */
+	  /* } */
+	  
+	  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, MAX_DMA_SZ, /* kernel space */ NULL,
+	  		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+	    aprint_error_dev(sc->sc_dev, "cannot load dma map");
+	    return ENXIO;
+	  }
+	  /* else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dmamap: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs); */
+	  /* } */
 
 	while (!error && uio->uio_resid >= 16 && uio->uio_iovcnt == 1) {
 	  uint64_t ctrl;
@@ -193,39 +223,12 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  /* } */
 
 	  /* aprint_normal_dev(sc->sc_dev, "dmamem about to alloc for %d blocks...\n", nblock); */
-	  
-	  bus_dma_segment_t segs;
-	  int rsegs;
-	  if (bus_dmamem_alloc(sc->sc_dmatag, nblock*16, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
-	     aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
-	    return ENXIO;
-	  }
-	  /* else { */
-	  /*   aprint_normal_dev(sc->sc_dev, "dmamem alloc: %d\n", rsegs); */
-	  /* } */
-
-	  void* kvap;
-	  if (bus_dmamem_map(sc->sc_dmatag, &segs, 1, nblock*16, &kvap, BUS_DMA_NOWAIT)) {
-	    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
-	    return ENXIO;
-	  }
-	  /* else { */
-	  /*   aprint_normal_dev(sc->sc_dev, "dmamem map: %p\n", kvap); */
-	  /* } */
+	 
 
 	  if ((error = uiomove(kvap, nblock*16, uio)) != 0)
 	    break;
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "uimove: left %zu in %d\n", uio->uio_resid, uio->uio_iovcnt); */
-	  
-	  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, nblock*16, /* kernel space */ NULL,
-	  		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
-	    aprint_error_dev(sc->sc_dev, "cannot load dma map");
-	    return ENXIO;
-	  }
-	  /* else { */
-	  /*   aprint_normal_dev(sc->sc_dev, "dmamap: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs); */
-	  /* } */
 	  
 	  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, nblock*16, BUS_DMASYNC_PREWRITE);
 	  
@@ -255,11 +258,13 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  /* if (sc->sc_dmamap->dm_nsegs > 0) { */
 	  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, nblock*16, BUS_DMASYNC_POSTWRITE);
 	  /* aprint_normal_dev(sc->sc_dev, "dma: synced (2)\n"); */
+	}
+	
 	  
 	  bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
 	  /* aprint_normal_dev(sc->sc_dev, "dma: unloaded\n"); */
 	  
-	  bus_dmamem_unmap(sc->sc_dmatag, kvap, nblock*16);
+	  bus_dmamem_unmap(sc->sc_dmatag, kvap, MAX_DMA_SZ);
 	  /* aprint_normal_dev(sc->sc_dev, "dma: unmapped\n"); */
 	  
 	  bus_dmamem_free(sc->sc_dmatag, &segs, 1);
@@ -356,7 +361,6 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	/* DMA */
 
 	/* Allocate a dmamap */
-#define MAX_DMA_SZ 4096
 	if (bus_dmamap_create(sc->sc_dmatag, MAX_DMA_SZ, 1, MAX_DMA_SZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW, &sc->sc_dmamap) != 0) {
 		aprint_error_dev(self, ": DMA map create failed\n");
 	} else {
