@@ -41,12 +41,23 @@ MY_FULL_LENGTH =
 // top left 97,50
 // -> 13,80.82 ; 13,70.82 ; 13,32 from top left
 
+STRUT_HEIGHT=10.01; // max 15.31
+STRUT_WIDTH=3;
+SMALL_STRUT_HEIGHT=5;
+SMALL_STRUT_WIDTH=2;
+SMALL_STRUT_LENGTH=20;
+
 module primary() {
 union ()
 {
 
-  color ("green") cube ([SBUS_WIDTH, MY_FULL_LENGTH, SBUS_THICKNESS], center =
-			true);
+  color ("green") cube ([SBUS_WIDTH, MY_FULL_LENGTH, SBUS_THICKNESS], center = true);
+    
+    for (i =[-2:1:2]) {
+  translate ([i*15+2.5,0,STRUT_HEIGHT/2-0.1]) color("red") cube([STRUT_WIDTH, MY_FULL_LENGTH, STRUT_HEIGHT], center = true);
+    }
+//  translate ([SBUS_WIDTH/2-18,7+(MY_FULL_LENGTH-SMALL_STRUT_LENGTH)/2,SMALL_STRUT_HEIGHT/2]) color("red") cube([SMALL_STRUT_WIDTH, SMALL_STRUT_LENGTH, SMALL_STRUT_HEIGHT], center = true);
+//  translate ([-SBUS_WIDTH/2+24,7+(MY_FULL_LENGTH-SMALL_STRUT_LENGTH)/2,SMALL_STRUT_HEIGHT/2]) color("red") cube([SMALL_STRUT_WIDTH, SMALL_STRUT_LENGTH, SMALL_STRUT_HEIGHT], center = true);
 
   translate ([0, -MY_FULL_LENGTH / 2 + SBUS_BACKPLATE_THICKNESS / 2,
 	      SBUS_BACKPLATE_HEIGHT / 2 - SBUS_THICKNESS / 2 -
@@ -67,13 +78,15 @@ union ()
   }
 
   MY_BOARD_OVERLAP_LENGTH = 20;
-  MY_BACKPLATE_OVERLAP_LENGTH = 10;
+  MY_BACKPLATE_OVERLAP_LENGTH = 12;
   MY_OVERLAP_LENGTH = MY_BOARD_OVERLAP_LENGTH + MY_BACKPLATE_OVERLAP_LENGTH;
 
   FIXHOLE_X_OFFSET = 13;
   FIXHOLE1_Y_OFFSET = 80.82;
   FIXHOLE2_Y_OFFSET = 70.82;
   FIXHOLE3_Y_OFFSET = 32;
+  
+  FIXHOLE_RAD = 1.55;
 
   SERIAL_HOLLOWOUT_WIDTH = 18;
   SERIAL_HOLLOWOUT_LENGTH = 5;
@@ -100,17 +113,17 @@ difference()
       translate ([-SBUS_WIDTH / 2 + FIXHOLE1_Y_OFFSET,
 		  MY_FULL_LENGTH / 2 + FIXHOLE_X_OFFSET, 0])
       {
-	color ("yellow") cylinder (h = 50, r1 = 1.5, r2 = 1.5, center = true);
+	color ("yellow") cylinder (h = 50, r1 = FIXHOLE_RAD, r2 = FIXHOLE_RAD, center = true);
       }
       translate ([-SBUS_WIDTH / 2 + FIXHOLE2_Y_OFFSET,
 		  MY_FULL_LENGTH / 2 + FIXHOLE_X_OFFSET, 0])
       {
-	color ("yellow") cylinder (h = 50, r1 = 1.5, r2 = 1.5, center = true);
+	color ("yellow") cylinder (h = 50, r1 = FIXHOLE_RAD, r2 = FIXHOLE_RAD, center = true);
       }
       translate ([-SBUS_WIDTH / 2 + FIXHOLE3_Y_OFFSET,
 		  MY_FULL_LENGTH / 2 + FIXHOLE_X_OFFSET, 0])
       {
-	color ("yellow") cylinder (h = 50, r1 = 1.5, r2 = 1.5, center = true);
+	color ("yellow") cylinder (h = 50, r1 = FIXHOLE_RAD, r2 = FIXHOLE_RAD, center = true);
       }
       translate ([SBUS_WIDTH / 2 - SERIAL_HOLLOWOUT_WIDTH / 2 + 5,
 		  MY_FULL_LENGTH / 2 + SERIAL_HOLLOWOUT_OFFSET +
