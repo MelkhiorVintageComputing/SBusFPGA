@@ -897,10 +897,10 @@ BEGIN
           REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
           REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
           REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
-          if (REGISTERS(REG_INDEX_DMA_CTRL)(7 downto 0) = x"00") THEN
+          if (REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) = x"000") THEN
             REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
           else
-            REGISTERS(REG_INDEX_DMA_CTRL)(7 downto 0) <= REGISTERS(REG_INDEX_DMA_CTRL)(7 downto 0) - 1;
+            REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) <= REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) - 1;
             REGISTERS(REG_INDEX_DMA_ADDR) <= REGISTERS(REG_INDEX_DMA_ADDR) + 16;
           end IF;
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,

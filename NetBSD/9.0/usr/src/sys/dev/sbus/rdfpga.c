@@ -158,7 +158,6 @@ rdfpga_close(dev_t dev, int flags, int mode, struct lwp *l)
 	return (0);
 }
 
-#define MAX_DMA_SZ 4096
 int
 rdfpga_write(dev_t dev, struct uio *uio, int flags)
 {
@@ -170,7 +169,7 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	if (uio->uio_resid >= 16 && uio->uio_iovcnt == 1) {
 	  bus_dma_segment_t segs;
 	  int rsegs;
-	  if (bus_dmamem_alloc(sc->sc_dmatag, MAX_DMA_SZ, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
+	  if (bus_dmamem_alloc(sc->sc_dmatag, RDFPGA_VAL_DMA_MAX_SZ, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
 	     aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
 	    return ENXIO;
 	  }
@@ -179,7 +178,7 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  /* } */
 
 	  void* kvap;
-	  if (bus_dmamem_map(sc->sc_dmatag, &segs, 1, MAX_DMA_SZ, &kvap, BUS_DMA_NOWAIT)) {
+	  if (bus_dmamem_map(sc->sc_dmatag, &segs, 1, RDFPGA_VAL_DMA_MAX_SZ, &kvap, BUS_DMA_NOWAIT)) {
 	    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
 	    return ENXIO;
 	  }
@@ -187,7 +186,7 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  /*   aprint_normal_dev(sc->sc_dev, "dmamem map: %p\n", kvap); */
 	  /* } */
 	  
-	  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, MAX_DMA_SZ, /* kernel space */ NULL,
+	  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, RDFPGA_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
 	  		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
 	    aprint_error_dev(sc->sc_dev, "cannot load dma map");
 	    return ENXIO;
@@ -199,8 +198,8 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	while (!error && uio->uio_resid >= 16 && uio->uio_iovcnt == 1) {
 	  uint64_t ctrl;
 	  uint32_t nblock = uio->uio_resid/16;
-	  if (nblock > 256)
-	    nblock = 256;
+	  if (nblock > 4096)
+	    nblock = 4096;
 
 	  /* no implemented on sparc ? */
 	  /* if (bus_dmamap_load_uio(sc->sc_dmatag, sc->sc_dmamap, uio, BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) { */
@@ -234,7 +233,7 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "dma: synced\n"); */
 
-	  ctrl = ((uint64_t)(0x80000000 | ((nblock-1) & 0x0FF))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+	  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | ((nblock-1) & RDFPGA_MASK_DMA_CTRL_BLKCNT))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "trying 0x%016llx\n", ctrl); */
 
@@ -248,9 +247,9 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	    delay(2);
 	    oldres = res;
 	    res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_CTRL));
-	  } while ((res & 0x80000000) && !(res & 0x20000000) && (res != oldres) && (ctr < 10000));
+	  } while ((res & RDFPGA_MASK_DMA_CTRL_START) && !(res & RDFPGA_MASK_DMA_CTRL_ERR) && (res != oldres) && (ctr < 10000));
 
-	  if ((res & 0x80000000) || (res & 0x20000000)) {
+	  if ((res & RDFPGA_MASK_DMA_CTRL_START) || (res & RDFPGA_MASK_DMA_CTRL_ERR)) {
 	    aprint_error_dev(sc->sc_dev, "read 0x%08x (%d try)\n", res, ctr);
 	    error = ENXIO;
 	  }
@@ -264,7 +263,7 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
 	  /* aprint_normal_dev(sc->sc_dev, "dma: unloaded\n"); */
 	  
-	  bus_dmamem_unmap(sc->sc_dmatag, kvap, MAX_DMA_SZ);
+	  bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ);
 	  /* aprint_normal_dev(sc->sc_dev, "dma: unmapped\n"); */
 	  
 	  bus_dmamem_free(sc->sc_dmatag, &segs, 1);
@@ -361,7 +360,7 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	/* DMA */
 
 	/* Allocate a dmamap */
-	if (bus_dmamap_create(sc->sc_dmatag, MAX_DMA_SZ, 1, MAX_DMA_SZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW, &sc->sc_dmamap) != 0) {
+	if (bus_dmamap_create(sc->sc_dmatag, RDFPGA_VAL_DMA_MAX_SZ, 1, RDFPGA_VAL_DMA_MAX_SZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW, &sc->sc_dmamap) != 0) {
 		aprint_error_dev(self, ": DMA map create failed\n");
 	} else {
 		aprint_normal_dev(self, "dmamap: %lu %lu %d (%p)\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs, sc->sc_dmatag->_dmamap_load);
