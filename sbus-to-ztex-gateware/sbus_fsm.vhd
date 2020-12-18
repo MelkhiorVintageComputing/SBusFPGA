@@ -174,6 +174,7 @@ ARCHITECTURE RTL OF SBusFSM IS
 --                       SBus_Slave_Heartbeat,
                        SBus_Master_Translation,
                        SBus_Master_Read,
+                       SBus_Master_Read_Ack,
                        SBus_Master_Read_Finish
                        );
   TYPE Uart_States IS ( UART_IDLE, UART_WAITING );
@@ -639,7 +640,7 @@ BEGIN
               BUF_DATA_O <= REGISTERS(REG_INDEX_DMA_ADDR); -- virt address
               BUF_PPRD_O <= '1'; -- reading from slave
               BUF_SIZ_O <= SIZ_BURST4;
-              LED_DATA <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
+              -- LED_DATA <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
               BURST_COUNTER := 0;
               BURST_LIMIT := 4;
               State <= SBus_Master_Translation;
@@ -830,27 +831,56 @@ BEGIN
         when SBus_Master_Read =>
           fifo_wr_en <= '1'; fifo_din <= x"64"; -- "d"
           if (BUF_ACKs_I = ACK_WORD) THEN
-            REGISTERS(REG_INDEX_GCM_INPUT1 + BURST_COUNTER) <= BUF_DATA_I;
-            BURST_COUNTER := BURST_COUNTER + 1;
-            if (BURST_COUNTER = BURST_LIMIT) THEN
-              mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
-              mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
-              mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
-              mas_a(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT4) xor REGISTERS(REG_INDEX_GCM_C4));
-              mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
-              mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
-              mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
-              mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
-              State <= SBus_Master_Read_Finish;
-            end IF;
+              State <= SBus_Master_Read_Ack;
+          elsif (BUF_ACKS_I = ACK_IDLE) then
+            State <= SBus_Master_Read;
           elsif (BUF_ACKS_I = ACK_RERUN) THEN
+            fifo_din <= x"2b"; -- "+"
             -- TODO FIXME
             -- fall back to idle without changing CTRL
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                              SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                              p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             State <= SBus_Idle;
-          elsif (BUF_ACKS_I /= ACK_IDLE) then -- (BUF_ACKS_I = ACK_ERR) or other
+          else -- (BUF_ACKS_I = ACK_ERR) or other
+            fifo_din <= x"27"; -- "'"
+            -- TODO FIXME
+            -- fall back to idle while setting error
+            SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            REGISTERS(REG_INDEX_DMA_CTRL)(29) <= '1';
+            State <= SBus_Idle;
+          end IF;
+          
+        when SBus_Master_Read_Ack =>
+          fifo_wr_en <= '1'; fifo_din <= x"65"; -- "e"
+          REGISTERS(REG_INDEX_GCM_INPUT1 + BURST_COUNTER) <= BUF_DATA_I;
+          BURST_COUNTER := BURST_COUNTER + 1;
+          if (BURST_COUNTER = BURST_LIMIT) THEN
+            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
+            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
+            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
+            mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                      xor REGISTERS(REG_INDEX_GCM_C4)); -- INPUT4 will only be valid next cycle
+            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
+            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
+            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
+            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
+            State <= SBus_Master_Read_Finish;
+          ELSIF (BUF_ACKs_I = ACK_WORD) THEN
+            State <= SBus_Master_Read_Ack;
+          elsif (BUF_ACKS_I = ACK_IDLE) then
+            State <= SBus_Master_Read;
+          elsif (BUF_ACKS_I = ACK_RERUN) THEN
+            fifo_din <= x"2b"; -- "+"
+            -- TODO FIXME
+            -- fall back to idle without changing CTRL
+            SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            State <= SBus_Idle;
+          else -- (BUF_ACKS_I = ACK_ERR) or other
+            fifo_din <= x"27"; -- "'"
             -- TODO FIXME
             -- fall back to idle while setting error
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
@@ -860,8 +890,9 @@ BEGIN
             State <= SBus_Idle;
           end IF;
 
+
         when SBus_Master_Read_Finish =>
-          fifo_wr_en <= '1'; fifo_din <= x"65"; -- "e"
+          fifo_wr_en <= '1'; fifo_din <= x"66"; -- "f"
           REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
           REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
           REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
