@@ -162,10 +162,9 @@ int
 rdfpga_write(dev_t dev, struct uio *uio, int flags)
 {
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
-	int error = 0, ctr = 0, res;
+	int error = 0, ctr = 0, res, oldres;
 	
 	aprint_normal_dev(sc->sc_dev, "dma uio: %zu in %d\n", uio->uio_resid, uio->uio_iovcnt);
-delay(100);
 
 	while (!error && uio->uio_resid >= 16 && uio->uio_iovcnt == 1) {
 	  uint64_t ctrl;
@@ -193,54 +192,60 @@ delay(100);
 	  /*   aprint_normal_dev(sc->sc_dev, "dma: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs); */
 	  /* } */
 
-	  aprint_normal_dev(sc->sc_dev, "dmamem about to alloc for %d blocks...\n", nblock);
+	  /* aprint_normal_dev(sc->sc_dev, "dmamem about to alloc for %d blocks...\n", nblock); */
 	  
 	  bus_dma_segment_t segs;
 	  int rsegs;
 	  if (bus_dmamem_alloc(sc->sc_dmatag, nblock*16, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
 	     aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
 	    return ENXIO;
-	  } else {
-	    aprint_normal_dev(sc->sc_dev, "dmamem alloc: %d\n", rsegs);
 	  }
+	  /* else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dmamem alloc: %d\n", rsegs); */
+	  /* } */
 
 	  void* kvap;
 	  if (bus_dmamem_map(sc->sc_dmatag, &segs, 1, nblock*16, &kvap, BUS_DMA_NOWAIT)) {
 	    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
 	    return ENXIO;
-	  } else {
-	    aprint_normal_dev(sc->sc_dev, "dmamem map: %p\n", kvap);
 	  }
+	  /* else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dmamem map: %p\n", kvap); */
+	  /* } */
 
 	  if ((error = uiomove(kvap, nblock*16, uio)) != 0)
 	    break;
 	  
-	  aprint_normal_dev(sc->sc_dev, "uimove: left %zu in %d\n", uio->uio_resid, uio->uio_iovcnt);
+	  /* aprint_normal_dev(sc->sc_dev, "uimove: left %zu in %d\n", uio->uio_resid, uio->uio_iovcnt); */
 	  
 	  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, nblock*16, /* kernel space */ NULL,
 	  		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
 	    aprint_error_dev(sc->sc_dev, "cannot load dma map");
 	    return ENXIO;
-	  } else {
-	    aprint_normal_dev(sc->sc_dev, "dmamap: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs);
 	  }
+	  /* else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dmamap: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs); */
+	  /* } */
 	  
 	  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, nblock*16, BUS_DMASYNC_PREWRITE);
 	  
-	  aprint_normal_dev(sc->sc_dev, "dma: synced\n");
+	  /* aprint_normal_dev(sc->sc_dev, "dma: synced\n"); */
 
 	  ctrl = ((uint64_t)(0x80000000 | ((nblock-1) & 0x0FF))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
 	  
-	  aprint_normal_dev(sc->sc_dev, "trying 0x%016llx\n", ctrl);
+	  /* aprint_normal_dev(sc->sc_dev, "trying 0x%016llx\n", ctrl); */
 
 	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
 	  
-	  aprint_normal_dev(sc->sc_dev, "dma: cmd sent\n");
+	  /* aprint_normal_dev(sc->sc_dev, "dma: cmd sent\n"); */
 
+	  res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_CTRL));
 	  do {
 	    ctr ++;
-	    delay(1);
-	  } while (((res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_CTRL))) & 0x80000000) && (ctr < 10));
+	    delay(2);
+	    oldres = res;
+	    res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_CTRL));
+	  } while ((res & 0x80000000) && !(res & 0x20000000) && (res != oldres) && (ctr < 10000));
 
 	  if ((res & 0x80000000) || (res & 0x20000000)) {
 	    aprint_error_dev(sc->sc_dev, "read 0x%08x (%d try)\n", res, ctr);
@@ -249,14 +254,16 @@ delay(100);
 
 	  /* if (sc->sc_dmamap->dm_nsegs > 0) { */
 	  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, nblock*16, BUS_DMASYNC_POSTWRITE);
-	  aprint_normal_dev(sc->sc_dev, "dma: synced (2)\n");
+	  /* aprint_normal_dev(sc->sc_dev, "dma: synced (2)\n"); */
+	  
 	  bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
-	  aprint_normal_dev(sc->sc_dev, "dma: unloaded\n");
+	  /* aprint_normal_dev(sc->sc_dev, "dma: unloaded\n"); */
+	  
 	  bus_dmamem_unmap(sc->sc_dmatag, kvap, nblock*16);
-	  aprint_normal_dev(sc->sc_dev, "dma: unmapped\n");
+	  /* aprint_normal_dev(sc->sc_dev, "dma: unmapped\n"); */
+	  
 	  bus_dmamem_free(sc->sc_dmatag, &segs, 1);
-	  aprint_normal_dev(sc->sc_dev, "dma: freed\n");
-	  /* } */
+	  /* aprint_normal_dev(sc->sc_dev, "dma: freed\n"); */
 	}
 
 	if (uio->uio_resid > 0)
