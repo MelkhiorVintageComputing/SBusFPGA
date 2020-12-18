@@ -478,6 +478,7 @@ BEGIN
   
   PROCESS (SBUS_3V3_CLK, SBUS_3V3_RSTs) 
   variable do_gcm : boolean := false;
+  variable finish_gcm : boolean := false;
   variable last_pa : std_logic_vector(27 downto 0) := (others => '0');
   variable BURST_COUNTER : integer range 0 to 15 := 0;
   variable BURST_LIMIT : integer range 1 to 16 := 1;
@@ -639,10 +640,19 @@ BEGIN
               SMs_T <= '1';
               BUF_DATA_O <= REGISTERS(REG_INDEX_DMA_ADDR); -- virt address
               BUF_PPRD_O <= '1'; -- reading from slave
-              BUF_SIZ_O <= SIZ_BURST4;
+--              IF (conv_integer(REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0)) >= 3) THEN
+--                BUF_SIZ_O <= SIZ_BURST16;
+--                BURST_LIMIT := 16;
+--              ELS
+              IF (conv_integer(REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0)) >= 1) THEN
+                BUF_SIZ_O <= SIZ_BURST8;
+                BURST_LIMIT := 8;
+              ELSE
+                BUF_SIZ_O <= SIZ_BURST4;
+                BURST_LIMIT := 4;
+              END IF;
               -- LED_DATA <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
               BURST_COUNTER := 0;
-              BURST_LIMIT := 4;
               State <= SBus_Master_Translation;
 -- ERROR ERROR ERROR 
           ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I /= SIZ_WORD THEN
@@ -665,6 +675,8 @@ BEGIN
             mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
             mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
             mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
+            do_gcm := false;
+            finish_gcm := true;
           END IF;
           IF (SBUS_3V3_ASs='1') THEN
             seen_ack := true;
@@ -676,8 +688,8 @@ BEGIN
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
-          IF (do_gcm) THEN
-            do_gcm := false;
+          IF (finish_gcm) THEN
+            finish_gcm := false;
             REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
             REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
             REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
@@ -855,9 +867,15 @@ BEGIN
           
         when SBus_Master_Read_Ack =>
           fifo_wr_en <= '1'; fifo_din <= x"65"; -- "e"
-          REGISTERS(REG_INDEX_GCM_INPUT1 + BURST_COUNTER) <= BUF_DATA_I;
+          REGISTERS(REG_INDEX_GCM_INPUT1 + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
           BURST_COUNTER := BURST_COUNTER + 1;
-          if (BURST_COUNTER = BURST_LIMIT) THEN
+          IF (finish_gcm) THEN
+            finish_gcm := false;
+            REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
+            REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
+            REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
+            REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+          ELSIF (BURST_COUNTER mod 4 = 0) THEN
             mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
             mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
             mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
@@ -866,6 +884,9 @@ BEGIN
             mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
             mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
             mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
+            finish_gcm := true;
+          END IF;
+          if (BURST_COUNTER = BURST_LIMIT) THEN
             State <= SBus_Master_Read_Finish;
           ELSIF (BUF_ACKs_I = ACK_WORD) THEN
             State <= SBus_Master_Read_Ack;
@@ -890,19 +911,21 @@ BEGIN
             State <= SBus_Idle;
           end IF;
 
-
         when SBus_Master_Read_Finish =>
           fifo_wr_en <= '1'; fifo_din <= x"66"; -- "f"
-          REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
-          REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
-          REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
-          REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
-          if (REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) = x"000") THEN
+          IF (finish_gcm) THEN
+            finish_gcm := false;
+            REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
+            REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
+            REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
+            REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+          END IF;
+          if (REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
             REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
           else
-            REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) <= REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) - 1;
-            REGISTERS(REG_INDEX_DMA_ADDR) <= REGISTERS(REG_INDEX_DMA_ADDR) + 16;
-          end IF;
+            REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) <= REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) - (BURST_LIMIT/4);
+            REGISTERS(REG_INDEX_DMA_ADDR) <= REGISTERS(REG_INDEX_DMA_ADDR) + (BURST_LIMIT*4);
+          END IF;
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
