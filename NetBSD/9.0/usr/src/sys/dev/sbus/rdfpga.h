@@ -41,12 +41,26 @@ struct rdfpga_softc {
 	bus_space_handle_t sc_bhregs;	/* bus handle */
 	//void *	sc_buffer;		/* VA of the registers */
 	int	sc_bufsiz;		/* Size of buffer */
+	bus_dma_tag_t		sc_dmatag;
+	bus_dmamap_t		sc_dmamap;	/* DMA map for bus_dma_* */
 };
 
-#define RDFPGA_REG_LED 0x0
+#define RDFPGA_REG_LED 0x0 /* 1 reg */
 
-#define RDFPGA_REG_H 0x40
-#define RDFPGA_REG_C 0x50
-#define RDFPGA_REG_I 0x60
+#define RDFGPA_REG_GCM_BASE 0x40
+#define RDFPGA_REG_GCM_H (RDFGPA_REG_GCM_BASE + 0x00) /* 4 regs */
+#define RDFPGA_REG_GCM_C (RDFGPA_REG_GCM_BASE + 0x10) /* 4 regs */
+#define RDFPGA_REG_GCM_I (RDFGPA_REG_GCM_BASE + 0x20) /* 4 regs */
+
+#define RDFPGA_REG_DMA_BASE 0x80
+#define RDFPGA_REG_DMA_ADDR (RDFPGA_REG_DMA_BASE + 0x00)
+#define RDFPGA_REG_DMA_CTRL (RDFPGA_REG_DMA_BASE + 0x04)
+
+#define RDFPGA_MASK_DMA_CTRL_START  0x80000000
+#define RDFPGA_MASK_DMA_CTRL_BUSY   0x40000000
+#define RDFPGA_MASK_DMA_CTRL_ERR    0x20000000
+/* #define RDFPGA_MASK_DMA_CTRL_RW     0x10000000 */
+#define RDFPGA_MASK_DMA_CTRL_BLKCNT 0x000000FF
+/* #define RDFPGA_MASK_DMA_CTRL_SIZ    0x00000F00 */
 
 #endif /* _RDFPGA_H_ */

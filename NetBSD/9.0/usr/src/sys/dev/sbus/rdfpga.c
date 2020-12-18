@@ -46,6 +46,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 
 #include <dev/sbus/rdfpga.h>
 
+#include <machine/param.h>
+
 int	rdfpga_print(void *, const char *);
 int	rdfpga_match(device_t, cfdata_t, void *);
 void	rdfpga_attach(device_t, device_t, void *);
@@ -99,19 +101,19 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
         switch (cmd) {
         case RDFPGA_WC:
 		for (i = 0 ; i < 2 ; i++)
-			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*8)), bits->x[i] );
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_C + (i*8)), bits->x[i] );
                 break;
         case RDFPGA_WH:
 		for (i = 0 ; i < 2 ; i++)
-			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_H + (i*8)), bits->x[i] );
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_H + (i*8)), bits->x[i] );
                 break;
         case RDFPGA_WI:
 		for (i = 0 ; i < 2 ; i++)
-			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + (i*8)), bits->x[i] );
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_I + (i*8)), bits->x[i] );
                 break;
         case RDFPGA_RC:
 		for (i = 0 ; i < 2 ; i++)
-			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*8)));
+			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_C + (i*8)));
                 break;
         case RDFPGA_WL:
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_LED, *(uint32_t*)data);
@@ -131,11 +133,11 @@ rdfpga_open(dev_t dev, int flags, int mode, struct lwp *l)
 	int i;
 
 	for (i = 0 ; i < 4 ; i++)
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*4)), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_C + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_H + (i*4)), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_H + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + (i*4)), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_I + (i*4)), 0);
 
 	return (0);
 }
@@ -147,11 +149,11 @@ rdfpga_close(dev_t dev, int flags, int mode, struct lwp *l)
 	int i;
 
 	for (i = 0 ; i < 4 ; i++)
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_C + (i*4)), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_C + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_H + (i*4)), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_H + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + (i*4)), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_I + (i*4)), 0);
 	
 	return (0);
 }
@@ -160,17 +162,115 @@ int
 rdfpga_write(dev_t dev, struct uio *uio, int flags)
 {
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
-	int error = 0;
+	int error = 0, ctr = 0, res;
 	
-	while (uio->uio_resid > 0) {
+	aprint_normal_dev(sc->sc_dev, "dma uio: %zu in %d\n", uio->uio_resid, uio->uio_iovcnt);
+delay(100);
+
+	while (!error && uio->uio_resid >= 16 && uio->uio_iovcnt == 1) {
+	  uint64_t ctrl;
+	  uint32_t nblock = uio->uio_resid/16;
+	  if (nblock > 256)
+	    nblock = 256;
+
+	  /* no implemented on sparc ? */
+	  /* if (bus_dmamap_load_uio(sc->sc_dmatag, sc->sc_dmamap, uio, BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) { */
+	  /*   aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address"); */
+	  /*   return ENXIO; */
+	  /* } else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dma: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs); */
+	  /* } */
+	  
+	  /* uint64_t buf[4]; */
+	  /* if ((error = uiomove(buf, 32, uio)) != 0) */
+	  /*   break; */
+	  
+	  /* if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, buf, 32, /\* kernel space *\/ NULL, */
+	  /* 		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) { */
+	  /*   aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address"); */
+	  /*   return ENXIO; */
+	  /* } else { */
+	  /*   aprint_normal_dev(sc->sc_dev, "dma: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs); */
+	  /* } */
+
+	  aprint_normal_dev(sc->sc_dev, "dmamem about to alloc for %d blocks...\n", nblock);
+	  
+	  bus_dma_segment_t segs;
+	  int rsegs;
+	  if (bus_dmamem_alloc(sc->sc_dmatag, nblock*16, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
+	     aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
+	    return ENXIO;
+	  } else {
+	    aprint_normal_dev(sc->sc_dev, "dmamem alloc: %d\n", rsegs);
+	  }
+
+	  void* kvap;
+	  if (bus_dmamem_map(sc->sc_dmatag, &segs, 1, nblock*16, &kvap, BUS_DMA_NOWAIT)) {
+	    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
+	    return ENXIO;
+	  } else {
+	    aprint_normal_dev(sc->sc_dev, "dmamem map: %p\n", kvap);
+	  }
+
+	  if ((error = uiomove(kvap, nblock*16, uio)) != 0)
+	    break;
+	  
+	  aprint_normal_dev(sc->sc_dev, "uimove: left %zu in %d\n", uio->uio_resid, uio->uio_iovcnt);
+	  
+	  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, nblock*16, /* kernel space */ NULL,
+	  		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+	    aprint_error_dev(sc->sc_dev, "cannot load dma map");
+	    return ENXIO;
+	  } else {
+	    aprint_normal_dev(sc->sc_dev, "dmamap: %lu %lu %d\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs);
+	  }
+	  
+	  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, nblock*16, BUS_DMASYNC_PREWRITE);
+	  
+	  aprint_normal_dev(sc->sc_dev, "dma: synced\n");
+
+	  ctrl = ((uint64_t)(0x80000000 | ((nblock-1) & 0x0FF))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+	  
+	  aprint_normal_dev(sc->sc_dev, "trying 0x%016llx\n", ctrl);
+
+	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
+	  
+	  aprint_normal_dev(sc->sc_dev, "dma: cmd sent\n");
+
+	  do {
+	    ctr ++;
+	    delay(1);
+	  } while (((res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_CTRL))) & 0x80000000) && (ctr < 10));
+
+	  if ((res & 0x80000000) || (res & 0x20000000)) {
+	    aprint_error_dev(sc->sc_dev, "read 0x%08x (%d try)\n", res, ctr);
+	    error = ENXIO;
+	  }
+
+	  /* if (sc->sc_dmamap->dm_nsegs > 0) { */
+	  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, nblock*16, BUS_DMASYNC_POSTWRITE);
+	  aprint_normal_dev(sc->sc_dev, "dma: synced (2)\n");
+	  bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
+	  aprint_normal_dev(sc->sc_dev, "dma: unloaded\n");
+	  bus_dmamem_unmap(sc->sc_dmatag, kvap, nblock*16);
+	  aprint_normal_dev(sc->sc_dev, "dma: unmapped\n");
+	  bus_dmamem_free(sc->sc_dmatag, &segs, 1);
+	  aprint_normal_dev(sc->sc_dev, "dma: freed\n");
+	  /* } */
+	}
+
+	if (uio->uio_resid > 0)
+	  aprint_normal_dev(sc->sc_dev, "%zd bytes left after DMA\n", uio->uio_resid);
+	
+	while (!error && uio->uio_resid > 0) {
 		uint64_t bp[2] = {0, 0};
 		size_t len = uimin(16, uio->uio_resid);
 
 		if ((error = uiomove(bp, len, uio)) != 0)
 			break;
 
-		bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + 0), bp[0]);
-		bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_I + 8), bp[1]);
+		bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_I + 0), bp[0]);
+		bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_I + 8), bp[1]);
 	}
 
 	return (error);
@@ -204,19 +304,17 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	int node;
 	int sbusburst;
 	/* bus_dma_tag_t	dt = sa->sa_dmatag; */
-	bus_space_handle_t bh;
 
 	sc->sc_bustag = sa->sa_bustag;
-
+	sc->sc_dmatag = sa->sa_dmatag;
+		
 	sc->sc_dev = self;
 
 	if (sbus_bus_map(sc->sc_bustag, sa->sa_slot, sa->sa_offset, sa->sa_size,
-			 BUS_SPACE_MAP_LINEAR, &bh) != 0) {
+			 BUS_SPACE_MAP_LINEAR, &sc->sc_bhregs) != 0) {
 		aprint_error(": cannot map registers\n");
 		return;
 	}
-	
-	sc->sc_bhregs = bh;
 
 	//sc->sc_buffer = bus_space_vaddr(sc->sc_bustag, sc->sc_bhregs);
 	sc->sc_bufsiz = sa->sa_size;
@@ -239,12 +337,22 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	sc->sc_burst &= sbusburst;
 
 	aprint_normal("\n");
-	aprint_normal_dev(self, " nid 0x%x, bustag %p, slave-burst 0x%x\n",
+	aprint_normal_dev(self, "nid 0x%x, bustag %p, slave-burst 0x%x\n",
 			  sc->sc_node,
 			  sc->sc_bustag,
 			  sc->sc_burst);
 
-	/* change blink pattern */
+	/* change blink pattern to marching 2 */
 	
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_LED , 0x81422418);
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_LED , 0xc0300c03);
+
+	/* DMA */
+
+	/* Allocate a dmamap */
+#define MAX_DMA_SZ 4096
+	if (bus_dmamap_create(sc->sc_dmatag, MAX_DMA_SZ, 1, MAX_DMA_SZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW, &sc->sc_dmamap) != 0) {
+		aprint_error_dev(self, ": DMA map create failed\n");
+	} else {
+		aprint_normal_dev(self, "dmamap: %lu %lu %d (%p)\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs, sc->sc_dmatag->_dmamap_load);
+	}
 }
