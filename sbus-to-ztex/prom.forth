@@ -5,6 +5,7 @@ fcode-version2
 my-address h# 200 + my-space h# 100 reg
 \ we don't support ET
 h# 7f xdrint " slave-burst-sizes" attribute
+h# 7f xdrint " burst-sizes" attribute
 
 headers
 
@@ -27,7 +28,7 @@ external
 	;
 
 \ works at probe time, but not as a user command
-h# 12488421 blink!
+h# a0500a05 blink!
 
 \ \hex
 
