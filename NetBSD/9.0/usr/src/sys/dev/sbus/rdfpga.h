@@ -43,21 +43,25 @@ struct rdfpga_softc {
 	int	sc_bufsiz;		/* Size of buffer */
 	bus_dma_tag_t		sc_dmatag;
 	bus_dmamap_t		sc_dmamap;	/* DMA map for bus_dma_* */
+        int			aes_key_refresh;
 };
 
+/* led */
 #define RDFPGA_REG_LED 0x0 /* 1 reg */
 
+/* gcm stuff */
 #define RDFGPA_REG_GCM_BASE 0x40
 #define RDFPGA_REG_GCM_H (RDFGPA_REG_GCM_BASE + 0x00) /* 4 regs */
 #define RDFPGA_REG_GCM_C (RDFGPA_REG_GCM_BASE + 0x10) /* 4 regs */
 #define RDFPGA_REG_GCM_I (RDFGPA_REG_GCM_BASE + 0x20) /* 4 regs */
 
+/* dma, currently to read data in GCM */
 #define RDFPGA_REG_DMA_BASE 0x80
 #define RDFPGA_REG_DMA_ADDR (RDFPGA_REG_DMA_BASE + 0x00)
 #define RDFPGA_REG_DMA_CTRL (RDFPGA_REG_DMA_BASE + 0x04)
 
 #define RDFPGA_MASK_DMA_CTRL_START  0x80000000
-#define RDFPGA_MASK_DMA_CTRL_BUSY   0x40000000
+#define RDFPGA_MASK_DMA_CTRL_BUSY   0x40000000 /* unused */
 #define RDFPGA_MASK_DMA_CTRL_ERR    0x20000000
 /* #define RDFPGA_MASK_DMA_CTRL_RW     0x10000000 */
 #define RDFPGA_MASK_DMA_CTRL_BLKCNT 0x00000FFF
@@ -65,5 +69,17 @@ struct rdfpga_softc {
 /* #define RDFPGA_MASK_DMA_CTRL_SIZ    0x00000F00 */
 
 #define RDFPGA_VAL_DMA_MAX_SZ 65536
+
+/* having a go at AES128 */
+#define RDFPGA_REG_AES128_BASE 0xc0
+#define RDFPGA_REG_AES128_KEY  (RDFPGA_REG_AES128_BASE + 0x00) /* 4 regs */
+#define RDFPGA_REG_AES128_DATA (RDFPGA_REG_AES128_BASE + 0x10) /* 4 regs */
+#define RDFPGA_REG_AES128_OUT  (RDFPGA_REG_AES128_BASE + 0x20) /* 4 regs */
+#define RDFPGA_REG_AES128_CTRL (RDFPGA_REG_AES128_BASE + 0x30)
+
+#define RDFPGA_MASK_AES128_START  0x80000000
+#define RDFPGA_MASK_AES128_BUSY   0x40000000
+#define RDFPGA_MASK_AES128_ERR    0x20000000
+#define RDFPGA_MASK_AES128_NEWKEY 0x10000000
 
 #endif /* _RDFPGA_H_ */

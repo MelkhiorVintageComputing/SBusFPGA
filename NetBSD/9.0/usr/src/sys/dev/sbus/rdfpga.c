@@ -89,16 +89,22 @@ struct rdfpga_128bits_alt {
 #define RDFPGA_WH   _IOW(0, 2, struct rdfpga_128bits)
 #define RDFPGA_WI   _IOW(0, 3, struct rdfpga_128bits)
 #define RDFPGA_RC   _IOR(0, 4, struct rdfpga_128bits)
-#define RDFPGA_WL   _IOW(0, 1, uint32_t)
+#define RDFPGA_WL   _IOW(0, 5, uint32_t)
+
+#define RDFPGA_AESWK   _IOW(0, 10, struct rdfpga_128bits)
+#define RDFPGA_AESWD   _IOW(0, 11, struct rdfpga_128bits)
+#define RDFPGA_AESRO   _IOR(0, 12, struct rdfpga_128bits)
 
 int
 rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 {
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
 	struct rdfpga_128bits_alt *bits = (struct rdfpga_128bits_alt*)data;
-        int err = 0, i;
+        int err = 0, i, ctr = 0;
+	uint32_t ctrl;
 
         switch (cmd) {
+	  /* GCM */
         case RDFPGA_WC:
 		for (i = 0 ; i < 2 ; i++)
 			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_C + (i*8)), bits->x[i] );
@@ -118,6 +124,40 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
         case RDFPGA_WL:
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_LED, *(uint32_t*)data);
                 break;
+	  /* AES */
+        case RDFPGA_AESWK:
+	        ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
+		if (ctrl)
+		  return EBUSY;
+		for (i = 0 ; i < 2 ; i++)
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), bits->x[i] );
+		sc->aes_key_refresh = 1;
+                break;
+        case RDFPGA_AESWD:
+	        ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
+		if (ctrl)
+		  return EBUSY;
+		for (i = 0 ; i < 2 ; i++)
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), bits->x[i] );
+		ctrl = RDFPGA_MASK_AES128_START;
+		if (sc->aes_key_refresh) {
+		  ctrl |= RDFPGA_MASK_AES128_NEWKEY;
+		  sc->aes_key_refresh = 0;
+		}
+	        bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
+                break;
+        case RDFPGA_AESRO:
+	        ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
+                while (ctrl && (ctr < 3)) {
+		    delay(1);
+	            ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
+		    ctr ++;
+		}
+		if (ctrl)
+		  return EBUSY;
+		for (i = 0 ; i < 2 ; i++)
+			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
+                break;
         default:
                 err = EINVAL;
                 break;
@@ -129,32 +169,32 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 int
 rdfpga_open(dev_t dev, int flags, int mode, struct lwp *l)
 {
+#if 0
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
 	int i;
-
 	for (i = 0 ; i < 4 ; i++)
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_C + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_H + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_I + (i*4)), 0);
-
+#endif
 	return (0);
 }
 
 int
 rdfpga_close(dev_t dev, int flags, int mode, struct lwp *l)
 {
+#if 0
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
 	int i;
-
 	for (i = 0 ; i < 4 ; i++)
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_C + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_H + (i*4)), 0);
 	for (i = 0 ; i < 4 ; i++)
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCM_I + (i*4)), 0);
-	
+#endif
 	return (0);
 }
 
@@ -314,6 +354,7 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	struct sbus_softc *sbsc = device_private(parent);
 	int node;
 	int sbusburst;
+	int i;
 	/* bus_dma_tag_t	dt = sa->sa_dmatag; */
 
 	sc->sc_bustag = sa->sa_bustag;
@@ -366,4 +407,8 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 	} else {
 		aprint_normal_dev(self, "dmamap: %lu %lu %d (%p)\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs, sc->sc_dmatag->_dmamap_load);
 	}
+
+	for (i = 0 ; i < 2 ; i++)
+	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), 0ull);
+	sc->aes_key_refresh = 1;
 }
