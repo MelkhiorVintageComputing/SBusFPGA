@@ -72,8 +72,7 @@ ENTITY SBusFSM is
   -- ADDR RANGES ; (27 downto 9) so 19 bits
   CONSTANT ROM_ADDR_PFX : std_logic_vector(18 downto 0) := "0000000000000000000";
   CONSTANT REG_ADDR_PFX : std_logic_vector(18 downto 0) := "0000000000000000001";
-  -- OFFSET to REGS; (8 downto 0) so 9 bits
-  CONSTANT REG_OFFSET_LED        : std_logic_vector(8 downto 0) := conv_std_logic_vector( 0, 9);
+  CONSTANT REG_INDEX_LED        : integer := 0;
   -- starts at 64 so we can do 64 bytes burst (see address wrapping)
   CONSTANT REG_INDEX_GCM_H1     : integer := 16;
   CONSTANT REG_INDEX_GCM_H2     : integer := 17;
@@ -96,6 +95,9 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_DMA_CTRL2  : integer := 34; -- placeholder
   CONSTANT REG_INDEX_DMA_CTRL3  : integer := 35; -- placeholder
   
+
+  -- OFFSET to REGS; (8 downto 0) so 9 bits
+  CONSTANT REG_OFFSET_LED        : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_LED   *4, 9);
   CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H1*4, 9);
   CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H2*4, 9);
   CONSTANT REG_OFFSET_GCM_H3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H3*4, 9);
@@ -182,7 +184,6 @@ ARCHITECTURE RTL OF SBusFSM IS
   SIGNAL State : SBus_States := SBus_Start;
   SIGNAL Uart_State : Uart_States := UART_IDLE;
   SIGNAL LED_RESET: std_logic := '0';
-  SIGNAL LED_DATA: std_logic_vector(31 downto 0) := (others => '0');
   signal DATA_T : std_logic := '1'; -- I/O control for DATA IOBUF, default to input
   signal BUF_DATA_I, BUF_DATA_O : std_logic_vector(31 downto 0); -- buffers for data from/to
   SIGNAL p_addr : std_logic_vector(6 downto 0) := "1111111"; -- addr lines to prom
@@ -219,7 +220,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   SIGNAL OE_COUNTER : natural range 0 to 960000000 := 960000000;
 
   -- 16 registers for GCM (12 used), 4 for DMA (2 used ATM)
-  type REGISTERS_TYPE is array(16 to 35) of std_logic_vector(31 downto 0);
+  type REGISTERS_TYPE is array(0 to 64) of std_logic_vector(31 downto 0);
   SIGNAL REGISTERS : REGISTERS_TYPE;
   
   pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(8 downto 0)) return boolean is
@@ -258,7 +259,7 @@ ARCHITECTURE RTL OF SBusFSM IS
 
   pure function REG_OFFSET_IS_ANY(value : in std_logic_vector(8 downto 0)) return boolean is
   begin
-    return REG_OFFSET_IS_ANYGCM(value) or REG_OFFSET_IS_DMA(value);
+    return true;
   end function;
   
   pure function SIZ_IS_WORD(value : in std_logic_vector(2 downto 0)) return boolean is
@@ -449,7 +450,7 @@ BEGIN
                   PORT MAP(O => BUF_ERRs_I, IO => SBUS_3V3_ERRs, I => BUF_ERRs_O, T => SMs_T);
 
   --label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => LED_DATA, l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3 );
-  label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => LED_DATA, l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
+  label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => REGISTERS(REG_INDEX_LED), l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
                                           l_LED4 => LED4, l_LED5 => LED5, l_LED6 => LED6, l_LED7 => LED7);
   
   label_prom: Prom PORT MAP (addr => p_addr, data => p_data);
@@ -573,22 +574,8 @@ BEGIN
             SBUS_DATA_OE_LED_2 <= '1';
             BURST_COUNTER := 0;
             BURST_LIMIT := SIZ_TO_BURSTSIZE(BUF_SIZ_I);
-            IF ((last_pa(27 downto 9) = REG_ADDR_PFX) and (last_pa(8 downto 0) = REG_OFFSET_LED)) then
-              -- 32 bits write to LED register  ------------------------------------
-              if (BUF_SIZ_I = SIZ_WORD) THEN
-                LED_RESET <= '1'; -- reset led cycle
-                --DATA_T <= '1'; -- set buffer as input
-                LED_DATA <= BUF_DATA_I; -- display data
-                BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
-                BUF_ERRs_O <= '1'; -- no late error
-                State <= SBus_Slave_Ack_Reg_Write;
-              ELSE
-                BUF_ACKs_O <=  ACK_ERR;
-                BUF_ERRs_O <= '1'; -- no late error
-                State <= SBus_Slave_Error;
-              END IF;
-            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANY(last_pa(8 downto 0))) then
-              -- 32 bits write to GCM register  ------------------------------------
+            IF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANY(last_pa(8 downto 0))) then
+              -- 32 bits write to register  ------------------------------------
               BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
               BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Ack_Reg_Write_Burst;
@@ -608,13 +595,13 @@ BEGIN
               --DATA_T <= '1'; -- set buffer as input
               CASE last_pa(1 downto 0) IS
               WHEN "00" =>
-                LED_DATA(31 downto 24) <= BUF_DATA_I(31 downto 24);
+                REGISTERS(REG_INDEX_LED)(31 downto 24) <= BUF_DATA_I(31 downto 24);
               WHEN "01" =>
-                LED_DATA(23 downto 16) <= BUF_DATA_I(31 downto 24);
+                REGISTERS(REG_INDEX_LED)(23 downto 16) <= BUF_DATA_I(31 downto 24);
               WHEN "10" =>
-                LED_DATA(15 downto 8) <= BUF_DATA_I(31 downto 24);
+                REGISTERS(REG_INDEX_LED)(15 downto 8) <= BUF_DATA_I(31 downto 24);
               WHEN "11" =>
-                LED_DATA(7 downto 0) <= BUF_DATA_I(31 downto 24);
+                REGISTERS(REG_INDEX_LED)(7 downto 0) <= BUF_DATA_I(31 downto 24);
               WHEN OTHERS =>
                 -- TODO: FIXME, probably should generate an error
               END CASE;
@@ -651,7 +638,7 @@ BEGIN
                 BUF_SIZ_O <= SIZ_BURST4;
                 BURST_LIMIT := 4;
               END IF;
-              -- LED_DATA <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
+              -- REGISTERS(REG_INDEX_LED) <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
               BURST_COUNTER := 0;
               State <= SBus_Master_Translation;
 -- ERROR ERROR ERROR 
@@ -666,18 +653,6 @@ BEGIN
         WHEN SBus_Slave_Ack_Reg_Write =>
           fifo_wr_en <= '1'; fifo_din <= x"45"; -- "E"
           BUF_ACKs_O <= ACK_IDLE; -- need one cycle of idle
-          IF (do_gcm) THEN
-            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
-            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
-            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
-            mas_a(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT4) xor REGISTERS(REG_INDEX_GCM_C4));
-            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
-            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
-            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
-            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
-            do_gcm := false;
-            finish_gcm := true;
-          END IF;
           IF (SBUS_3V3_ASs='1') THEN
             seen_ack := true;
           END IF;
@@ -704,13 +679,24 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"48"; -- "H"
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
           REGISTERS(conv_integer(last_pa(8 downto 6))*16 + BURST_INDEX) <= BUF_DATA_I;
-          BUF_ACKs_O <= ACK_WORD; -- acknowledge the Word
-          IF (last_pa(8 downto 0) = REG_OFFSET_GCM_INPUT4) THEN
-            do_gcm := true;
+          IF (last_pa(8 downto 0) = REG_OFFSET_LED) THEN
+            LED_RESET <= '1'; -- reset led cycle
+          ELSIF (last_pa(8 downto 0) = REG_OFFSET_GCM_INPUT4) THEN
+            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
+            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
+            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
+            mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                      xor REGISTERS(REG_INDEX_GCM_C4));
+            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
+            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
+            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
+            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
+            finish_gcm := true;
           END IF;
           if (BURST_COUNTER = (BURST_LIMIT-1)) THEN
-            State <= SBus_Slave_Ack_Reg_Write;
+            BUF_ACKs_O <= ACK_IDLE;
+            State <= SBus_Slave_Ack_Reg_Write_Final;
           ELSE
+            BUF_ACKs_O <= ACK_WORD; -- acknowledge the Word
             BURST_COUNTER := BURST_COUNTER + 1;
           END IF;
           
