@@ -76,6 +76,23 @@ const struct cdevsw rdfpga_cdevsw = {
 	.d_flag = 0
 };
 
+static int rdfpga_wait_aes_ready(struct rdfpga_softc *sc) {
+  u_int32_t ctrl;
+  int ctr;
+  
+  ctr = 0;
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
+	 (ctr < 5)) {
+    delay(1);
+    ctr ++;
+  }
+
+  if (ctrl)
+    return EBUSY;
+
+  return 0;
+}
+
 
 extern struct cfdriver rdfpga_cd;
 
@@ -101,7 +118,7 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 {
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
 	struct rdfpga_128bits_alt *bits = (struct rdfpga_128bits_alt*)data;
-        int err = 0, i, ctr = 0;
+        int err = 0, i;
 	uint32_t ctrl;
 
         switch (cmd) {
@@ -127,17 +144,15 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
                 break;
 	  /* AES */
         case RDFPGA_AESWK:
-	        ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
-		if (ctrl)
-		  return EBUSY;
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
 		for (i = 0 ; i < 2 ; i++)
 			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), bits->x[i] );
 		sc->aes_key_refresh = 1;
                 break;
         case RDFPGA_AESWD:
-	        ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
-		if (ctrl)
-		  return EBUSY;
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
 		for (i = 0 ; i < 2 ; i++)
 			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), bits->x[i] );
 		ctrl = RDFPGA_MASK_AES128_START;
@@ -148,14 +163,8 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 	        bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
                 break;
         case RDFPGA_AESRO:
-	        ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
-                while (ctrl && (ctr < 3)) {
-		    delay(1);
-	            ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
-		    ctr ++;
-		}
-		if (ctrl)
-		  return EBUSY;
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
 		for (i = 0 ; i < 2 ; i++)
 			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
                 break;
@@ -492,6 +501,7 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   struct rdfpga_softc *sc = arg;
   struct cryptoini *c;
   int i, abort = 0, res;
+  u_int32_t ctrl;
   
   /* aprint_normal_dev(sc->sc_dev, "newses: %p %p %p\n", arg, sid, cri); */
   
@@ -531,16 +541,17 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   ((rdfpga_rijndael_ctx *)sc->sw_kschedule)->readback = 1;
   ((rdfpga_rijndael_ctx *)sc->sw_kschedule)->cbc = 0;
   
-  u_int32_t ctrl;
-  while ((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) {
-    delay(1);
-  }
   memcpy(sc->aesiv, cri->cri_iv, 16);
   memcpy(sc->aeskey, cri->cri_key, 16);
+  
+  if ((res = rdfpga_wait_aes_ready(sc)) != 0)
+    return res;
+  
   for (i = 0 ; i < 2 ; i++)
     bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), sc->aeskey[i]);
   for (i = 0 ; i < 2 ; i++)
     bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), 0ull);
+  
   /* blank run with a zero-block to force keygen in the AES block */
   ctrl = RDFPGA_MASK_AES128_START | RDFPGA_MASK_AES128_NEWKEY;
   bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
@@ -555,7 +566,6 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
 }
 static int rdfpga_freeses(void* arg, u_int64_t tid) {
   struct rdfpga_softc *sc = arg;
-
   
   /* aprint_normal_dev(sc->sc_dev, "freeses\n"); */
 
@@ -569,6 +579,59 @@ static int rdfpga_freeses(void* arg, u_int64_t tid) {
 
 static void
 rdfpga_rijndael128_encrypt(void *key, u_int8_t *blk)
+{
+  u_int32_t ctrl;
+  u_int64_t data[2];
+  u_int64_t *ptr;
+  int i;
+  rdfpga_rijndael_ctx* ctx;
+  struct rdfpga_softc *sc;
+  
+  ctx = key;
+  sc = ctx->sc;
+
+  /* alignment constraint */
+  if (!(((u_int32_t)blk) & 0x7)) {
+    ptr = (u_int64_t*)blk;
+  } else {
+    memcpy(data, blk, 16);
+    ptr = data;
+  }
+  
+  if (rdfpga_wait_aes_ready(sc)) {
+    aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck\n");
+    return;
+  }
+  
+  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: write data & start\n"); */
+  
+  for (i = 0 ; i < 2 ; i++)
+    bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), ptr[i] );
+  ctrl = RDFPGA_MASK_AES128_START;
+  if (ctx->cbc)
+    ctrl |= RDFPGA_MASK_AES128_CBCMOD;
+  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
+
+  if (ctx->readback) {
+    if (rdfpga_wait_aes_ready(sc)) {
+      aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck\n");
+      return;
+    }
+    
+    for (i = 0 ; i < 2 ; i++)
+      ptr[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
+    
+    if (!(((u_int32_t)blk) & 0x7)) {
+      /* nothing */
+    } else {
+      memcpy(blk, data, 16);
+    }
+  }
+}
+
+#if 0
+static int
+rdfpga_rijndael128_writeivforcbc(void *key, u_int8_t *blk)
 {
   u_int32_t ctrl;
   int ctr;
@@ -589,57 +652,15 @@ rdfpga_rijndael128_encrypt(void *key, u_int8_t *blk)
     ptr = data;
   }
   
-  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: check avail\n"); */
-  ctr = 0;
-  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
-	 (ctr < 5)) {
-    delay(1);
-    ctr ++;
-  }
-  if (ctrl) {
-    aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck (%x, %d)\n", ctrl, ctr);
-    return;
-  }
-  
-  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: write data & start\n"); */
-  
-  for (i = 0 ; i < 2 ; i++)
-    bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), ptr[i] );
-  ctrl = RDFPGA_MASK_AES128_START;
-  if (ctx->cbc)
-    ctrl |= RDFPGA_MASK_AES128_CBCMOD;
-  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
-  
-  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: wait for results\n"); */
-  
-  ctr = 0;
-  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
-	 (ctr < 5)) {
-    delay(1);
-    ctr ++;
-  }
-  if (ctrl) {
-    aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck (%x, %d)\n", ctrl, ctr);
-    return;
-  }
-  
-  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: read results\n"); */
+  if ((res = rdfpga_wait_aes_ready(sc)) != 0)
+    return res;
 
-  if (ctx->readback) {
-    for (i = 0 ; i < 2 ; i++)
-      ptr[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
-    
-    
-    if (!(((u_int32_t)blk) & 0x7)) {
-      /* nothing */
-    } else {
-      memcpy(blk, data, 16);
-    }
-  }
-  
-  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: xor\n"); */
-  //	rijndael_encrypt((rdfpga_rijndael_ctx *) key, (u_char *) blk, (u_char *) blk);
+  for (i = 0 ; i < 2 ; i++)
+    bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)), ptr[i]);
+
+  return 0;
 }
+#endif
 
 static void
 rdfpga_rijndael128_decrypt(void *key, u_int8_t *blk)
@@ -1028,22 +1049,14 @@ static int rdfpga_process(void* arg, struct cryptop * crp, int hint) {
   struct rdfpga_softc *sc = arg;
   struct cryptodesc *crd;
   int type;
+  int res;
   
   if (crp == NULL || crp->crp_callback == NULL || sc == NULL) {
     return (EINVAL);
   }
   
-  u_int32_t ctrl;
-  int ctr;
-  /* aprint_normal_dev(sc->sc_dev, "process: %d %d\n", crp->crp_ilen, crp->crp_olen); */
   if (CRYPTO_SESID2LID(crp->crp_sid) != sc->sid)
     return (EINVAL);
-
-  /* u_int64_t tmp_iv[2]; */
-  /* memcpy(tmp_iv, crp->tmp_iv, 16); */
-  /* aprint_normal_dev(sc->sc_dev, "prcess: iv: (%p) 0x%016llx 0x%016llx\n", crp->tmp_iv, tmp_iv[0], tmp_iv[1]); */
-  
-  /*  u_int64_t data[2]; */
  
   if (crp->crp_flags & CRYPTO_F_IMBUF) {
     type = CRYPTO_BUF_MBUF;
@@ -1053,57 +1066,14 @@ static int rdfpga_process(void* arg, struct cryptop * crp, int hint) {
     type = CRYPTO_BUF_CONTIG;
   }
 
-  ctr = 0;
-  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
-	 (ctr < 5)) {
-    delay(1);
-    ctr ++;
-  }
-  if (ctrl)
-    aprint_error_dev(sc->sc_dev, "process: stuck (%x, %d)\n", ctrl, ctr);
+  /* if (res = rdfpga_wait_aes_ready(sc)) */
+  /*   return res; */
   
   for (crd = crp->crp_desc; crd != NULL; crd = crd->crd_next) {
-#if 0
-    int len = crd->crd_len;
-    if (clen % 16)
-      return EINVAL;
-#endif
-    /* aprint_normal_dev(sc->sc_dev, "process: %p (%d)\n", crd, crd->crd_len); */
-    
-    int res = rdfpga_encdec_aes128cbc(sc, crd, crp->crp_buf, type);
+    res = rdfpga_encdec_aes128cbc(sc, crd, crp->crp_buf, type);
     if (res)
       return res;
     crypto_done(crp);
-    
-#if 0
-    u_int8_t* buf = ((u_int8_t*)crp->crp_buf) + crd->crd_skip;
-  
-  while (len >= 16) {
-    int ctr = 0, i;
-    u_int64_t tmp_iv[2];
-    memcpy(tmp_iv, crp->tmp_iv, 16);
-    for (i = 0 ; i < 2 ; i++)
-      bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), tmp_iv[i]);
-    ctrl = RDFPGA_MASK_AES128_START | RDFPGA_MASK_AES128_NEWKEY;
-    bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
-    
-    ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
-    while (ctrl && (ctr < 12)) {
-      ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL);
-      ctr ++;
-    }
-    if (ctrl)
-      return EBUSY;
-    for (i = 0 ; i < 2 ; i++)
-      data[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
-    
-    for (i = 0 ; i < 16 ; i++) {
-      buf[i] ^= ((u_int8_t*)data)[i];
-    }
-    len -= 16;
-      buf += 16;
-  }
-  #endif
   }
 
   return 0;
