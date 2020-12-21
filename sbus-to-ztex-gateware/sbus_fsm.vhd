@@ -132,6 +132,20 @@ ENTITY SBusFSM is
   CONSTANT REG_OFFSET_DMA_CTRL2  : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL2 *4, 9); -- placeholder
   CONSTANT REG_OFFSET_DMA_CTRL3  : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL3 *4, 9); -- placeholder
   
+  CONSTANT REG_OFFSET_AES128_KEY1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY1*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY2*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY3*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY4*4, 9);
+  CONSTANT REG_OFFSET_AES128_DATA1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA1*4, 9);
+  CONSTANT REG_OFFSET_AES128_DATA2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA2*4, 9);
+  CONSTANT REG_OFFSET_AES128_DATA3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA3*4, 9);
+  CONSTANT REG_OFFSET_AES128_DATA4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA4*4, 9);
+  CONSTANT REG_OFFSET_AES128_OUT1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT1*4, 9);
+  CONSTANT REG_OFFSET_AES128_OUT2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT2*4, 9);
+  CONSTANT REG_OFFSET_AES128_OUT3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT3*4, 9);
+  CONSTANT REG_OFFSET_AES128_OUT4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT4*4, 9);
+  CONSTANT REG_OFFSET_AES128_CTRL : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL*4, 9);
+
   constant c_CLKS_PER_BIT : integer := 417; -- 48M/115200
   -- constant c_CLKS_PER_BIT : integer := 50; -- 5.76M/115200
   END ENTITY;
@@ -266,17 +280,64 @@ ARCHITECTURE RTL OF SBusFSM IS
            (REG_OFFSET_GCM_C3 = value) OR
            (REG_OFFSET_GCM_C4 = value);
   end function;
-  pure function REG_OFFSET_IS_DMA(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANYDMA(value : in std_logic_vector(8 downto 0)) return boolean is
   begin
     return (REG_OFFSET_DMA_ADDR  = value) OR
            (REG_OFFSET_DMA_CTRL  = value) OR
            (REG_OFFSET_DMA_CTRL2  = value) OR
            (REG_OFFSET_DMA_CTRL3  = value);
   end function;
+  
+  pure function REG_OFFSET_IS_AESKEY(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return (REG_OFFSET_AES128_KEY1 = value) OR
+           (REG_OFFSET_AES128_KEY2 = value) OR
+           (REG_OFFSET_AES128_KEY3 = value) OR
+           (REG_OFFSET_AES128_KEY4 = value);
+  end function;
+  
+  pure function REG_OFFSET_IS_AESDATA(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return (REG_OFFSET_AES128_DATA1 = value) OR
+           (REG_OFFSET_AES128_DATA2 = value) OR
+           (REG_OFFSET_AES128_DATA3 = value) OR
+           (REG_OFFSET_AES128_DATA4 = value);
+  end function;
+  
+  pure function REG_OFFSET_IS_AESOUT(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return (REG_OFFSET_AES128_OUT1 = value) OR
+           (REG_OFFSET_AES128_OUT2 = value) OR
+           (REG_OFFSET_AES128_OUT3 = value) OR
+           (REG_OFFSET_AES128_OUT4 = value);
+  end function;
 
   pure function REG_OFFSET_IS_ANYGCM(value : in std_logic_vector(8 downto 0)) return boolean is
   begin
     return REG_OFFSET_IS_GCMINPUT(value) or REG_OFFSET_IS_GCMH(value) or REG_OFFSET_IS_GCMC(value);
+  end function;
+
+  pure function REG_OFFSET_IS_ANYAES(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return REG_OFFSET_IS_AESKEY(value) OR REG_OFFSET_IS_AESDATA(value) OR REG_OFFSET_IS_AESOUT(value) OR
+           (REG_OFFSET_AES128_CTRL = value);
+  end function;
+
+  pure function REG_OFFSET_IS_ANYREAD(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return REG_OFFSET_IS_GCMC(value) OR
+           REG_OFFSET_IS_AESOUT(value) OR
+           (REG_OFFSET_DMA_CTRL = value) OR
+           (REG_OFFSET_AES128_CTRL = value)
+           ;
+  end function;
+
+  pure function REG_OFFSET_IS_ANYWRITE(value : in std_logic_vector(8 downto 0)) return boolean is
+  begin
+    return (REG_OFFSET_LED = value) OR
+           REG_OFFSET_IS_ANYGCM(value) OR
+           REG_OFFSET_IS_ANYAES(value) OR
+           REG_OFFSET_IS_ANYDMA(value);
   end function;
 
   pure function REG_OFFSET_IS_ANY(value : in std_logic_vector(8 downto 0)) return boolean is
@@ -568,7 +629,7 @@ BEGIN
               -- word address goes to the p_addr lines
               p_addr <= last_pa(8 downto 2);
               State <= SBus_Slave_Ack_Read_Prom_Burst;
-            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) AND REG_OFFSET_IS_ANY(last_pa(8 downto 0))) then
+            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) AND REG_OFFSET_IS_ANYREAD(last_pa(8 downto 0))) then
               -- 32 bits read from aligned memory IN REG space ------------------------------------
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
@@ -620,7 +681,7 @@ BEGIN
             SBUS_DATA_OE_LED_2 <= '1';
             BURST_COUNTER := 0;
             BURST_LIMIT := SIZ_TO_BURSTSIZE(BUF_SIZ_I);
-            IF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANY(last_pa(8 downto 0))) then
+            IF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANYWRITE(last_pa(8 downto 0))) then
               -- 32 bits write to register  ------------------------------------
               BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
               BUF_ERRs_O <= '1'; -- no late error
@@ -998,8 +1059,18 @@ BEGIN
           -- start & !busy & !aesbusy -> start processing
           aes_Cipherkey_DI <= REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
                               REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4);
-          aes_Plaintext_DI <= REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
-                              REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
+          IF (REGISTERS(REG_INDEX_AES128_CTRL)(27) = '0') THEN
+            -- normal mode
+            aes_Plaintext_DI <= REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
+                                REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
+          ELSE
+            -- cbc mode
+            aes_Plaintext_DI <=
+               (REGISTERS(REG_INDEX_AES128_DATA1) XOR REGISTERS(REG_INDEX_AES128_OUT1))
+             & (REGISTERS(REG_INDEX_AES128_DATA2) XOR REGISTERS(REG_INDEX_AES128_OUT2))
+             & (REGISTERS(REG_INDEX_AES128_DATA3) XOR REGISTERS(REG_INDEX_AES128_OUT3))
+             & (REGISTERS(REG_INDEX_AES128_DATA4) XOR REGISTERS(REG_INDEX_AES128_OUT4));
+          END IF;
           aes_NewCipherkey_SI <= REGISTERS(REG_INDEX_AES128_CTRL)(28);
           aes_Start_SI <= '1';
           REGISTERS(REG_INDEX_AES128_CTRL)(30) <= '1'; -- busy
