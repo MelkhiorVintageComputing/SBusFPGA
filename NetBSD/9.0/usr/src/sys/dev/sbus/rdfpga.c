@@ -428,7 +428,8 @@ crypto_register(u_int32_t driverid, int alg, u_int16_t maxoplen,
 
 #include <opencrypto/cryptodev.h>
 #include <sys/cprng.h>
-/* most of the CTR is stolen from swcrypto */
+#include <crypto/rijndael/rijndael.h>
+/* most of the code is stolen from swcrypto */
 
 #define COPYBACK(x, a, b, c, d) \
 	(x) == CRYPTO_BUF_MBUF ? m_copyback((struct mbuf *)a,b,c,d) \
@@ -437,30 +438,24 @@ crypto_register(u_int32_t driverid, int alg, u_int16_t maxoplen,
 	(x) == CRYPTO_BUF_MBUF ? m_copydata((struct mbuf *)a,b,c,d) \
 	: cuio_copydata((struct uio *)a,b,c,d)
 
-#define AESCTR_NONCESIZE	4
-#define AESCTR_IVSIZE		8
-#define AESCTR_BLOCKSIZE	16
-
-struct rdfpga_aes_ctr_ctx {
-	/* need only encryption half */
-	//u_int32_t ac_ek[4*(/*RIJNDAEL_MAXNR*/10 + 1)];
-	u_int8_t __attribute__ ((aligned(8))) ac_block[AESCTR_BLOCKSIZE];
-	int ac_nr;
-	struct {
-		u_int64_t lastiv;
-	} ivgenctx;
-	struct rdfpga_softc *sc;
-};
-
-
 static int rdfpga_newses(void*, u_int32_t*, struct cryptoini*);
 static int rdfpga_freeses(void*, u_int64_t);
 static int rdfpga_process(void*, struct cryptop *, int);
 
-static void rdfpga_aes_ctr_crypt(void *key, u_int8_t *blk);
-int rdfpga_aes_ctr_setkey(u_int8_t **sched, const u_int8_t *key, int len);
-void rdfpga_aes_ctr_zerokey(u_int8_t **sched);
-void rdfpga_aes_ctr_reinit(void *key, const u_int8_t *iv, u_int8_t *ivout);
+static void rdfpga_rijndael128_encrypt(void *key, u_int8_t *blk);
+static void rdfpga_rijndael128_decrypt(void *key, u_int8_t *blk);
+static int  rdfpga_rijndael128_setkey(u_int8_t **sched, const u_int8_t *key, int len);
+static void rdfpga_rijndael128_zerokey(u_int8_t **sched);
+static int rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv, int outtype);
+
+
+typedef struct {
+  int	decrypt;
+  int	Nr;		/* key-length-dependent number of rounds */
+  uint32_t ek[4 * (RIJNDAEL_MAXNR + 1)];	/* encrypt key schedule */
+  uint32_t dk[4 * (RIJNDAEL_MAXNR + 1)];	/* decrypt key schedule */
+  struct rdfpga_softc *sc;
+} rdfpga_rijndael_ctx;
 
 struct rdfpga_enc_xform {
 /*	const struct enc_xform *enc_xform; */
@@ -470,13 +465,13 @@ struct rdfpga_enc_xform {
 	void (*zerokey)(uint8_t **);
 	void (*reinit)(void *, const uint8_t *, uint8_t *);
 };
-static const struct rdfpga_enc_xform rdfga_enc_xform_aes_ctr = {
-/*	&enc_xform_rdfpga_aes_ctr, */
-	rdfpga_aes_ctr_crypt,
-	rdfpga_aes_ctr_crypt,
-	rdfpga_aes_ctr_setkey,
-	rdfpga_aes_ctr_zerokey,
-	rdfpga_aes_ctr_reinit
+static const struct rdfpga_enc_xform rdfpga_enc_xform_rijndael128 = {
+	/* &enc_xform_rijndael128, */
+	rdfpga_rijndael128_encrypt,
+	rdfpga_rijndael128_decrypt,
+	rdfpga_rijndael128_setkey,
+	rdfpga_rijndael128_zerokey,
+	NULL
 };
 
 static void rdfpga_crypto_init(device_t self, struct rdfpga_softc *sc) {
@@ -485,7 +480,7 @@ static void rdfpga_crypto_init(device_t self, struct rdfpga_softc *sc) {
     aprint_error_dev(self, ": crypto_get_driverid failed\n");
     return;
   }
-  crypto_register(sc->cr_id, CRYPTO_AES_CTR, 0, 0, rdfpga_newses, rdfpga_freeses, rdfpga_process, sc);
+  crypto_register(sc->cr_id, CRYPTO_AES_CBC, 0, 0, rdfpga_newses, rdfpga_freeses, rdfpga_process, sc);
 
   sc->sid = 0; // no session
 }
@@ -508,7 +503,7 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
     
     /* aprint_normal_dev(sc->sc_dev, "newses: [%d] %d %d %d\n", i, c->cri_alg, c->cri_klen, c->cri_rnd); */
     
-    if (c->cri_alg != CRYPTO_AES_CTR)
+    if (c->cri_alg != CRYPTO_AES_CBC)
       abort = 1;
     
     if (c->cri_klen != 128)
@@ -524,12 +519,12 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
     return ENXIO;
 
 
-  res = rdfpga_aes_ctr_setkey(&sc->sw_kschedule, cri->cri_key, cri->cri_klen / 8);
+  res = rdfpga_rijndael128_setkey(&sc->sw_kschedule, cri->cri_key, cri->cri_klen / 8);
   if (res) {
     aprint_error_dev(sc->sc_dev, "newses: setkey failed (%d)\n", res);
     return EINVAL;
   }
-  ((struct rdfpga_aes_ctr_ctx *)sc->sw_kschedule)->sc = sc;
+  ((rdfpga_rijndael_ctx *)sc->sw_kschedule)->sc = sc;
   
   u_int32_t ctrl;
   while ((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) {
@@ -567,154 +562,121 @@ static int rdfpga_freeses(void* arg, u_int64_t tid) {
   return 0;
 }
 
-#include <crypto/rijndael/rijndael.h>
-
 static void
-rdfpga_aes_ctr_crypt(void *key, u_int8_t *blk)
+rdfpga_rijndael128_encrypt(void *key, u_int8_t *blk)
 {
-	struct rdfpga_aes_ctr_ctx *ctx;
-	u_int8_t keystream[AESCTR_BLOCKSIZE];
-	//u_int8_t keystream2[AESCTR_BLOCKSIZE];
-	int i;
-	struct rdfpga_softc *sc;
+  u_int32_t ctrl;
+  int ctr;
+  u_int64_t data[2];
+  u_int64_t *ptr;
+  int i;
+  rdfpga_rijndael_ctx* ctx;
+  struct rdfpga_softc *sc;
+  
+  ctx = key;
+  sc = ctx->sc;
 
-	ctx = key;
-	sc = ctx->sc;
+  /* alignment constraint */
+  if (!(((u_int32_t)blk) & 0x7)) {
+    ptr = (u_int64_t*)blk;
+  } else {
+    memcpy(data, blk, 16);
+    ptr = data;
+  }
+  
+  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: check avail\n"); */
+  ctr = 0;
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
+	 (ctr < 5)) {
+    delay(1);
+    ctr ++;
+  }
+  if (ctrl) {
+    aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck (%x, %d)\n", ctrl, ctr);
+    return;
+  }
+  
+  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: write data & start\n"); */
+  
+  for (i = 0 ; i < 2 ; i++)
+    bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), ptr[i] );
+  ctrl = RDFPGA_MASK_AES128_START;
+  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
+  
+  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: wait for results\n"); */
+  
+  ctr = 0;
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
+	 (ctr < 5)) {
+    delay(1);
+    ctr ++;
+  }
+  if (ctrl) {
+    aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck (%x, %d)\n", ctrl, ctr);
+    return;
+  }
+  
+  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: read results\n"); */
+  
+  for (i = 0 ; i < 2 ; i++)
+    ptr[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
 
-	/* aprint_normal_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt\n"); */
-	
-	/* increment counter */
-	for (i = AESCTR_BLOCKSIZE - 1;
-	     i >= AESCTR_NONCESIZE + AESCTR_IVSIZE; i--)
-		if (++ctx->ac_block[i]) /* continue on overflow */
-			break;
-	/* not needed, for validation during dev */
-	//rijndaelEncrypt(ctx->ac_ek, ctx->ac_nr, ctx->ac_block, keystream2);
-	
-	u_int32_t ctrl;
-	int ctr;
-
-	/* aprint_normal_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: check avail\n"); */
-	ctr = 0;
-	while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
-	       (ctr < 5)) {
-	  delay(1);
-	  ctr ++;
-	}
-	if (ctrl) {
-	  aprint_error_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: stuck (%x, %d)\n", ctrl, ctr);
-	  return;
-	}
-	
-	/* aprint_normal_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: write data & start\n"); */
-	       
-	for (i = 0 ; i < 2 ; i++)
-	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), ((u_int64_t*)ctx->ac_block)[i] );
-	ctrl = RDFPGA_MASK_AES128_START;
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
-	
-	/* aprint_normal_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: wait for results\n"); */
-	
-	ctr = 0;
-	while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL)) != 0) &&
-	       (ctr < 5)) {
-	  delay(1);
-	  ctr ++;
-	}
-	if (ctrl) {
-	  aprint_error_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: stuck (%x, %d)\n", ctrl, ctr);
-	  return;
-	}
-	
-	/* aprint_normal_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: read results\n"); */
-	
-	for (i = 0 ; i < 2 ; i++)
-	  ((u_int64_t*)keystream)[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
-	
-	/* aprint_normal_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: xor\n"); */
-
-	for (i = 0; i < AESCTR_BLOCKSIZE; i++) {
-	  //if (keystream[i] ^ keystream2[i]) {
-	  //  aprint_error_dev(sc->sc_dev, "rdfpga_aes_ctr_crypt: [%d] %02hhx <-> %02hhx\n", i, keystream[i], keystream2[i]);
-	  //}
-	  
-	  blk[i] ^= keystream[i];
-	}
-	
-	//memset(keystream, 0, sizeof(keystream));
+  
+  if (!(((u_int32_t)blk) & 0x7)) {
+    /* nothing */
+  } else {
+    memcpy(blk, data, 16);
+  }
+  
+  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: xor\n"); */
+  //	rijndael_encrypt((rdfpga_rijndael_ctx *) key, (u_char *) blk, (u_char *) blk);
 }
 
-int
-rdfpga_aes_ctr_setkey(u_int8_t **sched, const u_int8_t *key, int len)
+static void
+rdfpga_rijndael128_decrypt(void *key, u_int8_t *blk)
 {
-	struct rdfpga_aes_ctr_ctx *ctx;
+  /* ugly cast */
+	rijndael_decrypt((rijndael_ctx *) key, (u_char *) blk, (u_char *) blk);
+}
 
-	if (len < AESCTR_NONCESIZE)
+static int
+rdfpga_rijndael128_setkey(u_int8_t **sched, const u_int8_t *key, int len)
+{
+
+	if (len != 16 && len != 24 && len != 32)
 		return EINVAL;
-
-	ctx = malloc(sizeof(struct rdfpga_aes_ctr_ctx), M_CRYPTO_DATA,
-		     M_NOWAIT|M_ZERO);
-	if (!ctx)
+	*sched = malloc(sizeof(rdfpga_rijndael_ctx), M_CRYPTO_DATA,
+	    M_NOWAIT|M_ZERO);
+	if (*sched == NULL)
 		return ENOMEM;
-	/* not needed, for validation during dev */
-	//ctx->ac_nr = rijndaelKeySetupEnc(ctx->ac_ek, (const u_char *)key, 128);
-	//if (ctx->ac_nr != 10) { /* wrong key len */
-	//	rdfpga_aes_ctr_zerokey((u_int8_t **)&ctx);
-	//	return EINVAL;
-	//}
-	ctx->ac_nr = 10;
-	
-	memcpy(ctx->ac_block, key + len - AESCTR_NONCESIZE, AESCTR_NONCESIZE);
-	/* random start value for simple counter */
-	cprng_fast(&ctx->ivgenctx.lastiv, sizeof(ctx->ivgenctx.lastiv));
-	*sched = (void *)ctx;
+  /* ugly cast */
+	rijndael_set_key((rijndael_ctx *) *sched, key, len * 8);
 	return 0;
 }
 
-void
-rdfpga_aes_ctr_zerokey(u_int8_t **sched)
+static void
+rdfpga_rijndael128_zerokey(u_int8_t **sched)
 {
-
-	memset(*sched, 0, sizeof(struct rdfpga_aes_ctr_ctx));
+	memset(*sched, 0, sizeof(rdfpga_rijndael_ctx));
 	free(*sched, M_CRYPTO_DATA);
 	*sched = NULL;
 }
 
-void
-rdfpga_aes_ctr_reinit(void *key, const u_int8_t *iv, u_int8_t *ivout)
-{
-	struct rdfpga_aes_ctr_ctx *ctx = key;
-  
-	/* aprint_normal_dev(ctx->sc->sc_dev, "rdfpga_aes_ctr_reinit\n"); */
-	
-	if (!iv) {
-		ctx->ivgenctx.lastiv++;
-		iv = (const u_int8_t *)&ctx->ivgenctx.lastiv;
-	}
-	if (ivout)
-		memcpy(ivout, iv, AESCTR_IVSIZE);
-	memcpy(ctx->ac_block + AESCTR_NONCESIZE, iv, AESCTR_IVSIZE);
-	/* reset counter */
-	memset(ctx->ac_block + AESCTR_NONCESIZE + AESCTR_IVSIZE, 0, 4);
-}
-
 static int
-rdfpga_encdec_aes128(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv, int outtype)
+rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv, int outtype)
 {
 	char *buf = bufv;
-	unsigned char iv[EALG_MAX_BLOCK_LEN], blk[EALG_MAX_BLOCK_LEN], *idat;
-	/* unsigned char *ivp, piv[EALG_MAX_BLOCK_LEN]; */
+	unsigned char iv[EALG_MAX_BLOCK_LEN], __attribute__ ((aligned(8))) blk[EALG_MAX_BLOCK_LEN], *idat;
+	unsigned char *ivp, piv[EALG_MAX_BLOCK_LEN];
 	//const struct swcr_enc_xform *exf;
-	const struct rdfpga_enc_xform *exf = &rdfga_enc_xform_aes_ctr;
-	int i, k, blks, ivlen; /* j */
+	const struct rdfpga_enc_xform *exf = &rdfpga_enc_xform_rijndael128;
+	int i, k, j, blks, ivlen;
 	int count, ind;
-	
-	/* aprint_normal_dev(sw->sc_dev, "rdfpga_encdec_aes128 (%d)\n", outtype); */
 
 	//exf = sw->sw_exf;
 	blks = 16; //exf->enc_xform->blocksize;
-	ivlen = 8; //exf->enc_xform->ivsize;
-	//KASSERT(exf->reinit ? ivlen <= blks : ivlen == blks);
+	ivlen = 16; //exf->enc_xform->ivsize;
+	/* KASSERT(exf->reinit ? ivlen <= blks : ivlen == blks); */
 
 	/* Check for non-padded data */
 	if (crd->crd_len % blks)
@@ -725,10 +687,26 @@ rdfpga_encdec_aes128(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv
 		/* IV explicitly provided ? */
 		if (crd->crd_flags & CRD_F_IV_EXPLICIT) {
 			memcpy(iv, crd->crd_iv, ivlen);
-			if (exf->reinit)
-				exf->reinit(sw->sw_kschedule, iv, 0);
-		} else if (exf->reinit) {
-			exf->reinit(sw->sw_kschedule, 0, iv);
+		} else {
+			/* Get random IV */
+			for (i = 0;
+			    i + sizeof (u_int32_t) <= EALG_MAX_BLOCK_LEN;
+			    i += sizeof (u_int32_t)) {
+				u_int32_t temp = cprng_fast32();
+
+				memcpy(iv + i, &temp, sizeof(u_int32_t));
+			}
+			/*
+			 * What if the block size is not a multiple
+			 * of sizeof (u_int32_t), which is the size of
+			 * what arc4random() returns ?
+			 */
+			if (EALG_MAX_BLOCK_LEN % sizeof (u_int32_t) != 0) {
+				u_int32_t temp = cprng_fast32();
+
+				bcopy (&temp, iv + i,
+				    EALG_MAX_BLOCK_LEN - i);
+			}
 		}
 
 		/* Do we need to write the IV */
@@ -744,23 +722,42 @@ rdfpga_encdec_aes128(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv
 			/* Get IV off buf */
 			COPYDATA(outtype, buf, crd->crd_inject, ivlen, iv);
 		}
-		if (exf->reinit)
-			exf->reinit(sw->sw_kschedule, iv, 0);
 	}
 
-	/* ivp = iv; */
+	ivp = iv;
 
 	if (outtype == CRYPTO_BUF_CONTIG) {
-		if (exf->reinit) {
+		if (crd->crd_flags & CRD_F_ENCRYPT) {
 			for (i = crd->crd_skip;
-			     i < crd->crd_skip + crd->crd_len; i += blks) {
-				if (crd->crd_flags & CRD_F_ENCRYPT) {
-					exf->encrypt(sw->sw_kschedule, buf + i);
-				} else {
-					exf->decrypt(sw->sw_kschedule, buf + i);
-				}
+			    i < crd->crd_skip + crd->crd_len; i += blks) {
+				/* XOR with the IV/previous block, as appropriate. */
+				if (i == crd->crd_skip)
+					for (k = 0; k < blks; k++)
+						buf[i + k] ^= ivp[k];
+				else
+					for (k = 0; k < blks; k++)
+						buf[i + k] ^= buf[i + k - blks];
+				exf->encrypt(sw->sw_kschedule, buf + i);
+			}
+		} else {		/* Decrypt */
+			/*
+			 * Start at the end, so we don't need to keep the encrypted
+			 * block as the IV for the next block.
+			 */
+			for (i = crd->crd_skip + crd->crd_len - blks;
+			    i >= crd->crd_skip; i -= blks) {
+				exf->decrypt(sw->sw_kschedule, buf + i);
+
+				/* XOR with the IV/previous block, as appropriate */
+				if (i == crd->crd_skip)
+					for (k = 0; k < blks; k++)
+						buf[i + k] ^= ivp[k];
+				else
+					for (k = 0; k < blks; k++)
+						buf[i + k] ^= buf[i + k - blks];
 			}
 		}
+
 		return 0;
 	} else if (outtype == CRYPTO_BUF_MBUF) {
 		struct mbuf *m = (struct mbuf *) buf;
@@ -781,14 +778,39 @@ rdfpga_encdec_aes128(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv
 				m_copydata(m, k, blks, blk);
 
 				/* Actual encryption/decryption */
-				if (exf->reinit) {
-					if (crd->crd_flags & CRD_F_ENCRYPT) {
-						exf->encrypt(sw->sw_kschedule,
-							     blk);
-					} else {
-						exf->decrypt(sw->sw_kschedule,
-							     blk);
-					}
+				if (crd->crd_flags & CRD_F_ENCRYPT) {
+					/* XOR with previous block */
+					for (j = 0; j < blks; j++)
+						blk[j] ^= ivp[j];
+
+					exf->encrypt(sw->sw_kschedule, blk);
+
+					/*
+					 * Keep encrypted block for XOR'ing
+					 * with next block
+					 */
+					memcpy(iv, blk, blks);
+					ivp = iv;
+				} else {	/* decrypt */
+					/*
+					 * Keep encrypted block for XOR'ing
+					 * with next block
+					 */
+					if (ivp == iv)
+						memcpy(piv, blk, blks);
+					else
+						memcpy(iv, blk, blks);
+
+					exf->decrypt(sw->sw_kschedule, blk);
+
+					/* XOR with previous block */
+					for (j = 0; j < blks; j++)
+						blk[j] ^= ivp[j];
+
+					if (ivp == iv)
+						memcpy(iv, piv, blks);
+					else
+						ivp = iv;
 				}
 
 				/* Copy back decrypted block */
@@ -826,14 +848,33 @@ rdfpga_encdec_aes128(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv
 			idat = mtod(m, unsigned char *) + k;
 
 			while (m->m_len >= k + blks && i > 0) {
-				if (exf->reinit) {
-					if (crd->crd_flags & CRD_F_ENCRYPT) {
-						exf->encrypt(sw->sw_kschedule,
-							     idat);
-					} else {
-						exf->decrypt(sw->sw_kschedule,
-							     idat);
-					}
+				if (crd->crd_flags & CRD_F_ENCRYPT) {
+					/* XOR with previous block/IV */
+					for (j = 0; j < blks; j++)
+						idat[j] ^= ivp[j];
+
+					exf->encrypt(sw->sw_kschedule, idat);
+					ivp = idat;
+				} else {	/* decrypt */
+					/*
+					 * Keep encrypted block to be used
+					 * in next block's processing.
+					 */
+					if (ivp == iv)
+						memcpy(piv, idat, blks);
+					else
+						memcpy(iv, idat, blks);
+
+					exf->decrypt(sw->sw_kschedule, idat);
+
+					/* XOR with previous block/IV */
+					for (j = 0; j < blks; j++)
+						idat[j] ^= ivp[j];
+
+					if (ivp == iv)
+						memcpy(iv, piv, blks);
+					else
+						ivp = iv;
 				}
 
 				idat += blks;
@@ -864,14 +905,39 @@ rdfpga_encdec_aes128(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv
 				cuio_copydata(uio, k, blks, blk);
 
 				/* Actual encryption/decryption */
-				if (exf->reinit) {
-					if (crd->crd_flags & CRD_F_ENCRYPT) {
-						exf->encrypt(sw->sw_kschedule,
-							     blk);
-					} else {
-						exf->decrypt(sw->sw_kschedule,
-							     blk);
-					}
+				if (crd->crd_flags & CRD_F_ENCRYPT) {
+					/* XOR with previous block */
+					for (j = 0; j < blks; j++)
+						blk[j] ^= ivp[j];
+
+					exf->encrypt(sw->sw_kschedule, blk);
+
+					/*
+					 * Keep encrypted block for XOR'ing
+					 * with next block
+					 */
+					memcpy(iv, blk, blks);
+					ivp = iv;
+				} else {	/* decrypt */
+					/*
+					 * Keep encrypted block for XOR'ing
+					 * with next block
+					 */
+					if (ivp == iv)
+						memcpy(piv, blk, blks);
+					else
+						memcpy(iv, blk, blks);
+
+					exf->decrypt(sw->sw_kschedule, blk);
+
+					/* XOR with previous block */
+					for (j = 0; j < blks; j++)
+						blk[j] ^= ivp[j];
+
+					if (ivp == iv)
+						memcpy(iv, piv, blks);
+					else
+						ivp = iv;
 				}
 
 				/* Copy back decrypted block */
@@ -900,15 +966,35 @@ rdfpga_encdec_aes128(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv
 
 			while (uio->uio_iov[ind].iov_len >= k + blks &&
 			    i > 0) {
-				if (exf->reinit) {
-					if (crd->crd_flags & CRD_F_ENCRYPT) {
-						exf->encrypt(sw->sw_kschedule,
-							    idat);
-					} else {
-						exf->decrypt(sw->sw_kschedule,
-							    idat);
-					}
+				if (crd->crd_flags & CRD_F_ENCRYPT) {
+					/* XOR with previous block/IV */
+					for (j = 0; j < blks; j++)
+						idat[j] ^= ivp[j];
+
+					exf->encrypt(sw->sw_kschedule, idat);
+					ivp = idat;
+				} else {	/* decrypt */
+					/*
+					 * Keep encrypted block to be used
+					 * in next block's processing.
+					 */
+					if (ivp == iv)
+						memcpy(piv, idat, blks);
+					else
+						memcpy(iv, idat, blks);
+
+					exf->decrypt(sw->sw_kschedule, idat);
+
+					/* XOR with previous block/IV */
+					for (j = 0; j < blks; j++)
+						idat[j] ^= ivp[j];
+
+					if (ivp == iv)
+						memcpy(iv, piv, blks);
+					else
+						ivp = iv;
 				}
+
 				idat += blks;
 				count += blks;
 				k += blks;
@@ -968,7 +1054,7 @@ static int rdfpga_process(void* arg, struct cryptop * crp, int hint) {
 #endif
     /* aprint_normal_dev(sc->sc_dev, "process: %p (%d)\n", crd, crd->crd_len); */
     
-    int res = rdfpga_encdec_aes128(sc, crd, crp->crp_buf, type);
+    int res = rdfpga_encdec_aes128cbc(sc, crd, crp->crp_buf, type);
     if (res)
       return res;
     crypto_done(crp);
