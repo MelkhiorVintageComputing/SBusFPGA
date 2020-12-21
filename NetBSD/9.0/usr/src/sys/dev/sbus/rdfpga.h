@@ -44,6 +44,12 @@ struct rdfpga_softc {
 	bus_dma_tag_t		sc_dmatag;
 	bus_dmamap_t		sc_dmamap;	/* DMA map for bus_dma_* */
         int			aes_key_refresh;
+  
+  u_int32_t cr_id;
+  u_int32_t sid;
+  u_int64_t aeskey[2];
+  u_int64_t aesiv[2];
+  u_int8_t *sw_kschedule;
 };
 
 /* led */
