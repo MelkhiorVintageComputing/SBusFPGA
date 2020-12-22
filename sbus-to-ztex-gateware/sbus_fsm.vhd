@@ -215,7 +215,7 @@ ARCHITECTURE RTL OF SBusFSM IS
                        SBus_Master_Write_Final
                        );
   TYPE Uart_States IS ( UART_IDLE, UART_WAITING );
-  TYPE AES_States IS ( AES_IDLE, AES_STARTED, AES_BUSY );
+  TYPE AES_States IS ( AES_IDLE, AES_INIT1, AES_INIT2, AES_CRYPT1, AES_CRYPT2 );
                        
   SIGNAL State : SBus_States := SBus_Start;
   SIGNAL Uart_State : Uart_States := UART_IDLE;
@@ -246,15 +246,15 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal r_TX_DV     : std_logic := '0';
   signal w_TX_DONE   : std_logic;
   signal r_TX_BYTE   : std_logic_vector(7 downto 0) := (others => '0');
-  
-  -- signal aes_Clk_CI : std_logic;
-  signal aes_Reset_RBI : std_logic;
-  signal aes_Start_SI : std_logic;
-  signal aes_NewCipherkey_SI : std_logic;
-  signal aes_Busy_SO : std_logic;
-  signal aes_Plaintext_DI  : std_logic_vector(127 downto 0);
-  signal aes_Cipherkey_DI  : std_logic_vector(127 downto 0);
-  signal aes_Ciphertext_DO : std_logic_vector(127 downto 0);
+
+  signal aes_reset_n : std_logic;
+  signal aes_init : std_logic;
+  signal aes_next : std_logic;
+  signal aes_ready : std_logic;
+  signal aes_key : std_logic_vector(255 downto 0);
+  signal aes_block : std_logic_vector(127 downto 0);
+  signal aes_result : std_logic_vector(127 downto 0);
+  signal aes_result_valid : std_logic;
   
 --  SIGNAL LIFE_COUNTER48 : natural range 0 to 48000000 := 300;
 --  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
@@ -478,19 +478,22 @@ ARCHITECTURE RTL OF SBusFSM IS
 --  port(clk_in1 : in std_logic;
 --       clk_out1 : out std_logic);
 --  end component clk_wiz_0;
-  
-  component aes128 is
+
+  component aes_core is
     port (
-      Clk_CI : in std_logic;
-      Reset_RBI : in std_logic;
-      Start_SI : in std_logic;
-      NewCipherkey_SI : in std_logic;
-      Busy_SO : out std_logic;
-      Plaintext_DI  : in  std_logic_vector(127 downto 0);
-      Cipherkey_DI  : in  std_logic_vector(127 downto 0);
-      Ciphertext_DO : out std_logic_vector(127 downto 0)
+      clk : in std_logic;
+      reset_n: in std_logic;
+      encdec: in std_logic;
+      init: in std_logic;
+      xnext: in std_logic;
+      ready: out std_logic;
+      key: in  std_logic_vector(255 downto 0);
+      keylen: in std_logic;
+      xblock: in std_logic_vector(127 downto 0);
+      result: out std_logic_vector(127 downto 0);
+      result_valid: out std_logic
       );
-  end component aes128;
+  end component aes_core;
 
   PROCEDURE SBus_Set_Default(
 --    signal SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0);
@@ -580,15 +583,19 @@ BEGIN
       o_tx_done   => w_TX_DONE
       );
 
-  label_aes128: aes128 port map(
-      Clk_CI => SBUS_3V3_CLK,
-      Reset_RBI => aes_Reset_RBI,
-      Start_SI => aes_Start_SI,
-      NewCipherkey_SI => aes_NewCipherkey_SI,
-      Busy_SO => aes_Busy_SO,
-      Plaintext_DI => aes_Plaintext_DI,
-      Cipherkey_DI => aes_Cipherkey_DI,
-      Ciphertext_DO => aes_Ciphertext_DO);
+  label_aes_core: aes_core port map(
+      clk => SBUS_3V3_CLK,
+      reset_n => aes_reset_n,
+      encdec => '1',
+      init => aes_init,
+      xnext => aes_next,
+      ready => aes_ready,
+      key => aes_key,
+      keylen => '0',
+      xblock => aes_block,
+      result => aes_result,
+      result_valid => aes_result_valid
+      );
   
   PROCESS (SBUS_3V3_CLK, SBUS_3V3_RSTs) 
   variable do_gcm : boolean := false;
@@ -602,12 +609,11 @@ BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
       fifo_rst <= '1';
-      aes_Reset_RBI <= '0'; -- it's active low, really
+      aes_reset_n <= '0';
       RES_COUNTER <= 4;
       
     ELSIF RISING_EDGE(SBUS_3V3_CLK) THEN
       fifo_wr_en <= '0';
-      aes_Start_SI <= '0';
 --      LIFE_COUNTER25 <= LIFE_COUNTER25 - 1;
       
       CASE State IS
@@ -1141,8 +1147,9 @@ BEGIN
               -- fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
               State <= SBus_Idle;
             ELSE
-              aes_Reset_RBI <= '1';
-              aes_Start_SI <= '0';
+              aes_reset_n <= '1';
+              aes_init <= '0';
+              aes_next <= '0';
               fifo_rst <= '0';
               RES_COUNTER <= RES_COUNTER - 1;
             END IF;
@@ -1157,45 +1164,61 @@ BEGIN
       WHEN AES_IDLE =>
         IF ((REGISTERS(REG_INDEX_AES128_CTRL)(31) = '1') AND
             (REGISTERS(REG_INDEX_AES128_CTRL)(30) = '0') AND
-            (aes_Busy_SO ='0')
+            (aes_ready ='1')
             ) THEN
             fifo_wr_en <= '1'; fifo_din <= x"30"; -- "0"
           -- start & !busy & !aesbusy -> start processing
-          aes_Cipherkey_DI <= REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
-                              REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4);
+          if (REGISTERS(REG_INDEX_AES128_CTRL)(28) = '1') THEN
+            aes_key <= REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
+                       REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
+                       x"00000000000000000000000000000000";
+            aes_init <= '1';
+            AES_State <= AES_INIT1;
+          ELSE
+            aes_next <= '1';
+            AES_State <= AES_CRYPT1;
+          end IF;
+            
+          REGISTERS(REG_INDEX_AES128_CTRL)(30) <= '1'; -- busy
           IF (REGISTERS(REG_INDEX_AES128_CTRL)(27) = '0') THEN
             -- normal mode
-            aes_Plaintext_DI <= REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
-                                REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
+            aes_block <= REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
+                         REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
           ELSE
             -- cbc mode
-            aes_Plaintext_DI <=
+            aes_block <=
                (REGISTERS(REG_INDEX_AES128_DATA1) XOR REGISTERS(REG_INDEX_AES128_OUT1))
              & (REGISTERS(REG_INDEX_AES128_DATA2) XOR REGISTERS(REG_INDEX_AES128_OUT2))
              & (REGISTERS(REG_INDEX_AES128_DATA3) XOR REGISTERS(REG_INDEX_AES128_OUT3))
              & (REGISTERS(REG_INDEX_AES128_DATA4) XOR REGISTERS(REG_INDEX_AES128_OUT4));
           END IF;
-          aes_NewCipherkey_SI <= REGISTERS(REG_INDEX_AES128_CTRL)(28);
-          aes_Start_SI <= '1';
-          REGISTERS(REG_INDEX_AES128_CTRL)(30) <= '1'; -- busy
-          AES_State <= AES_STARTED;
         END IF;
-      WHEN AES_STARTED =>
-        fifo_wr_en <= '1'; fifo_din <= x"31"; -- "1"
-        IF (aes_Busy_SO ='1') THEN
-          AES_State <= AES_BUSY;
-        END IF;
-      WHEN AES_BUSY =>
-        IF (aes_Busy_SO ='0') THEN
+        when AES_INIT1 =>
+          fifo_wr_en <= '1'; fifo_din <= x"31"; -- "1"
+          AES_State <= AES_INIT2;
+        WHEN AES_INIT2 =>
+          aes_init <= '0';
           fifo_wr_en <= '1'; fifo_din <= x"32"; -- "2"
-          -- start & busy & !aesbusy -> done processing
-          REGISTERS(REG_INDEX_AES128_OUT1) <= aes_Ciphertext_DO(127 downto 96);
-          REGISTERS(REG_INDEX_AES128_OUT2) <= aes_Ciphertext_DO( 95 downto 64);
-          REGISTERS(REG_INDEX_AES128_OUT3) <= aes_Ciphertext_DO( 63 downto 32);
-          REGISTERS(REG_INDEX_AES128_OUT4) <= aes_Ciphertext_DO( 31 downto 0);
-          REGISTERS(REG_INDEX_AES128_CTRL) <= (others => '0');
-          AES_State <= AES_IDLE;
-        END IF;
+          IF (aes_ready = '1') THEN
+            aes_next <= '1';
+            AES_State <= AES_CRYPT1;
+          END IF;
+        when AES_CRYPT1 =>
+          fifo_wr_en <= '1'; fifo_din <= x"33"; -- "3"
+          AES_State <= AES_CRYPT2;
+        WHEN AES_CRYPT2 =>
+          fifo_wr_en <= '1'; fifo_din <= x"34"; -- "4"
+          aes_next <= '0';
+          IF (aes_result_valid = '1') THEN
+          fifo_wr_en <= '1'; fifo_din <= x"35"; -- "5"
+            -- start & busy & !aesbusy -> done processing
+            REGISTERS(REG_INDEX_AES128_OUT1) <= aes_result(127 downto 96);
+            REGISTERS(REG_INDEX_AES128_OUT2) <= aes_result( 95 downto 64);
+            REGISTERS(REG_INDEX_AES128_OUT3) <= aes_result( 63 downto 32);
+            REGISTERS(REG_INDEX_AES128_OUT4) <= aes_result( 31 downto 0);
+            REGISTERS(REG_INDEX_AES128_CTRL) <= (others => '0');
+            AES_State <= AES_IDLE;
+          END IF;
       END CASE;
     END IF;
   END PROCESS;
