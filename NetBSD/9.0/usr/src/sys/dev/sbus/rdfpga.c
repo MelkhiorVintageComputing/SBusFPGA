@@ -93,6 +93,23 @@ static int rdfpga_wait_aes_ready(struct rdfpga_softc *sc) {
   return 0;
 }
 
+static int rdfpga_wait_dma_ready(struct rdfpga_softc *sc, const int count) {
+  u_int32_t ctrl;
+  int ctr;
+  
+  ctr = 0;
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_DMA_CTRL)) != 0) &&
+	 (ctr < count)) {
+    delay(1);
+    ctr ++;
+  }
+
+  if (ctrl)
+    return EBUSY;
+
+  return 0;
+}
+
 
 extern struct cfdriver rdfpga_cd;
 
@@ -283,7 +300,7 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "dma: synced\n"); */
 
-	  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | ((nblock-1) & RDFPGA_MASK_DMA_CTRL_BLKCNT))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+	  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_GCM | ((nblock-1) & RDFPGA_MASK_DMA_CTRL_BLKCNT))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "trying 0x%016llx\n", ctrl); */
 
@@ -629,15 +646,12 @@ rdfpga_rijndael128_encrypt(void *key, u_int8_t *blk)
   }
 }
 
-#if 0
 static int
 rdfpga_rijndael128_writeivforcbc(void *key, u_int8_t *blk)
 {
-  u_int32_t ctrl;
-  int ctr;
   u_int64_t data[2];
   u_int64_t *ptr;
-  int i;
+  int i, res;
   rdfpga_rijndael_ctx* ctx;
   struct rdfpga_softc *sc;
   
@@ -660,7 +674,6 @@ rdfpga_rijndael128_writeivforcbc(void *key, u_int8_t *blk)
 
   return 0;
 }
-#endif
 
 static void
 rdfpga_rijndael128_decrypt(void *key, u_int8_t *blk)
@@ -997,6 +1010,73 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 			 * there are indeed enough data.
 			 */
 			idat = ((char *)uio->uio_iov[ind].iov_base) + k;
+
+			if (!ctx->cbc) {
+			  if (rdfpga_rijndael128_writeivforcbc(sw->sw_kschedule, ivp)) {
+			    aprint_error_dev(sw->sc_dev, "rdfpga_rijndael128_crypt: stuck\n");
+			  } else {
+			    ctx->cbc = 1;
+			  }
+			}
+/* ********************************************************************************** */
+			if ((crd->crd_flags & CRD_F_ENCRYPT) && ctx->cbc && ((uio->uio_iov[ind].iov_len - k) >= 32)) {
+			  bus_dma_segment_t segs;
+			  int rsegs;
+			  size_t tocopy = uio->uio_iov[ind].iov_len - k;
+			  uint64_t ctrl;
+			  /* int error; */
+			  
+			  tocopy &= ~(size_t)0x0F;
+			  if (tocopy > RDFPGA_VAL_DMA_MAX_SZ)
+			    tocopy = RDFPGA_VAL_DMA_MAX_SZ;
+
+			  /* aprint_normal_dev(sw->sc_dev, "AES DMA: %zd @ %p (%d) [from %d]\n", tocopy, idat, ind, k); */
+			  
+			  if (bus_dmamem_alloc(sw->sc_dmatag, RDFPGA_VAL_DMA_MAX_SZ, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
+			    aprint_error_dev(sw->sc_dev, "cannot allocate DVMA memory");
+			    goto afterdma;
+			  }
+			  void* kvap;
+			  if (bus_dmamem_map(sw->sc_dmatag, &segs, 1, RDFPGA_VAL_DMA_MAX_SZ, &kvap, BUS_DMA_NOWAIT)) {
+			    aprint_error_dev(sw->sc_dev, "cannot allocate DVMA address");
+			    bus_dmamem_free(sw->sc_dmatag, &segs, 1);
+			    goto afterdma;
+			  }
+			  if (bus_dmamap_load(sw->sc_dmatag, sw->sc_dmamap, kvap, RDFPGA_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
+					      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE | BUS_DMA_READ)) {
+			    aprint_error_dev(sw->sc_dev, "cannot load dma map");
+			    bus_dmamem_unmap(sw->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ);
+			    bus_dmamem_free(sw->sc_dmatag, &segs, 1);
+			    goto afterdma;
+			  }
+			  /* if ((error = uiomove(kvap, tocopy, uio)) != 0) { */
+			  /*   aprint_error_dev(sw->sc_dev, "cannot copy from uio space"); */
+			  /*   bus_dmamap_unload(sw->sc_dmatag, sw->sc_dmamap); */
+			  /*   bus_dmamem_unmap(sw->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ); */
+			  /*   bus_dmamem_free(sw->sc_dmatag, &segs, 1); */
+			  /*   goto afterdma; */
+			  /* } */
+			  memcpy(kvap, idat, tocopy);
+			  
+			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
+			  rdfpga_wait_dma_ready(sw, 50000);
+			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
+
+			  memcpy(idat, kvap, tocopy);
+			  
+			  bus_dmamap_unload(sw->sc_dmatag, sw->sc_dmamap);
+			  bus_dmamem_unmap(sw->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ);
+			  bus_dmamem_free(sw->sc_dmatag, &segs, 1);
+
+			  idat += tocopy;
+			  count += tocopy;
+			  k += tocopy;
+			  i -= tocopy;
+			}
+			afterdma:
+/* ********************************************************************************** */
 
 			while (uio->uio_iov[ind].iov_len >= k + blks &&
 			    i > 0) {
