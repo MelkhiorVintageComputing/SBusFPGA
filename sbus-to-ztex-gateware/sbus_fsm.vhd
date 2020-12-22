@@ -446,7 +446,7 @@ ARCHITECTURE RTL OF SBusFSM IS
     return t;
   end;
   
-  component fifo_generator_0 is
+  component fifo_generator_uart is
     Port ( 
       rst : in STD_LOGIC;
       wr_clk : in STD_LOGIC;
@@ -564,9 +564,9 @@ BEGIN
 
   label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
   
-  label_fifo: fifo_generator_0 port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
-                                        din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
-                                        dout => fifo_dout, full => fifo_full, empty => fifo_empty);
+  label_fifo: fifo_generator_uart port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
+                                           din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
+                                           dout => fifo_dout, full => fifo_full, empty => fifo_empty);
                                         
   -- label_clk_wiz: clk_wiz_0 port map(clk_out1 => uart_clk, clk_in1 => fxclk_in);
   
