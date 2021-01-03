@@ -73,6 +73,9 @@ ENTITY SBusFSM is
   CONSTANT ROM_ADDR_PFX : std_logic_vector(18 downto 0) := "0000000000000000000";
   CONSTANT REG_ADDR_PFX : std_logic_vector(18 downto 0) := "0000000000000000001";
   CONSTANT REG_INDEX_LED        : integer := 0;
+  CONSTANT REG_INDEX_AES128_CTRL: integer := 1;
+  CONSTANT REG_INDEX_DMA_ADDR   : integer := 2;
+  CONSTANT REG_INDEX_DMA_CTRL   : integer := 3;
   -- starts at 64 so we can do 64 bytes burst (see address wrapping)
   CONSTANT REG_INDEX_GCM_H1     : integer := 16;
   CONSTANT REG_INDEX_GCM_H2     : integer := 17;
@@ -90,30 +93,30 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_GCM_INPUT6 : integer := 29; -- placeholder
   CONSTANT REG_INDEX_GCM_INPUT7 : integer := 30; -- placeholder
   CONSTANT REG_INDEX_GCM_INPUT8 : integer := 31; -- placeholder
-  CONSTANT REG_INDEX_DMA_ADDR   : integer := 32;
-  CONSTANT REG_INDEX_DMA_CTRL   : integer := 33;
-  CONSTANT REG_INDEX_DMA_CTRL2  : integer := 34; -- placeholder
-  CONSTANT REG_INDEX_DMA_CTRL3  : integer := 35; -- placeholder
   
   CONSTANT REG_INDEX_AES128_KEY1  : integer := 48;
   CONSTANT REG_INDEX_AES128_KEY2  : integer := 49;
   CONSTANT REG_INDEX_AES128_KEY3  : integer := 50;
   CONSTANT REG_INDEX_AES128_KEY4  : integer := 51;
-  CONSTANT REG_INDEX_AES128_DATA1 : integer := 52;
-  CONSTANT REG_INDEX_AES128_DATA2 : integer := 53;
-  CONSTANT REG_INDEX_AES128_DATA3 : integer := 54;
-  CONSTANT REG_INDEX_AES128_DATA4 : integer := 55;
-  CONSTANT REG_INDEX_AES128_OUT1  : integer := 56;
-  CONSTANT REG_INDEX_AES128_OUT2  : integer := 57;
-  CONSTANT REG_INDEX_AES128_OUT3  : integer := 58;
-  CONSTANT REG_INDEX_AES128_OUT4  : integer := 59;
-  CONSTANT REG_INDEX_AES128_CTRL  : integer := 60;
-  CONSTANT REG_INDEX_AES128_CTRL2 : integer := 61; -- placeholder
-  CONSTANT REG_INDEX_AES128_CTRL3 : integer := 62; -- placeholder
-  CONSTANT REG_INDEX_AES128_CTRL4 : integer := 63; -- placeholder
+  CONSTANT REG_INDEX_AES128_KEY5  : integer := 52;
+  CONSTANT REG_INDEX_AES128_KEY6  : integer := 53;
+  CONSTANT REG_INDEX_AES128_KEY7  : integer := 54;
+  CONSTANT REG_INDEX_AES128_KEY8  : integer := 55;
+  CONSTANT REG_INDEX_AES128_DATA1 : integer := 56;
+  CONSTANT REG_INDEX_AES128_DATA2 : integer := 57;
+  CONSTANT REG_INDEX_AES128_DATA3 : integer := 58;
+  CONSTANT REG_INDEX_AES128_DATA4 : integer := 59;
+  CONSTANT REG_INDEX_AES128_OUT1  : integer := 60;
+  CONSTANT REG_INDEX_AES128_OUT2  : integer := 61;
+  CONSTANT REG_INDEX_AES128_OUT3  : integer := 62;
+  CONSTANT REG_INDEX_AES128_OUT4  : integer := 63;
 
   -- OFFSET to REGS; (8 downto 0) so 9 bits
   CONSTANT REG_OFFSET_LED        : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_LED   *4, 9);
+  CONSTANT REG_OFFSET_AES128_CTRL : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL*4, 9);
+  CONSTANT REG_OFFSET_DMA_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_ADDR  *4, 9);
+  CONSTANT REG_OFFSET_DMA_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL  *4, 9);
+  
   CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H1*4, 9);
   CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H2*4, 9);
   CONSTANT REG_OFFSET_GCM_H3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H3*4, 9);
@@ -130,15 +133,15 @@ ENTITY SBusFSM is
   CONSTANT REG_OFFSET_GCM_INPUT6 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT6*4, 9); -- placeholder
   CONSTANT REG_OFFSET_GCM_INPUT7 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT7*4, 9); -- placeholder
   CONSTANT REG_OFFSET_GCM_INPUT8 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT8*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_DMA_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_ADDR  *4, 9);
-  CONSTANT REG_OFFSET_DMA_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL  *4, 9);
-  CONSTANT REG_OFFSET_DMA_CTRL2  : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL2 *4, 9); -- placeholder
-  CONSTANT REG_OFFSET_DMA_CTRL3  : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL3 *4, 9); -- placeholder
   
   CONSTANT REG_OFFSET_AES128_KEY1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY1*4, 9);
   CONSTANT REG_OFFSET_AES128_KEY2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY2*4, 9);
   CONSTANT REG_OFFSET_AES128_KEY3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY3*4, 9);
   CONSTANT REG_OFFSET_AES128_KEY4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY4*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY5 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY5*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY6 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY6*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY7 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY7*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY8 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY8*4, 9);
   CONSTANT REG_OFFSET_AES128_DATA1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA1*4, 9);
   CONSTANT REG_OFFSET_AES128_DATA2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA2*4, 9);
   CONSTANT REG_OFFSET_AES128_DATA3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA3*4, 9);
@@ -147,10 +150,6 @@ ENTITY SBusFSM is
   CONSTANT REG_OFFSET_AES128_OUT2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT2*4, 9);
   CONSTANT REG_OFFSET_AES128_OUT3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT3*4, 9);
   CONSTANT REG_OFFSET_AES128_OUT4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT4*4, 9);
-  CONSTANT REG_OFFSET_AES128_CTRL : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL*4, 9);
-  CONSTANT REG_OFFSET_AES128_CTRL2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL2*4, 9);
-  CONSTANT REG_OFFSET_AES128_CTRL3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL3*4, 9);
-  CONSTANT REG_OFFSET_AES128_CTRL4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL4*4, 9);
 
   constant c_CLKS_PER_BIT : integer := 417; -- 48M/115200
   -- constant c_CLKS_PER_BIT : integer := 50; -- 5.76M/115200
@@ -252,6 +251,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal aes_next : std_logic;
   signal aes_ready : std_logic;
   signal aes_key : std_logic_vector(255 downto 0);
+  signal aes_keylen : std_logic;
   signal aes_block : std_logic_vector(127 downto 0);
   signal aes_result : std_logic_vector(127 downto 0);
   signal aes_result_valid : std_logic;
@@ -291,9 +291,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   pure function REG_OFFSET_IS_ANYDMA(value : in std_logic_vector(8 downto 0)) return boolean is
   begin
     return (REG_OFFSET_DMA_ADDR  = value) OR
-           (REG_OFFSET_DMA_CTRL  = value) OR
-           (REG_OFFSET_DMA_CTRL2  = value) OR
-           (REG_OFFSET_DMA_CTRL3  = value);
+           (REG_OFFSET_DMA_CTRL  = value);
   end function;
   
   pure function REG_OFFSET_IS_AESKEY(value : in std_logic_vector(8 downto 0)) return boolean is
@@ -301,7 +299,11 @@ ARCHITECTURE RTL OF SBusFSM IS
     return (REG_OFFSET_AES128_KEY1 = value) OR
            (REG_OFFSET_AES128_KEY2 = value) OR
            (REG_OFFSET_AES128_KEY3 = value) OR
-           (REG_OFFSET_AES128_KEY4 = value);
+           (REG_OFFSET_AES128_KEY4 = value) OR
+           (REG_OFFSET_AES128_KEY5 = value) OR
+           (REG_OFFSET_AES128_KEY6 = value) OR
+           (REG_OFFSET_AES128_KEY7 = value) OR
+           (REG_OFFSET_AES128_KEY8 = value);
   end function;
   
   pure function REG_OFFSET_IS_AESDATA(value : in std_logic_vector(8 downto 0)) return boolean is
@@ -591,7 +593,7 @@ BEGIN
       xnext => aes_next,
       ready => aes_ready,
       key => aes_key,
-      keylen => '0',
+      keylen => aes_keylen,
       xblock => aes_block,
       result => aes_result,
       result_valid => aes_result_valid
@@ -1169,9 +1171,18 @@ BEGIN
             fifo_wr_en <= '1'; fifo_din <= x"30"; -- "0"
           -- start & !busy & !aesbusy -> start processing
           if (REGISTERS(REG_INDEX_AES128_CTRL)(28) = '1') THEN
+            IF (REGISTERS(REG_INDEX_AES128_CTRL)(26) = '0') THEN -- aes128
             aes_key <= REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
                        REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
                        x"00000000000000000000000000000000";
+            aes_keylen <= '0';
+            ELSE
+            aes_key <= REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
+                       REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
+                       REGISTERS(REG_INDEX_AES128_KEY5) & REGISTERS(REG_INDEX_AES128_KEY6) &
+                       REGISTERS(REG_INDEX_AES128_KEY7) & REGISTERS(REG_INDEX_AES128_KEY8);
+            aes_keylen <= '1';
+            END IF;
             aes_init <= '1';
             AES_State <= AES_INIT1;
           ELSE
