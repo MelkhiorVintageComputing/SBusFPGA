@@ -437,7 +437,7 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 		aprint_normal_dev(self, "dmamap: %lu %lu %d (%p)\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs, sc->sc_dmatag->_dmamap_load);
 	}
 
-	for (i = 0 ; i < 2 ; i++)
+	for (i = 0 ; i < 4 ; i++)
 	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), 0ull);
 	sc->aes_key_refresh = 1;
 
@@ -536,7 +536,7 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
     if (c->cri_alg != CRYPTO_AES_CBC)
       abort = 1;
     
-    if (c->cri_klen != 128)
+    if ((c->cri_klen != 128) && (c->cri_klen != 256))
       abort = 1;
     
     /* if (c->cri_rnd != 10)
@@ -559,18 +559,20 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   ((rdfpga_rijndael_ctx *)sc->sw_kschedule)->cbc = 0;
   
   memcpy(sc->aesiv, cri->cri_iv, 16);
-  memcpy(sc->aeskey, cri->cri_key, 16);
+  memcpy(sc->aeskey, cri->cri_key, cri->cri_klen / 8);
   
   if ((res = rdfpga_wait_aes_ready(sc)) != 0)
     return res;
   
-  for (i = 0 ; i < 2 ; i++)
+  for (i = 0 ; i < cri->cri_klen / 64 ; i++)
     bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), sc->aeskey[i]);
   for (i = 0 ; i < 2 ; i++)
     bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), 0ull);
   
   /* blank run with a zero-block to force keygen in the AES block */
   ctrl = RDFPGA_MASK_AES128_START | RDFPGA_MASK_AES128_NEWKEY;
+  if (cri->cri_klen == 256)
+    ctrl |= RDFPGA_MASK_AES128_AES256;
   bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
   sc->aes_key_refresh = 0;
   

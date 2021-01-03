@@ -47,7 +47,7 @@ struct rdfpga_softc {
   
   u_int32_t cr_id;
   u_int32_t sid;
-  u_int64_t aeskey[2];
+  u_int64_t aeskey[4];
   u_int64_t aesiv[2];
   u_int8_t *sw_kschedule;
 };
