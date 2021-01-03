@@ -549,8 +549,9 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   if (abort)
     return ENXIO;
 
-  for (thesid = 0; (sc->sid & (1<<thesid)) && thesid <= 16; thesid++) {
-    /* nothing */
+  thesid = 0;
+  while ((sc->sid & (1<<thesid)) && thesid <= 15) {
+    thesid ++;
   }
   if (thesid > 15) {
     // oups...
@@ -590,19 +591,17 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   
   *sid = thesid;
   
-  aprint_normal_dev(sc->sc_dev, "newses: %p %p (0x%08x) %p\n", arg, sid, *sid, cri);
-  
-  /* aprint_normal_dev(sc->sc_dev, "iv: 0x%016llx 0x%016llx\n", sc->aesiv[0], sc->aesiv[1]); */
+  aprint_normal_dev(sc->sc_dev, "newses: %p %p (%d) %p, current usage 0x%04hx\n", arg, sid, *sid, cri, sc->sid);
 
   return 0;
 }
 static int rdfpga_freeses(void* arg, u_int64_t tid) {
   struct rdfpga_softc *sc = arg;
   u_int8_t thesid = ((u_int8_t)tid) & 0xff;
-  
-  /* aprint_normal_dev(sc->sc_dev, "freeses\n"); */
-
+  u_int16_t oldsid = sc->sid;
   sc->sid &= ~(1<<thesid);
+  
+  aprint_normal_dev(sc->sc_dev, "freeses %hhd (from 0x%04hx to 0x%04hx)\n", thesid, oldsid, sc->sid);
 
   memset(sc->sessions[thesid].aeskey, 0, sizeof(sc->sessions[thesid].aeskey));
   memset(sc->sessions[thesid].aesiv, 0, sizeof(sc->sessions[thesid].aesiv));
@@ -1183,6 +1182,7 @@ static int rdfpga_process(void* arg, struct cryptop * crp, int hint) {
       ctrl |= RDFPGA_MASK_AES128_AES256;
     bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
     sc->aes_key_refresh = thesid;
+    ((rdfpga_rijndael_ctx *)sc->sessions[thesid].sw_kschedule)->cbc = 0;
   }
   
   for (crd = crp->crp_desc; crd != NULL; crd = crd->crd_next) {
