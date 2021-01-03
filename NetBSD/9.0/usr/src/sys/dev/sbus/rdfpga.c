@@ -165,7 +165,7 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 		  return err;
 		for (i = 0 ; i < 2 ; i++)
 			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), bits->x[i] );
-		sc->aes_key_refresh = 1;
+		sc->aes_key_refresh = 0xFFFF;
                 break;
         case RDFPGA_AESWD:
 		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
@@ -173,9 +173,9 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 		for (i = 0 ; i < 2 ; i++)
 			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), bits->x[i] );
 		ctrl = RDFPGA_MASK_AES128_START;
-		if (sc->aes_key_refresh) {
+		if (sc->aes_key_refresh != 0x8000) {
 		  ctrl |= RDFPGA_MASK_AES128_NEWKEY;
-		  sc->aes_key_refresh = 0;
+		  sc->aes_key_refresh = 0x8000;
 		}
 	        bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
                 break;
@@ -439,7 +439,7 @@ rdfpga_attach(device_t parent, device_t self, void *aux)
 
 	for (i = 0 ; i < 4 ; i++)
 	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), 0ull);
-	sc->aes_key_refresh = 1;
+	sc->aes_key_refresh = 0xFFFF;
 
 	rdfpga_crypto_init(self, sc);
 }
@@ -472,7 +472,7 @@ static void rdfpga_rijndael128_encrypt(void *key, u_int8_t *blk);
 static void rdfpga_rijndael128_decrypt(void *key, u_int8_t *blk);
 static int  rdfpga_rijndael128_setkey(u_int8_t **sched, const u_int8_t *key, int len);
 static void rdfpga_rijndael128_zerokey(u_int8_t **sched);
-static int rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv, int outtype);
+static int rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, const u_int8_t thesid, struct cryptodesc *crd, void *bufv, int outtype);
 
 
 typedef struct {
@@ -519,13 +519,14 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   struct cryptoini *c;
   int i, abort = 0, res;
   u_int32_t ctrl;
+  u_int8_t thesid;
   
   /* aprint_normal_dev(sc->sc_dev, "newses: %p %p %p\n", arg, sid, cri); */
   
   if (sid == NULL || cri == NULL || sc == NULL)
     return (EINVAL);
 
-  if (sc->sid)
+  if (sc->sid == 0xFFFF)
     return (ENOMEM);
 
   i = 0;
@@ -548,24 +549,35 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   if (abort)
     return ENXIO;
 
+  for (thesid = 0; (sc->sid & (1<<thesid)) && thesid <= 16; thesid++) {
+    /* nothing */
+  }
+  if (thesid > 15) {
+    // oups...
+    aprint_error_dev(sc->sc_dev, "newses: 0x%04hx is full ?\n", sc->sid);
+    return (ENOMEM);
+  }
 
-  res = rdfpga_rijndael128_setkey(&sc->sw_kschedule, cri->cri_key, cri->cri_klen / 8);
+  sc->sid |= 1<<thesid;
+  
+  res = rdfpga_rijndael128_setkey(&sc->sessions[thesid].sw_kschedule, cri->cri_key, cri->cri_klen / 8);
   if (res) {
     aprint_error_dev(sc->sc_dev, "newses: setkey failed (%d)\n", res);
     return EINVAL;
   }
-  ((rdfpga_rijndael_ctx *)sc->sw_kschedule)->sc = sc;
-  ((rdfpga_rijndael_ctx *)sc->sw_kschedule)->readback = 1;
-  ((rdfpga_rijndael_ctx *)sc->sw_kschedule)->cbc = 0;
+  ((rdfpga_rijndael_ctx *)sc->sessions[thesid].sw_kschedule)->sc = sc;
+  ((rdfpga_rijndael_ctx *)sc->sessions[thesid].sw_kschedule)->readback = 1;
+  ((rdfpga_rijndael_ctx *)sc->sessions[thesid].sw_kschedule)->cbc = 0;
+  sc->sessions[thesid].klen = cri->cri_klen;
   
-  memcpy(sc->aesiv, cri->cri_iv, 16);
-  memcpy(sc->aeskey, cri->cri_key, cri->cri_klen / 8);
+  memcpy(sc->sessions[thesid].aesiv, cri->cri_iv, 16);
+  memcpy(sc->sessions[thesid].aeskey, cri->cri_key, cri->cri_klen / 8);
   
   if ((res = rdfpga_wait_aes_ready(sc)) != 0)
     return res;
   
   for (i = 0 ; i < cri->cri_klen / 64 ; i++)
-    bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), sc->aeskey[i]);
+    bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), sc->sessions[thesid].aeskey[i]);
   for (i = 0 ; i < 2 ; i++)
     bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), 0ull);
   
@@ -574,10 +586,11 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
   if (cri->cri_klen == 256)
     ctrl |= RDFPGA_MASK_AES128_AES256;
   bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
-  sc->aes_key_refresh = 0;
+  sc->aes_key_refresh = thesid;
   
-  sc->sid = 0xDEADBEEF;
-  *sid = sc->sid;
+  *sid = thesid;
+  
+  aprint_normal_dev(sc->sc_dev, "newses: %p %p (0x%08x) %p\n", arg, sid, *sid, cri);
   
   /* aprint_normal_dev(sc->sc_dev, "iv: 0x%016llx 0x%016llx\n", sc->aesiv[0], sc->aesiv[1]); */
 
@@ -585,13 +598,14 @@ static int rdfpga_newses(void* arg, u_int32_t* sid, struct cryptoini* cri) {
 }
 static int rdfpga_freeses(void* arg, u_int64_t tid) {
   struct rdfpga_softc *sc = arg;
+  u_int8_t thesid = ((u_int8_t)tid) & 0xff;
   
   /* aprint_normal_dev(sc->sc_dev, "freeses\n"); */
 
-  sc->sid ^= 0xDEADBEEF;
+  sc->sid &= ~(1<<thesid);
 
-  memset(sc->aeskey, 0, sizeof(sc->aeskey));
-  memset(sc->aesiv, 0, sizeof(sc->aesiv));
+  memset(sc->sessions[thesid].aeskey, 0, sizeof(sc->sessions[thesid].aeskey));
+  memset(sc->sessions[thesid].aesiv, 0, sizeof(sc->sessions[thesid].aesiv));
 
   return 0;
 }
@@ -708,7 +722,7 @@ rdfpga_rijndael128_zerokey(u_int8_t **sched)
 }
 
 static int
-rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *bufv, int outtype)
+rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, const u_int8_t thesid, struct cryptodesc *crd, void *bufv, int outtype)
 {
 	char *buf = bufv;
 	unsigned char iv[EALG_MAX_BLOCK_LEN], __attribute__ ((aligned(8))) blk[EALG_MAX_BLOCK_LEN], *idat;
@@ -717,7 +731,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 	const struct rdfpga_enc_xform *exf = &rdfpga_enc_xform_rijndael128;
 	int i, k, j, blks, ivlen;
 	int count, ind;
-	rdfpga_rijndael_ctx* ctx = ( rdfpga_rijndael_ctx*)sw->sw_kschedule;
+	rdfpga_rijndael_ctx* ctx = (rdfpga_rijndael_ctx*)sw->sessions[thesid].sw_kschedule;
 
 	//exf = sw->sw_exf;
 	blks = 16; //exf->enc_xform->blocksize;
@@ -783,7 +797,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 				else
 					for (k = 0; k < blks; k++)
 						buf[i + k] ^= buf[i + k - blks];
-				exf->encrypt(sw->sw_kschedule, buf + i);
+				exf->encrypt(sw->sessions[thesid].sw_kschedule, buf + i);
 			}
 		} else {		/* Decrypt */
 			/*
@@ -792,7 +806,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 			 */
 			for (i = crd->crd_skip + crd->crd_len - blks;
 			    i >= crd->crd_skip; i -= blks) {
-				exf->decrypt(sw->sw_kschedule, buf + i);
+				exf->decrypt(sw->sessions[thesid].sw_kschedule, buf + i);
 
 				/* XOR with the IV/previous block, as appropriate */
 				if (i == crd->crd_skip)
@@ -829,7 +843,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					for (j = 0; j < blks; j++)
 						blk[j] ^= ivp[j];
 
-					exf->encrypt(sw->sw_kschedule, blk);
+					exf->encrypt(sw->sessions[thesid].sw_kschedule, blk);
 
 					/*
 					 * Keep encrypted block for XOR'ing
@@ -847,7 +861,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					else
 						memcpy(iv, blk, blks);
 
-					exf->decrypt(sw->sw_kschedule, blk);
+					exf->decrypt(sw->sessions[thesid].sw_kschedule, blk);
 
 					/* XOR with previous block */
 					for (j = 0; j < blks; j++)
@@ -899,7 +913,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					for (j = 0; j < blks; j++)
 						idat[j] ^= ivp[j];
 
-					exf->encrypt(sw->sw_kschedule, idat);
+					exf->encrypt(sw->sessions[thesid].sw_kschedule, idat);
 					ivp = idat;
 				} else {	/* decrypt */
 					/*
@@ -911,7 +925,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					else
 						memcpy(iv, idat, blks);
 
-					exf->decrypt(sw->sw_kschedule, idat);
+					exf->decrypt(sw->sessions[thesid].sw_kschedule, idat);
 
 					/* XOR with previous block/IV */
 					for (j = 0; j < blks; j++)
@@ -957,7 +971,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					  for (j = 0; j < blks; j++)
 					    blk[j] ^= ivp[j];
 					}
-					exf->encrypt(sw->sw_kschedule, blk);
+					exf->encrypt(sw->sessions[thesid].sw_kschedule, blk);
 					ctx->cbc = 1;
 					/*
 					 * Keep encrypted block for XOR'ing
@@ -977,7 +991,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					else
 						memcpy(iv, blk, blks);
 
-					exf->decrypt(sw->sw_kschedule, blk);
+					exf->decrypt(sw->sessions[thesid].sw_kschedule, blk);
 
 					/* XOR with previous block */
 					for (j = 0; j < blks; j++)
@@ -1014,7 +1028,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 			idat = ((char *)uio->uio_iov[ind].iov_base) + k;
 
 			if (!ctx->cbc) {
-			  if (rdfpga_rijndael128_writeivforcbc(sw->sw_kschedule, ivp)) {
+			  if (rdfpga_rijndael128_writeivforcbc(sw->sessions[thesid].sw_kschedule, ivp)) {
 			    aprint_error_dev(sw->sc_dev, "rdfpga_rijndael128_crypt: stuck\n");
 			  } else {
 			    ctx->cbc = 1;
@@ -1089,7 +1103,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					    idat[j] ^= ivp[j];
 					}
 
-					exf->encrypt(sw->sw_kschedule, idat);
+					exf->encrypt(sw->sessions[thesid].sw_kschedule, idat);
 					ctx->cbc = 1;
 					ivp = idat;
 				} else {	/* decrypt */
@@ -1102,7 +1116,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 					else
 						memcpy(iv, idat, blks);
 
-					exf->decrypt(sw->sw_kschedule, idat);
+					exf->decrypt(sw->sessions[thesid].sw_kschedule, idat);
 
 					/* XOR with previous block/IV */
 					for (j = 0; j < blks; j++)
@@ -1130,14 +1144,17 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, struct cryptodesc *crd, void *b
 static int rdfpga_process(void* arg, struct cryptop * crp, int hint) {
   struct rdfpga_softc *sc = arg;
   struct cryptodesc *crd;
+  u_int8_t thesid;
   int type;
   int res;
   
   if (crp == NULL || crp->crp_callback == NULL || sc == NULL) {
     return (EINVAL);
   }
+
+  thesid = ((u_int8_t)crp->crp_sid) & 0xff;
   
-  if (CRYPTO_SESID2LID(crp->crp_sid) != sc->sid)
+  if (!(sc->sid & (1<<thesid)))
     return (EINVAL);
  
   if (crp->crp_flags & CRYPTO_F_IMBUF) {
@@ -1150,9 +1167,26 @@ static int rdfpga_process(void* arg, struct cryptop * crp, int hint) {
 
   /* if (res = rdfpga_wait_aes_ready(sc)) */
   /*   return res; */
+
+  if (sc->aes_key_refresh != thesid) {
+    int i;
+    aprint_normal_dev(sc->sc_dev, "refreshing key for session %hhu\n", thesid); 
+    if ((res = rdfpga_wait_aes_ready(sc)) != 0)
+      return res;
+    for (i = 0 ; i < sc->sessions[thesid].klen / 64 ; i++)
+      bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), sc->sessions[thesid].aeskey[i]);
+    for (i = 0 ; i < 2 ; i++)
+      bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), 0ull);
+    
+    u_int32_t ctrl = RDFPGA_MASK_AES128_START | RDFPGA_MASK_AES128_NEWKEY;
+    if (sc->sessions[thesid].klen == 256)
+      ctrl |= RDFPGA_MASK_AES128_AES256;
+    bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
+    sc->aes_key_refresh = thesid;
+  }
   
   for (crd = crp->crp_desc; crd != NULL; crd = crd->crd_next) {
-    res = rdfpga_encdec_aes128cbc(sc, crd, crp->crp_buf, type);
+    res = rdfpga_encdec_aes128cbc(sc, thesid, crd, crp->crp_buf, type);
     if (res)
       return res;
     crypto_done(crp);

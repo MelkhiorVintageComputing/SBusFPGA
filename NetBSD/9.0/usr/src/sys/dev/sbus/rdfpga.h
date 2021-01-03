@@ -32,6 +32,13 @@
 #ifndef _RDFPGA_H_
 #define _RDFPGA_H_
 
+struct rdfpga_cryptosession {
+  u_int64_t aeskey[4];
+  u_int64_t aesiv[2];
+  u_int32_t klen; /* bits */
+  u_int8_t *sw_kschedule;
+};
+
 struct rdfpga_softc {
 	device_t sc_dev;		/* us as a device */
 	u_int	sc_rev;			/* revision */
@@ -43,13 +50,11 @@ struct rdfpga_softc {
 	int	sc_bufsiz;		/* Size of buffer */
 	bus_dma_tag_t		sc_dmatag;
 	bus_dmamap_t		sc_dmamap;	/* DMA map for bus_dma_* */
-        int			aes_key_refresh;
-  
-  u_int32_t cr_id;
-  u_int32_t sid;
-  u_int64_t aeskey[4];
-  u_int64_t aesiv[2];
-  u_int8_t *sw_kschedule;
+        u_int32_t cr_id;
+        u_int16_t sid;
+        u_int16_t aes_key_refresh;
+
+  struct rdfpga_cryptosession sessions[16];
 };
 
 /* ctrl*/
