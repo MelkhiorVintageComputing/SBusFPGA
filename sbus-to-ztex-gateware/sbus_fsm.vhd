@@ -214,7 +214,7 @@ ARCHITECTURE RTL OF SBusFSM IS
                        SBus_Master_Write_Final
                        );
   TYPE Uart_States IS ( UART_IDLE, UART_WAITING );
-  TYPE AES_States IS ( AES_IDLE, AES_INIT1, AES_INIT2, AES_CRYPT1, AES_CRYPT2 );
+  TYPE AES_States IS ( AES_IDLE, AES_INIT1, AES_CRYPT1, AES_CRYPT2 );
                        
   SIGNAL State : SBus_States := SBus_Start;
   SIGNAL Uart_State : Uart_States := UART_IDLE;
@@ -234,6 +234,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal BUF_ERRs_I, BUF_ERRs_O : std_logic; -- buffers for ERRs from/to
   
   -- signal uart_clk : std_logic; -- 5.76 MHz clock for FIFO write & UART
+  signal aes_clk_out : std_logic; -- 100 MHz clock for AES
   
   signal fifo_rst : STD_LOGIC := '1'; -- start in reset mode
   signal fifo_din : STD_LOGIC_VECTOR ( 7 downto 0 );
@@ -245,17 +246,20 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal r_TX_DV     : std_logic := '0';
   signal w_TX_DONE   : std_logic;
   signal r_TX_BYTE   : std_logic_vector(7 downto 0) := (others => '0');
-
-  signal aes_reset_n : std_logic;
-  signal aes_encdec : std_logic;
-  signal aes_init : std_logic;
-  signal aes_next : std_logic;
-  signal aes_ready : std_logic;
-  signal aes_key : std_logic_vector(255 downto 0);
-  signal aes_keylen : std_logic;
-  signal aes_block : std_logic_vector(127 downto 0);
-  signal aes_result : std_logic_vector(127 downto 0);
-  signal aes_result_valid : std_logic;
+  
+  signal aes_wrapper_rst : std_logic := '0';
+  signal fifo_toaes_din : STD_LOGIC_VECTOR ( 259 downto 0 );
+  signal fifo_toaes_wr_en : STD_LOGIC;
+  signal fifo_toaes_rd_en : STD_LOGIC;
+  signal fifo_toaes_dout : STD_LOGIC_VECTOR ( 259 downto 0 );
+  signal fifo_toaes_full : STD_LOGIC;
+  signal fifo_toaes_empty : STD_LOGIC;
+  signal fifo_fromaes_din : STD_LOGIC_VECTOR ( 127 downto 0 );
+  signal fifo_fromaes_wr_en : STD_LOGIC;
+  signal fifo_fromaes_rd_en : STD_LOGIC;
+  signal fifo_fromaes_dout : STD_LOGIC_VECTOR ( 127 downto 0 );
+  signal fifo_fromaes_full : STD_LOGIC;
+  signal fifo_fromaes_empty : STD_LOGIC;
   
 --  SIGNAL LIFE_COUNTER48 : natural range 0 to 48000000 := 300;
 --  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
@@ -263,6 +267,9 @@ ARCHITECTURE RTL OF SBusFSM IS
   -- counter to wait 20s before enabling SBus signals, without this the SS20 won't POST reliably...
   -- this means a need to probe-sbus from the PROM to find the board (or warm reset)
   SIGNAL OE_COUNTER : natural range 0 to 960000000 := 960000000;
+  
+  SIGNAL AES_RST_COUNTER : natural range 0 to 31 := 31;
+  SIGNAL AES_TIMEOUT_COUNTER : natural range 0 to 63 := 63;
 
   -- 16 registers for GCM (12 used), 4 for DMA (2 used ATM), 16 for AES (13 used ATM)
   type REGISTERS_TYPE is array(0 to 64) of std_logic_vector(31 downto 0);
@@ -462,6 +469,30 @@ ARCHITECTURE RTL OF SBusFSM IS
       empty : out STD_LOGIC
     );
   end component;
+  component fifo_generator_to_aes is
+    Port (
+      wr_clk : in STD_LOGIC;
+      rd_clk : in STD_LOGIC;
+      din : in STD_LOGIC_VECTOR ( 259 downto 0 );
+      wr_en : in STD_LOGIC;
+      rd_en : in STD_LOGIC;
+      dout : out STD_LOGIC_VECTOR ( 259 downto 0 );
+      full : out STD_LOGIC;
+      empty : out STD_LOGIC
+    );
+  end component;
+  component fifo_generator_from_aes is
+    Port (
+      wr_clk : in STD_LOGIC;
+      rd_clk : in STD_LOGIC;
+      din : in STD_LOGIC_VECTOR ( 127 downto 0 );
+      wr_en : in STD_LOGIC;
+      rd_en : in STD_LOGIC;
+      dout : out STD_LOGIC_VECTOR ( 127 downto 0 );
+      full : out STD_LOGIC;
+      empty : out STD_LOGIC
+    );
+  end component;
   
   component uart_tx is
     generic (
@@ -482,21 +513,25 @@ ARCHITECTURE RTL OF SBusFSM IS
 --       clk_out1 : out std_logic);
 --  end component clk_wiz_0;
 
-  component aes_core is
-    port (
-      clk : in std_logic;
-      reset_n: in std_logic;
-      encdec: in std_logic;
-      init: in std_logic;
-      xnext: in std_logic;
-      ready: out std_logic;
-      key: in  std_logic_vector(255 downto 0);
-      keylen: in std_logic;
-      xblock: in std_logic_vector(127 downto 0);
-      result: out std_logic_vector(127 downto 0);
-      result_valid: out std_logic
-      );
-  end component aes_core;
+  component clk_wiz_aes is
+  port(clk_out1 : out std_logic;
+       clk_in1 : in std_logic);
+  end component clk_wiz_aes;
+  
+  component aes_wrapper is
+  port (
+    aes_wrapper_rst : in std_logic;
+    aes_wrapper_clk : in std_logic;
+-- iskey?, keylen, encdec, cbc, data (256 or 128 + 128)
+    input_fifo_out : in std_logic_vector(259 downto 0);
+    input_fifo_empty: in std_logic;
+    input_fifo_rd_en : out std_logic;
+-- data (128)
+    output_fifo_in : out std_logic_vector(127 downto 0);
+    output_fifo_full : in std_logic;
+    output_fifo_wr_en : out std_logic
+    );
+  end component aes_wrapper;
 
   PROCEDURE SBus_Set_Default(
 --    signal SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0);
@@ -565,13 +600,33 @@ BEGIN
   
   label_prom: Prom PORT MAP (addr => p_addr, data => p_data);
 
-  label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
+  --label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
   
   label_fifo: fifo_generator_uart port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
                                            din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
                                            dout => fifo_dout, full => fifo_full, empty => fifo_empty);
+                                           
+                                           
+  
+  label_fifo_toaes: fifo_generator_to_aes port map(wr_clk => SBUS_3V3_CLK, rd_clk => aes_clk_out,
+                                           din => fifo_toaes_din, wr_en => fifo_toaes_wr_en, rd_en => fifo_toaes_rd_en,
+                                           dout => fifo_toaes_dout, full => fifo_toaes_full, empty => fifo_toaes_empty);
+  label_fifo_fromaes: fifo_generator_from_aes port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
+                                           din => fifo_fromaes_din, wr_en => fifo_fromaes_wr_en, rd_en => fifo_fromaes_rd_en,
+                                           dout => fifo_fromaes_dout, full => fifo_fromaes_full, empty => fifo_fromaes_empty);
+  label_aes_wrapper: aes_wrapper port map(
+    aes_wrapper_rst => aes_wrapper_rst, -- fixme
+    aes_wrapper_clk => aes_clk_out,
+    input_fifo_out => fifo_toaes_dout,
+    input_fifo_empty => fifo_toaes_empty,
+    input_fifo_rd_en => fifo_toaes_rd_en,
+    output_fifo_in => fifo_fromaes_din,
+    output_fifo_full => fifo_fromaes_full,
+    output_fifo_wr_en => fifo_fromaes_wr_en
+    );
                                         
   -- label_clk_wiz: clk_wiz_0 port map(clk_out1 => uart_clk, clk_in1 => fxclk_in);
+  label_aes_clk_wiz: clk_wiz_aes port map(clk_out1 => aes_clk_out, clk_in1 => fxclk_in);
   
   label_uart : uart_tx
     generic map (
@@ -584,20 +639,6 @@ BEGIN
       o_tx_active => open,
       o_tx_serial => TX,
       o_tx_done   => w_TX_DONE
-      );
-
-  label_aes_core: aes_core port map(
-      clk => SBUS_3V3_CLK,
-      reset_n => aes_reset_n,
-      encdec => aes_encdec,
-      init => aes_init,
-      xnext => aes_next,
-      ready => aes_ready,
-      key => aes_key,
-      keylen => aes_keylen,
-      xblock => aes_block,
-      result => aes_result,
-      result_valid => aes_result_valid
       );
   
   PROCESS (SBUS_3V3_CLK, SBUS_3V3_RSTs) 
@@ -612,11 +653,12 @@ BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
       fifo_rst <= '1';
-      aes_reset_n <= '0';
       RES_COUNTER <= 4;
       
     ELSIF RISING_EDGE(SBUS_3V3_CLK) THEN
       fifo_wr_en <= '0';
+      fifo_toaes_wr_en <= '0';
+      fifo_fromaes_rd_en <= '0';
 --      LIFE_COUNTER25 <= LIFE_COUNTER25 - 1;
       
       CASE State IS
@@ -1150,9 +1192,6 @@ BEGIN
               -- fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
               State <= SBus_Idle;
             ELSE
-              aes_reset_n <= '1';
-              aes_init <= '0';
-              aes_next <= '0';
               fifo_rst <= '0';
               RES_COUNTER <= RES_COUNTER - 1;
             END IF;
@@ -1167,69 +1206,64 @@ BEGIN
       WHEN AES_IDLE =>
         IF ((REGISTERS(REG_INDEX_AES128_CTRL)(31) = '1') AND
             (REGISTERS(REG_INDEX_AES128_CTRL)(30) = '0') AND
-            (aes_ready ='1')
+            (fifo_toaes_full = '0')
             ) THEN
             fifo_wr_en <= '1'; fifo_din <= x"30"; -- "0"
           -- start & !busy & !aesbusy -> start processing
-          if (REGISTERS(REG_INDEX_AES128_CTRL)(28) = '1') THEN
-            IF (REGISTERS(REG_INDEX_AES128_CTRL)(26) = '0') THEN -- aes128
-            aes_key <= REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
-                       REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
-                       x"00000000000000000000000000000000";
-            aes_keylen <= '0';
-            ELSE
-            aes_key <= REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
-                       REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
-                       REGISTERS(REG_INDEX_AES128_KEY5) & REGISTERS(REG_INDEX_AES128_KEY6) &
-                       REGISTERS(REG_INDEX_AES128_KEY7) & REGISTERS(REG_INDEX_AES128_KEY8);
-            aes_keylen <= '1';
-            END IF;
-            aes_init <= '1';
-            aes_encdec <= '1';
+          if (REGISTERS(REG_INDEX_AES128_CTRL)(28) = '1') THEN --newkey 
+            fifo_toaes_din <=
+              '1' & -- iskey
+              REGISTERS(REG_INDEX_AES128_CTRL)(26) & -- keylen
+              '1' & -- encdec
+              REGISTERS(REG_INDEX_AES128_CTRL)(27) & -- cbc
+              REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
+              REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
+              REGISTERS(REG_INDEX_AES128_KEY5) & REGISTERS(REG_INDEX_AES128_KEY6) &
+              REGISTERS(REG_INDEX_AES128_KEY7) & REGISTERS(REG_INDEX_AES128_KEY8);
+            fifo_toaes_wr_en <= '1';
             AES_State <= AES_INIT1;
           ELSE
-            aes_next <= '1';
-            aes_encdec <= '1';
+            fifo_toaes_din <=
+              '0' & -- !iskey
+              REGISTERS(REG_INDEX_AES128_CTRL)(26) & -- keylen
+              '1' & -- encdec
+              REGISTERS(REG_INDEX_AES128_CTRL)(27) & -- cbc
+              REGISTERS(REG_INDEX_AES128_OUT1) & REGISTERS(REG_INDEX_AES128_OUT2) &
+              REGISTERS(REG_INDEX_AES128_OUT3) & REGISTERS(REG_INDEX_AES128_OUT4) &
+              REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
+              REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
+            fifo_toaes_wr_en <= '1';
             AES_State <= AES_CRYPT1;
-          end IF;
-            
-          REGISTERS(REG_INDEX_AES128_CTRL)(30) <= '1'; -- busy
-          IF (REGISTERS(REG_INDEX_AES128_CTRL)(27) = '0') THEN
-            -- normal mode
-            aes_block <= REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
-                         REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
-          ELSE
-            -- cbc mode
-            aes_block <=
-               (REGISTERS(REG_INDEX_AES128_DATA1) XOR REGISTERS(REG_INDEX_AES128_OUT1))
-             & (REGISTERS(REG_INDEX_AES128_DATA2) XOR REGISTERS(REG_INDEX_AES128_OUT2))
-             & (REGISTERS(REG_INDEX_AES128_DATA3) XOR REGISTERS(REG_INDEX_AES128_OUT3))
-             & (REGISTERS(REG_INDEX_AES128_DATA4) XOR REGISTERS(REG_INDEX_AES128_OUT4));
           END IF;
         END IF;
+        
         when AES_INIT1 =>
           fifo_wr_en <= '1'; fifo_din <= x"31"; -- "1"
-          AES_State <= AES_INIT2;
-        WHEN AES_INIT2 =>
-          aes_init <= '0';
-          fifo_wr_en <= '1'; fifo_din <= x"32"; -- "2"
-          IF (aes_ready = '1') THEN
-            aes_next <= '1';
-            AES_State <= AES_CRYPT1;
-          END IF;
+          fifo_toaes_wr_en <= '0';
+          REGISTERS(REG_INDEX_AES128_CTRL)(28) <= '0';
+          AES_State <= AES_IDLE;
+          
         when AES_CRYPT1 =>
+          AES_TIMEOUT_COUNTER <= 63;
           fifo_wr_en <= '1'; fifo_din <= x"33"; -- "3"
+          fifo_toaes_wr_en <= '0';
           AES_State <= AES_CRYPT2;
         WHEN AES_CRYPT2 =>
+          AES_TIMEOUT_COUNTER <= AES_TIMEOUT_COUNTER - 1;
           fifo_wr_en <= '1'; fifo_din <= x"34"; -- "4"
-          aes_next <= '0';
-          IF (aes_result_valid = '1') THEN
-          fifo_wr_en <= '1'; fifo_din <= x"35"; -- "5"
+          IF (fifo_fromaes_empty = '0') THEN
+            fifo_wr_en <= '1'; fifo_din <= x"35"; -- "5"
+            fifo_fromaes_rd_en <= '1';
             -- start & busy & !aesbusy -> done processing
-            REGISTERS(REG_INDEX_AES128_OUT1) <= aes_result(127 downto 96);
-            REGISTERS(REG_INDEX_AES128_OUT2) <= aes_result( 95 downto 64);
-            REGISTERS(REG_INDEX_AES128_OUT3) <= aes_result( 63 downto 32);
-            REGISTERS(REG_INDEX_AES128_OUT4) <= aes_result( 31 downto 0);
+            REGISTERS(REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
+            REGISTERS(REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
+            REGISTERS(REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
+            REGISTERS(REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
+            REGISTERS(REG_INDEX_AES128_CTRL) <= (others => '0');
+            AES_State <= AES_IDLE;
+          ELSIF (AES_TIMEOUT_COUNTER = 0) THEN
+            fifo_wr_en <= '1'; fifo_din <= x"36"; -- "6"
+            -- oups
             REGISTERS(REG_INDEX_AES128_CTRL) <= (others => '0');
             AES_State <= AES_IDLE;
           END IF;
@@ -1291,6 +1325,18 @@ BEGIN
     ELSE
         OE_COUNTER <= OE_COUNTER - 1;
     END IF;
+  END IF;
+  END PROCESS;
+  
+  process (aes_clk_out)
+  BEGIN
+  IF RISING_EDGE(aes_clk_out) THEN
+    if (AES_RST_COUNTER = 0) THEN
+        aes_wrapper_rst <= '1';
+    else
+        AES_RST_COUNTER <= (AES_RST_COUNTER - 1);
+        aes_wrapper_rst <= '0';
+    end if;
   END IF;
   END PROCESS;
   
