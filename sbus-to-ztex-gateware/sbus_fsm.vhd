@@ -127,6 +127,7 @@ ENTITY SBusFSM is
   constant AES128_CTRL_NEWKEY_IDX : integer := 28;
   constant AES128_CTRL_CBCMOD_IDX : integer := 27;
   constant AES128_CTRL_AES256_IDX : integer := 26;
+  constant AES128_CTRL_DEC_IDX    : integer := 25;
 
   -- OFFSET to REGS; (8 downto 0) so 9 bits
   CONSTANT REG_OFFSET_LED        : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_LED   *4, 9);
@@ -1133,7 +1134,7 @@ BEGIN
               fifo_toaes_din <=
                 '0' & -- !iskey
                 '0' & -- keylen, ignored
-                '1' & -- encdec
+                '1' & -- encdec, enc for now
                 '0' & -- cbc
                 '1' & -- internal cbc
                 x"00000000000000000000000000000000" &
@@ -1144,7 +1145,7 @@ BEGIN
               fifo_toaes_din <=
                 '0' & -- !iskey
                 '0' & -- keylen, ignored
-                '1' & -- encdec
+                '1' & -- encdec, enc for now
                 '0' & -- cbc
                 '0' & -- internal cbc
                 x"00000000000000000000000000000000" &
@@ -1287,7 +1288,7 @@ BEGIN
             fifo_toaes_din <=
               '1' & -- iskey
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
-              '1' & -- encdec
+              (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
               '0' & -- internal cbc
               REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
@@ -1300,7 +1301,7 @@ BEGIN
             fifo_toaes_din <=
               '0' & -- !iskey
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
-              '1' & -- encdec
+              (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
               '0' & -- internal cbc
               REGISTERS(REG_INDEX_AES128_OUT1) & REGISTERS(REG_INDEX_AES128_OUT2) &

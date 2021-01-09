@@ -704,7 +704,54 @@ static void
 rdfpga_rijndael128_decrypt(void *key, u_int8_t *blk)
 {
   /* ugly cast */
-	rijndael_decrypt((rijndael_ctx *) key, (u_char *) blk, (u_char *) blk);
+  //	rijndael_decrypt((rijndael_ctx *) key, (u_char *) blk, (u_char *) blk);
+    u_int32_t ctrl;
+  u_int64_t data[2];
+  u_int64_t *ptr;
+  int i;
+  rdfpga_rijndael_ctx* ctx;
+  struct rdfpga_softc *sc;
+  
+  ctx = key;
+  sc = ctx->sc;
+
+  /* alignment constraint */
+  if (!(((u_int32_t)blk) & 0x7)) {
+    ptr = (u_int64_t*)blk;
+  } else {
+    memcpy(data, blk, 16);
+    ptr = data;
+  }
+  
+  if (rdfpga_wait_aes_ready(sc)) {
+    aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck\n");
+    return;
+  }
+  
+  /* aprint_normal_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: write data & start\n"); */
+  
+  for (i = 0 ; i < 2 ; i++)
+    bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), ptr[i] );
+  ctrl = RDFPGA_MASK_AES128_START | RDFPGA_MASK_AES128_DEC;
+  //  if (ctx->cbc)
+  //    ctrl |= RDFPGA_MASK_AES128_CBCMOD;
+  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
+
+  if (ctx->readback) {
+    if (rdfpga_wait_aes_ready(sc)) {
+      aprint_error_dev(sc->sc_dev, "rdfpga_rijndael128_crypt: stuck\n");
+      return;
+    }
+    
+    for (i = 0 ; i < 2 ; i++)
+      ptr[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
+    
+    if (!(((u_int32_t)blk) & 0x7)) {
+      /* nothing */
+    } else {
+      memcpy(blk, data, 16);
+    }
+  }
 }
 
 static int
