@@ -69,9 +69,15 @@ ENTITY SBusFSM is
   CONSTANT ACK_DWORD : std_logic_vector(2 downto 0):= "010";
   CONSTANT ACK_HWORD : std_logic_vector(2 downto 0):= "001";
   CONSTANT ACK_RESV : std_logic_vector(2 downto 0):= "000";
-  -- ADDR RANGES ; (27 downto 9) so 19 bits
-  CONSTANT ROM_ADDR_PFX : std_logic_vector(18 downto 0) := "0000000000000000000";
-  CONSTANT REG_ADDR_PFX : std_logic_vector(18 downto 0) := "0000000000000000001";
+  
+  -- ADDR RANGES ; (27 downto 16) so 12 bits
+  constant ADDR_PHYS_HIGH : integer := 27;
+  constant ADDR_PHYS_LOW : integer := 0;
+  constant ADDR_PFX_HIGH : integer := ADDR_PHYS_HIGH;
+  constant ADDR_PFX_LOW : integer := 16;
+  CONSTANT ADDR_PFX_LENGTH : integer := 12;
+  CONSTANT ROM_ADDR_PFX : std_logic_vector(ADDR_PFX_HIGH downto ADDR_PFX_LOW) := "000000000000";
+  CONSTANT REG_ADDR_PFX : std_logic_vector(ADDR_PFX_HIGH downto ADDR_PFX_LOW) := "000000000001";
   CONSTANT REG_INDEX_LED        : integer := 0;
   CONSTANT REG_INDEX_AES128_CTRL: integer := 1;
   CONSTANT REG_INDEX_DMA_ADDR   : integer := 2;
@@ -130,47 +136,50 @@ ENTITY SBusFSM is
   constant AES128_CTRL_AES256_IDX : integer := 26;
   constant AES128_CTRL_DEC_IDX    : integer := 25;
 
-  -- OFFSET to REGS; (8 downto 0) so 9 bits
-  CONSTANT REG_OFFSET_LED        : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_LED   *4, 9);
-  CONSTANT REG_OFFSET_AES128_CTRL : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL*4, 9);
-  CONSTANT REG_OFFSET_DMA_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_ADDR  *4, 9);
-  CONSTANT REG_OFFSET_DMA_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL  *4, 9);
-  CONSTANT REG_OFFSET_DMAW_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMAW_ADDR  *4, 9);
-  CONSTANT REG_OFFSET_DMAW_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMAW_CTRL  *4, 9);
+  -- OFFSET to REGS; (15 downto 0) so 16 bits
+  CONSTANT OFFSET_LENGTH : integer := 16;
+  constant OFFSET_HIGH : integer := 15;
+  constant OFFSET_LOW : integer := ADDR_PHYS_LOW;
+  CONSTANT REG_OFFSET_LED         : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_LED        *4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_CTRL : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_CTRL*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_DMA_ADDR    : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_DMA_ADDR   *4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_DMA_CTRL    : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_DMA_CTRL   *4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_DMAW_ADDR   : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_DMAW_ADDR  *4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_DMAW_CTRL   : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_DMAW_CTRL  *4, OFFSET_LENGTH);
   
-  CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H1*4, 9);
-  CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H2*4, 9);
-  CONSTANT REG_OFFSET_GCM_H3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H3*4, 9);
-  CONSTANT REG_OFFSET_GCM_H4     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H4*4, 9);
-  CONSTANT REG_OFFSET_GCM_C1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C1*4, 9);
-  CONSTANT REG_OFFSET_GCM_C2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C2*4, 9);
-  CONSTANT REG_OFFSET_GCM_C3     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C3*4, 9);
-  CONSTANT REG_OFFSET_GCM_C4     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_C4*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT1*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT2*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT3*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT4*4, 9);
-  CONSTANT REG_OFFSET_GCM_INPUT5 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT5*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_GCM_INPUT6 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT6*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_GCM_INPUT7 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT7*4, 9); -- placeholder
-  CONSTANT REG_OFFSET_GCM_INPUT8 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_INPUT8*4, 9); -- placeholder
+  CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_H1*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_H2*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_H3     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_H3*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_H4     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_H4*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_C1     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_C1*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_C2     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_C2*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_C3     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_C3*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_C4     : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_C4*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_INPUT1 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT1*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_INPUT2 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT2*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_INPUT3 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT3*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_INPUT4 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT4*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_GCM_INPUT5 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT5*4, OFFSET_LENGTH); -- placeholder
+  CONSTANT REG_OFFSET_GCM_INPUT6 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT6*4, OFFSET_LENGTH); -- placeholder
+  CONSTANT REG_OFFSET_GCM_INPUT7 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT7*4, OFFSET_LENGTH); -- placeholder
+  CONSTANT REG_OFFSET_GCM_INPUT8 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_GCM_INPUT8*4, OFFSET_LENGTH); -- placeholder
   
-  CONSTANT REG_OFFSET_AES128_KEY1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY1*4, 9);
-  CONSTANT REG_OFFSET_AES128_KEY2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY2*4, 9);
-  CONSTANT REG_OFFSET_AES128_KEY3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY3*4, 9);
-  CONSTANT REG_OFFSET_AES128_KEY4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY4*4, 9);
-  CONSTANT REG_OFFSET_AES128_KEY5 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY5*4, 9);
-  CONSTANT REG_OFFSET_AES128_KEY6 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY6*4, 9);
-  CONSTANT REG_OFFSET_AES128_KEY7 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY7*4, 9);
-  CONSTANT REG_OFFSET_AES128_KEY8 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_KEY8*4, 9);
-  CONSTANT REG_OFFSET_AES128_DATA1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA1*4, 9);
-  CONSTANT REG_OFFSET_AES128_DATA2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA2*4, 9);
-  CONSTANT REG_OFFSET_AES128_DATA3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA3*4, 9);
-  CONSTANT REG_OFFSET_AES128_DATA4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_DATA4*4, 9);
-  CONSTANT REG_OFFSET_AES128_OUT1 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT1*4, 9);
-  CONSTANT REG_OFFSET_AES128_OUT2 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT2*4, 9);
-  CONSTANT REG_OFFSET_AES128_OUT3 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT3*4, 9);
-  CONSTANT REG_OFFSET_AES128_OUT4 : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_OUT4*4, 9);
+  CONSTANT REG_OFFSET_AES128_KEY1 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY1*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_KEY2 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY2*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_KEY3 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY3*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_KEY4 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY4*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_KEY5 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY5*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_KEY6 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY6*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_KEY7 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY7*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_KEY8 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_KEY8*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_DATA1 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_DATA1*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_DATA2 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_DATA2*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_DATA3 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_DATA3*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_DATA4 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_DATA4*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_OUT1 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_OUT1*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_OUT2 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_OUT2*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_OUT3 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_OUT3*4, OFFSET_LENGTH);
+  CONSTANT REG_OFFSET_AES128_OUT4 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_OUT4*4, OFFSET_LENGTH);
 
   constant c_CLKS_PER_BIT : integer := 417; -- 48M/115200
   -- constant c_CLKS_PER_BIT : integer := 50; -- 5.76M/115200
@@ -243,7 +252,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   SIGNAL LED_RESET: std_logic := '0';
   signal DATA_T : std_logic := '1'; -- I/O control for DATA IOBUF, default to input
   signal BUF_DATA_I, BUF_DATA_O : std_logic_vector(31 downto 0); -- buffers for data from/to
-  SIGNAL p_addr : std_logic_vector(6 downto 0) := "1111111"; -- addr lines to prom
+  SIGNAL p_addr : std_logic_vector(13 downto 0) := "11111111111111"; -- addr lines to prom
   SIGNAL p_data : std_logic_vector(31 downto 0); -- data lines to prom
   
   signal SM_T : std_logic := '1'; -- I/O control for others (Slave/Master) IOBUF, default to Slave (in)
@@ -296,28 +305,28 @@ ARCHITECTURE RTL OF SBusFSM IS
   type REGISTERS_TYPE is array(0 to 64) of std_logic_vector(31 downto 0);
   SIGNAL REGISTERS : REGISTERS_TYPE;
   
-  pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_GCM_INPUT1 = value) OR
            (REG_OFFSET_GCM_INPUT2 = value) OR
            (REG_OFFSET_GCM_INPUT3 = value) OR
            (REG_OFFSET_GCM_INPUT4 = value);
   end function;
-  pure function REG_OFFSET_IS_GCMH (value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_GCMH (value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_GCM_H1 = value) OR
            (REG_OFFSET_GCM_H2 = value) OR
            (REG_OFFSET_GCM_H3 = value) OR
            (REG_OFFSET_GCM_H4 = value);
   end function;
-  pure function REG_OFFSET_IS_GCMC (value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_GCMC (value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_GCM_C1 = value) OR
            (REG_OFFSET_GCM_C2 = value) OR
            (REG_OFFSET_GCM_C3 = value) OR
            (REG_OFFSET_GCM_C4 = value);
   end function;
-  pure function REG_OFFSET_IS_ANYDMA(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANYDMA(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_DMA_ADDR  = value) OR
            (REG_OFFSET_DMA_CTRL  = value) OR
@@ -325,7 +334,7 @@ ARCHITECTURE RTL OF SBusFSM IS
            (REG_OFFSET_DMAW_CTRL  = value);
   end function;
   
-  pure function REG_OFFSET_IS_AESKEY(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_AESKEY(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_AES128_KEY1 = value) OR
            (REG_OFFSET_AES128_KEY2 = value) OR
@@ -337,7 +346,7 @@ ARCHITECTURE RTL OF SBusFSM IS
            (REG_OFFSET_AES128_KEY8 = value);
   end function;
   
-  pure function REG_OFFSET_IS_AESDATA(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_AESDATA(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_AES128_DATA1 = value) OR
            (REG_OFFSET_AES128_DATA2 = value) OR
@@ -345,7 +354,7 @@ ARCHITECTURE RTL OF SBusFSM IS
            (REG_OFFSET_AES128_DATA4 = value);
   end function;
   
-  pure function REG_OFFSET_IS_AESOUT(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_AESOUT(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_AES128_OUT1 = value) OR
            (REG_OFFSET_AES128_OUT2 = value) OR
@@ -353,18 +362,18 @@ ARCHITECTURE RTL OF SBusFSM IS
            (REG_OFFSET_AES128_OUT4 = value);
   end function;
 
-  pure function REG_OFFSET_IS_ANYGCM(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANYGCM(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return REG_OFFSET_IS_GCMINPUT(value) or REG_OFFSET_IS_GCMH(value) or REG_OFFSET_IS_GCMC(value);
   end function;
 
-  pure function REG_OFFSET_IS_ANYAES(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANYAES(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return REG_OFFSET_IS_AESKEY(value) OR REG_OFFSET_IS_AESDATA(value) OR REG_OFFSET_IS_AESOUT(value) OR
            (REG_OFFSET_AES128_CTRL = value);
   end function;
 
-  pure function REG_OFFSET_IS_ANYREAD(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANYREAD(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return REG_OFFSET_IS_GCMC(value) OR
            REG_OFFSET_IS_AESOUT(value) OR
@@ -374,7 +383,7 @@ ARCHITECTURE RTL OF SBusFSM IS
            ;
   end function;
 
-  pure function REG_OFFSET_IS_ANYWRITE(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANYWRITE(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_LED = value) OR
            REG_OFFSET_IS_ANYGCM(value) OR
@@ -382,7 +391,7 @@ ARCHITECTURE RTL OF SBusFSM IS
            REG_OFFSET_IS_ANYDMA(value);
   end function;
 
-  pure function REG_OFFSET_IS_ANY(value : in std_logic_vector(8 downto 0)) return boolean is
+  pure function REG_OFFSET_IS_ANY(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return true;
   end function;
@@ -447,8 +456,8 @@ ARCHITECTURE RTL OF SBusFSM IS
 
   COMPONENT Prom
     GENERIC(
-      addr_width : integer := 128; -- store 128 elements (512 bytes)
-      addr_bits  : integer := 7; -- required bits to store 128 elements
+      addr_width : integer := 16384; -- store 128 elements (512 bytes)
+      addr_bits  : integer := 14; -- required bits to store 128 elements
       data_width : integer := 32 -- each element has 32-bits
       );
     PORT(
@@ -566,7 +575,7 @@ ARCHITECTURE RTL OF SBusFSM IS
     signal SBUS_DATA_OE_LED : OUT std_logic; -- light during read cycle
     signal SBUS_DATA_OE_LED_2 : OUT std_logic; -- light during write cycle)
     -- ROM
-    signal p_addr : OUT std_logic_vector(6 downto 0); -- TODO: how to reference the add_bits from PROM ?
+    signal p_addr : OUT std_logic_vector(13 downto 0); -- TODO: how to reference the add_bits from PROM ?
     -- Data buffers
     signal DATA_T : OUT std_logic; -- I/O control for data IOBUF
     signal SM_T : OUT std_logic; -- I/O control for SM IOBUF
@@ -581,7 +590,7 @@ ARCHITECTURE RTL OF SBusFSM IS
 --    SBUS_3V3_ERRs <= 'Z'; -- idle
     SBUS_3V3_INT1s <= 'Z';
     SBUS_3V3_INT7s <= 'Z';
-    p_addr <= "1111111"; -- look-up last element, all-0
+    p_addr <= "11111111111111"; -- look-up last element, all-0
     DATA_T <= '1'; -- set buffer as input
     SM_T <= '1'; -- set buffer as slave mode (in)
     SMs_T <= '1'; -- set buffer as master mode (in)
@@ -668,7 +677,7 @@ BEGIN
   PROCESS (SBUS_3V3_CLK, SBUS_3V3_RSTs) 
   variable do_gcm : boolean := false;
   variable finish_gcm : boolean := false;
-  variable last_pa : std_logic_vector(27 downto 0) := (others => '0');
+  variable last_pa : std_logic_vector(ADDR_PHYS_HIGH downto ADDR_PHYS_LOW) := (others => '0');
   variable BURST_COUNTER : integer range 0 to 15 := 0;
   variable BURST_LIMIT : integer range 1 to 16 := 1;
   variable BURST_INDEX : integer range 0 to 15;
@@ -708,14 +717,14 @@ BEGIN
             SBUS_DATA_OE_LED <= '1';
             BURST_COUNTER := 0;
             BURST_LIMIT := SIZ_TO_BURSTSIZE(BUF_SIZ_I);
-            IF ((last_pa(27 downto 9) = ROM_ADDR_PFX) AND (last_pa(1 downto 0) = "00")) then
+            IF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = ROM_ADDR_PFX) AND (last_pa(1 downto 0) = "00")) then
               -- 32 bits read from aligned memory IN PROM space ------------------------------------
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
               -- word address goes to the p_addr lines
-              p_addr <= last_pa(8 downto 2);
+              p_addr <= last_pa(OFFSET_HIGH downto (OFFSET_LOW+2));
               State <= SBus_Slave_Ack_Read_Prom_Burst;
-            ELSIF ((last_pa(27 downto 9) = REG_ADDR_PFX) AND REG_OFFSET_IS_ANYREAD(last_pa(8 downto 0))) then
+            ELSIF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REG_ADDR_PFX) AND REG_OFFSET_IS_ANYREAD(last_pa(OFFSET_HIGH downto OFFSET_LOW))) then
               -- 32 bits read from aligned memory IN REG space ------------------------------------
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
@@ -730,12 +739,12 @@ BEGIN
             fifo_wr_en <= '1'; fifo_din <= x"42"; -- "B"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED <= '1';
-            IF (last_pa(27 downto 9) = ROM_ADDR_PFX) then
+            IF (last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = ROM_ADDR_PFX) then
               -- 8 bits read from memory IN PROM space ------------------------------------
               BUF_ACKs_O <= ACK_BYTE;
               BUF_ERRs_O <= '1'; -- no late error
               -- word address goes to the p_addr lines
-              p_addr <= last_pa(8 downto 2);
+              p_addr <= last_pa(OFFSET_HIGH downto (OFFSET_LOW+2));
               State <= SBus_Slave_Ack_Read_Prom_Byte;
             ELSE
               BUF_ACKs_O <= ACK_ERR;
@@ -747,12 +756,12 @@ BEGIN
             fifo_wr_en <= '1'; fifo_din <= x"43"; -- "C"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED <= '1';
-            IF ((last_pa(27 downto 9) = ROM_ADDR_PFX) and (last_pa(0) = '0')) then
+            IF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = ROM_ADDR_PFX) and (last_pa(0) = '0')) then
               -- 16 bits read from memory IN PROM space ------------------------------------
               BUF_ACKs_O <= ACK_HWORD;
               BUF_ERRs_O <= '1'; -- no late error
               -- word address goes to the p_addr lines
-              p_addr <= last_pa(8 downto 2);
+              p_addr <= last_pa(OFFSET_HIGH downto (OFFSET_LOW+2));
               State <= SBus_Slave_Ack_Read_Prom_HWord;
             ELSE
               BUF_ACKs_O <= ACK_ERR;
@@ -767,7 +776,7 @@ BEGIN
             SBUS_DATA_OE_LED_2 <= '1';
             BURST_COUNTER := 0;
             BURST_LIMIT := SIZ_TO_BURSTSIZE(BUF_SIZ_I);
-            IF ((last_pa(27 downto 9) = REG_ADDR_PFX) and REG_OFFSET_IS_ANYWRITE(last_pa(8 downto 0))) then
+            IF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REG_ADDR_PFX) and REG_OFFSET_IS_ANYWRITE(last_pa(OFFSET_HIGH downto OFFSET_LOW))) then
               -- 32 bits write to register  ------------------------------------
               BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
               BUF_ERRs_O <= '1'; -- no late error
@@ -782,7 +791,7 @@ BEGIN
             fifo_wr_en <= '1'; fifo_din <= x"45"; -- "E"
             last_pa := SBUS_3V3_PA;
             SBUS_DATA_OE_LED_2 <= '1';
-            IF ((last_pa(27 downto 9) = REG_ADDR_PFX) and (last_pa(8 downto 2) = REG_OFFSET_LED(8 downto 2))) then
+            IF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REG_ADDR_PFX) and (last_pa(OFFSET_HIGH downto (OFFSET_LOW+2)) = REG_OFFSET_LED(OFFSET_HIGH downto (OFFSET_LOW+2)))) then
               -- 8 bits write to LED register ------------------------------------
               LED_RESET <= '1'; -- reset led cycle
               --DATA_T <= '1'; -- set buffer as input
@@ -914,10 +923,10 @@ BEGIN
         WHEN SBus_Slave_Ack_Reg_Write_Burst =>
           fifo_wr_en <= '1'; fifo_din <= x"48"; -- "H"
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          REGISTERS(conv_integer(last_pa(8 downto 6))*16 + BURST_INDEX) <= BUF_DATA_I;
-          IF (last_pa(8 downto 0) = REG_OFFSET_LED) THEN
+          REGISTERS(conv_integer(last_pa(OFFSET_HIGH downto (OFFSET_LOW+6)))*16 + BURST_INDEX) <= BUF_DATA_I;
+          IF (last_pa(OFFSET_HIGH downto OFFSET_LOW) = REG_OFFSET_LED) THEN
             LED_RESET <= '1'; -- reset led cycle
-          ELSIF (last_pa(8 downto 0) = REG_OFFSET_GCM_INPUT4) THEN
+          ELSIF (last_pa(OFFSET_HIGH downto OFFSET_LOW) = REG_OFFSET_GCM_INPUT4) THEN
             mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
             mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
             mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
@@ -942,7 +951,7 @@ BEGIN
           -- put data from PROM on the bus
           BUF_DATA_O <= p_data; -- address set in previous cycle
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP((BURST_COUNTER + 1), BURST_LIMIT, last_pa(5 downto 2)));
-          p_addr <= last_pa(8 downto 6) & conv_std_logic_vector(BURST_INDEX,4); -- for next cycle
+          p_addr <= last_pa(OFFSET_HIGH downto (OFFSET_LOW+6)) & conv_std_logic_vector(BURST_INDEX,4); -- for next cycle
           if (BURST_COUNTER = (BURST_LIMIT-1)) then
             BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Do_Read;
@@ -955,7 +964,7 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"4A"; -- "J"
           DATA_T <= '0'; -- set buffer as output
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          BUF_DATA_O <= REGISTERS(conv_integer(last_pa(8 downto 6))*16 + BURST_INDEX);
+          BUF_DATA_O <= REGISTERS(conv_integer(last_pa(OFFSET_HIGH downto (OFFSET_LOW+6)))*16 + BURST_INDEX);
           if (BURST_COUNTER = (BURST_LIMIT-1)) then
             BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Do_Read;
@@ -975,7 +984,7 @@ BEGIN
           
         WHEN SBus_Slave_Ack_Read_Prom_Byte =>
           fifo_wr_en <= '1'; fifo_din <= x"4C"; -- "L"
-          IF (last_pa(27 downto 9) = ROM_ADDR_PFX) then -- do we need to re-test ?
+          IF (last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = ROM_ADDR_PFX) then -- do we need to re-test ?
             BUF_ACKs_O <= ACK_IDLE;
             -- put data from PROM on the bus
             DATA_T <= '0'; -- set buffer as output
@@ -1003,7 +1012,7 @@ BEGIN
           
         WHEN SBus_Slave_Ack_Read_Prom_HWord =>
           fifo_wr_en <= '1'; fifo_din <= x"4D"; -- "M"
-          IF ((last_pa(27 downto 9) = ROM_ADDR_PFX) and (last_pa(0) = '0'))then -- do we need to re-test ?
+          IF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = ROM_ADDR_PFX) and (last_pa(0) = '0'))then -- do we need to re-test ?
             BUF_ACKs_O <= ACK_IDLE;
             -- put data from PROM on the bus
             DATA_T <= '0'; -- set buffer as output
