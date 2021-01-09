@@ -247,6 +247,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal r_TX_BYTE   : std_logic_vector(7 downto 0) := (others => '0');
 
   signal aes_reset_n : std_logic;
+  signal aes_encdec : std_logic;
   signal aes_init : std_logic;
   signal aes_next : std_logic;
   signal aes_ready : std_logic;
@@ -588,7 +589,7 @@ BEGIN
   label_aes_core: aes_core port map(
       clk => SBUS_3V3_CLK,
       reset_n => aes_reset_n,
-      encdec => '1',
+      encdec => aes_encdec,
       init => aes_init,
       xnext => aes_next,
       ready => aes_ready,
@@ -1184,9 +1185,11 @@ BEGIN
             aes_keylen <= '1';
             END IF;
             aes_init <= '1';
+            aes_encdec <= '1';
             AES_State <= AES_INIT1;
           ELSE
             aes_next <= '1';
+            aes_encdec <= '1';
             AES_State <= AES_CRYPT1;
           end IF;
             
