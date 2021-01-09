@@ -19,6 +19,8 @@ set_false_path -from * -to [get_ports { TX } ]
 set_clock_groups -asynchronous -group [get_clocks SBUS_3V3_CLK] -group [get_clocks fxclk_in]
 # timing doesn't matter for RST, very long hold
 set_false_path -from [get_ports { SBUS_3V3_RSTs } ] -to *
+# changes just once at start-up time, timing is irrelevant
+set_false_path -from * -to [get_ports { SBUS_OE } ]
 # shut up the warning for the LEDs (the set_false_path already lower severity)
 set_output_delay -clock SBUS_3V3_CLK -min 0 [get_ports { SBUS_DATA_OE_LED } ]
 set_output_delay -clock SBUS_3V3_CLK -min 0 [get_ports { SBUS_DATA_OE_LED_2 } ]
@@ -210,25 +212,6 @@ set_input_delay -clock SBUS_3V3_CLK -max 25.227 [get_ports {SBUS_3V3_PA[13]}]
 set_input_delay -clock SBUS_3V3_CLK -min 0.729 [get_ports {SBUS_3V3_PA[14]}]
 set_input_delay -clock SBUS_3V3_CLK -max 25.221 [get_ports {SBUS_3V3_PA[14]}]
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 set_input_delay -clock SBUS_3V3_CLK -min 0.996 [get_ports {SBUS_3V3_SIZ[0]}]
 set_input_delay -clock SBUS_3V3_CLK -max 25.578 [get_ports {SBUS_3V3_SIZ[0]}]
 set_input_delay -clock SBUS_3V3_CLK -min 0.936 [get_ports {SBUS_3V3_ASs}]
@@ -240,11 +223,22 @@ set_output_delay -clock SBUS_3V3_CLK -min -1.625 [get_ports {SBUS_3V3_BRs}]
 set_output_delay -clock SBUS_3V3_CLK -max 21.667 [get_ports {SBUS_3V3_BRs}]
 set_input_delay -clock SBUS_3V3_CLK -min 0.921 [get_ports {SBUS_3V3_SIZ[1]}]
 set_input_delay -clock SBUS_3V3_CLK -max 25.478 [get_ports {SBUS_3V3_SIZ[1]}]
-
 set_input_delay -clock SBUS_3V3_CLK -min 0.932 [get_ports {SBUS_3V3_SIZ[2]}]
 set_input_delay -clock SBUS_3V3_CLK -max 25.493 [get_ports {SBUS_3V3_SIZ[2]}]
+
+set_output_delay -clock SBUS_3V3_CLK -min -1.580 [get_ports {SBUS_3V3_SIZ[0]}]
+set_output_delay -clock SBUS_3V3_CLK -max 21.727 [get_ports {SBUS_3V3_SIZ[0]}]
+set_output_delay -clock SBUS_3V3_CLK -min -1.655 [get_ports {SBUS_3V3_SIZ[1]}]
+set_output_delay -clock SBUS_3V3_CLK -max 21.627 [get_ports {SBUS_3V3_SIZ[1]}]
+set_output_delay -clock SBUS_3V3_CLK -min -1.644 [get_ports {SBUS_3V3_SIZ[2]}]
+set_output_delay -clock SBUS_3V3_CLK -max 21.641 [get_ports {SBUS_3V3_SIZ[2]}]
+
 set_output_delay -clock SBUS_3V3_CLK -min -1.649 [get_ports {SBUS_3V3_ERRs}]
 set_output_delay -clock SBUS_3V3_CLK -max 21.634 [get_ports {SBUS_3V3_ERRs}]
+
+set_input_delay -clock SBUS_3V3_CLK -min 0.927 [get_ports {SBUS_3V3_ERRs}]
+set_input_delay -clock SBUS_3V3_CLK -max 25.486 [get_ports {SBUS_3V3_ERRs}]
+
 
 set_input_delay -clock SBUS_3V3_CLK -min 1.100 [get_ports {SBUS_3V3_RSTs}]
 set_input_delay -clock SBUS_3V3_CLK -max 25.717 [get_ports {SBUS_3V3_RSTs}]
@@ -254,13 +248,11 @@ set_input_delay -clock SBUS_3V3_CLK -max 25.491 [get_ports {SBUS_3V3_SELs}]
 set_output_delay -clock SBUS_3V3_CLK -min -1.443 [get_ports {SBUS_3V3_INT1s}]
 set_output_delay -clock SBUS_3V3_CLK -max 21.909 [get_ports {SBUS_3V3_INT1s}]
 
-
-
-
-
-
 set_input_delay -clock SBUS_3V3_CLK -min 0.831 [get_ports {SBUS_3V3_PPRD}]
 set_input_delay -clock SBUS_3V3_CLK -max 25.358 [get_ports {SBUS_3V3_PPRD}]
+
+set_output_delay -clock SBUS_3V3_CLK -min -1.745 [get_ports {SBUS_3V3_PPRD}]
+set_output_delay -clock SBUS_3V3_CLK -max 21.507 [get_ports {SBUS_3V3_PPRD}]
 
 set_output_delay -clock SBUS_3V3_CLK -min -1.743 [get_ports {SBUS_3V3_ACKs[0]}]
 set_output_delay -clock SBUS_3V3_CLK -max 21.510 [get_ports {SBUS_3V3_ACKs[0]}]
@@ -268,11 +260,15 @@ set_output_delay -clock SBUS_3V3_CLK -min -1.678 [get_ports {SBUS_3V3_INT7s}]
 set_output_delay -clock SBUS_3V3_CLK -max 21.597 [get_ports {SBUS_3V3_INT7s}]
 set_output_delay -clock SBUS_3V3_CLK -min -1.747 [get_ports {SBUS_3V3_ACKs[1]}]
 set_output_delay -clock SBUS_3V3_CLK -max 21.504 [get_ports {SBUS_3V3_ACKs[1]}]
-
-
-
 set_output_delay -clock SBUS_3V3_CLK -min -1.778 [get_ports {SBUS_3V3_ACKs[2]}]
 set_output_delay -clock SBUS_3V3_CLK -max 21.463 [get_ports {SBUS_3V3_ACKs[2]}]
+
+set_input_delay -clock SBUS_3V3_CLK -min 0.833 [get_ports {SBUS_3V3_ACKs[0]}]
+set_input_delay -clock SBUS_3V3_CLK -max 25.361 [get_ports {SBUS_3V3_ACKs[0]}]
+set_input_delay -clock SBUS_3V3_CLK -min 0.829 [get_ports {SBUS_3V3_ACKs[1]}]
+set_input_delay -clock SBUS_3V3_CLK -max 25.355 [get_ports {SBUS_3V3_ACKs[1]}]
+set_input_delay -clock SBUS_3V3_CLK -min 0.799 [get_ports {SBUS_3V3_ACKs[2]}]
+set_input_delay -clock SBUS_3V3_CLK -max 25.315 [get_ports {SBUS_3V3_ACKs[2]}]
 
 set_input_delay -clock SBUS_3V3_CLK -min 0.788 [get_ports {SBUS_3V3_PA[15]}]
 set_input_delay -clock SBUS_3V3_CLK -max 25.301 [get_ports {SBUS_3V3_PA[15]}]
