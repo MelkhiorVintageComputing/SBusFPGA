@@ -26,4 +26,27 @@ my-space   constant my-sbus-space
   map-out-led
 ;
 
+h# a0500a05 blink!
+
+\ OpenBIOS tokenizer won't accept finish-device without new-device
+\ Cheat by using the tokenizer so we can do OpenBoot 2.x siblings
+tokenizer[ 01 emit-byte 27 emit-byte 01 emit-byte 1f emit-byte  ]tokenizer
+
+\ Absolute minimal stuff; name & registers def.
+" RDOL,trng" name
+my-address h# 20000 + my-space h# 100 reg
+\ we don't support ET or anything non-32bits
+h# 04 xdrint " slave-burst-sizes" attribute
+h# 04 xdrint " burst-sizes" attribute
+
+headers
+
+my-address constant my-sbus-address
+my-space   constant my-sbus-space
+
+: map-in ( adr space size -- virt ) " map-in" $call-parent ;
+: map-out ( virt size -- ) " map-out" $call-parent ;
+
+\ external
+
 end0
