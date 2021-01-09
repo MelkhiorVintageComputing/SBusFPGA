@@ -377,7 +377,7 @@ rdfpga_match(device_t parent, cfdata_t cf, void *aux)
 {
 	struct sbus_attach_args *sa = (struct sbus_attach_args *)aux;
 
-	return (strcmp("RDOL,SBusFPGA", sa->sa_name) == 0);
+	return (strcmp("RDOL,cryptoengine", sa->sa_name) == 0);
 }
 
 static void rdfpga_crypto_init(device_t self, struct rdfpga_softc *sc);
