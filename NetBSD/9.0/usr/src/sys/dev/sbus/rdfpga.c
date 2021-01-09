@@ -1083,7 +1083,7 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, const u_int8_t thesid, struct c
 			 */
 			idat = ((char *)uio->uio_iov[ind].iov_base) + k;
 
-			if (!ctx->cbc) {
+			if (!ctx->cbc && (crd->crd_flags & CRD_F_ENCRYPT)) {
 			  if (rdfpga_rijndael128_writeivforcbc(sw->sessions[thesid].sw_kschedule, ivp)) {
 			    aprint_error_dev(sw->sc_dev, "rdfpga_rijndael128_crypt: stuck\n");
 			  } else {
@@ -1141,6 +1141,94 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, const u_int8_t thesid, struct c
 			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
 
 			  memcpy(idat, kvap, tocopy);
+			  
+			  bus_dmamap_unload(sw->sc_dmatag, sw->sc_dmamap);
+			  bus_dmamem_unmap(sw->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ);
+			  bus_dmamem_free(sw->sc_dmatag, &segs, 1);
+
+			  idat += tocopy;
+			  count += tocopy;
+			  k += tocopy;
+			  i -= tocopy;
+			}
+/* ********************************************************************************** */
+			if (!(crd->crd_flags & CRD_F_ENCRYPT) && ((uio->uio_iov[ind].iov_len - k) >= 32)) {
+			  bus_dma_segment_t segs;
+			  int rsegs;
+			  size_t tocopy = uio->uio_iov[ind].iov_len - k;
+			  uint64_t ctrl;
+			  /* int error; */
+			  
+			  tocopy &= ~(size_t)0x0F;
+			  if (tocopy > RDFPGA_VAL_DMA_MAX_SZ)
+			    tocopy = RDFPGA_VAL_DMA_MAX_SZ;
+
+			  /* aprint_normal_dev(sw->sc_dev, "AES DMA: %zd @ %p (%d) [from %d]\n", tocopy, idat, ind, k); */
+			  
+			  if (bus_dmamem_alloc(sw->sc_dmatag, RDFPGA_VAL_DMA_MAX_SZ, 64, 64, &segs, 1, &rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
+			    aprint_error_dev(sw->sc_dev, "cannot allocate DVMA memory");
+			    goto afterdma;
+			  }
+			  void* kvap;
+			  if (bus_dmamem_map(sw->sc_dmatag, &segs, 1, RDFPGA_VAL_DMA_MAX_SZ, &kvap, BUS_DMA_NOWAIT)) {
+			    aprint_error_dev(sw->sc_dev, "cannot allocate DVMA address");
+			    bus_dmamem_free(sw->sc_dmatag, &segs, 1);
+			    goto afterdma;
+			  }
+			  if (bus_dmamap_load(sw->sc_dmatag, sw->sc_dmamap, kvap, RDFPGA_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
+					      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE | BUS_DMA_READ)) {
+			    aprint_error_dev(sw->sc_dev, "cannot load dma map");
+			    bus_dmamem_unmap(sw->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ);
+			    bus_dmamem_free(sw->sc_dmatag, &segs, 1);
+			    goto afterdma;
+			  }
+			  /* if ((error = uiomove(kvap, tocopy, uio)) != 0) { */
+			  /*   aprint_error_dev(sw->sc_dev, "cannot copy from uio space"); */
+			  /*   bus_dmamap_unload(sw->sc_dmatag, sw->sc_dmamap); */
+			  /*   bus_dmamem_unmap(sw->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ); */
+			  /*   bus_dmamem_free(sw->sc_dmatag, &segs, 1); */
+			  /*   goto afterdma; */
+			  /* } */
+			  memcpy(kvap, idat, tocopy);
+			  
+			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
+			  /* start write */
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | RDFPGA_MASK_DMA_CTRL_DEC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMAW_ADDR), ctrl);
+			  /* start read */
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | RDFPGA_MASK_DMA_CTRL_DEC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
+			  rdfpga_wait_dma_ready(sw, 50000);
+			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
+
+			  //memcpy(idat, kvap, tocopy);
+			  #if 0
+			  for (j = 0 ; j < blks ; j++) {
+			    piv[j] = idat[(tocopy-1)-blks];
+			  }
+			  for (j = tocopy-1 ; j >= blks ; j --) {
+			    idat[j] = kvap[j] ^ idat[j - blks];
+			  }
+			  for (j = 0 ; j < blks ; j++) {
+			    idat[j] = kvap[j] ^ ivp[j];
+			    ivp[j] = piv[j];
+			  }
+			  #else
+#define u32blks ((blks)/sizeof(u_int32_t))
+#define p32(x) ((u_int32_t*)x)
+			  for (j = 0 ; j < blks/sizeof(u_int32_t) ; j++) {
+			    p32(piv)[j] = p32(idat)[(tocopy/sizeof(u_int32_t))-1-u32blks];
+			  }
+			  for (j = (tocopy/sizeof(u_int32_t))-1 ; j >= u32blks ; j --) {
+			    p32(idat)[j] = p32(kvap)[j] ^ p32(idat)[j - u32blks];
+			  }
+			  for (j = 0 ; j < u32blks ; j++) {
+			    p32(idat)[j] = p32(kvap)[j] ^ p32(ivp)[j];
+			    p32(ivp)[j] = p32(piv)[j];
+			  }
+#undef p32
+#undef u32blks
+			  #endif
 			  
 			  bus_dmamap_unload(sw->sc_dmatag, sw->sc_dmamap);
 			  bus_dmamem_unmap(sw->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ);

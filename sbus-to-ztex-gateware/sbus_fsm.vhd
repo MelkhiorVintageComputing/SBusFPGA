@@ -120,6 +120,7 @@ ENTITY SBusFSM is
   constant DMA_CTRL_GCM_IDX       : integer := 27;
   constant DMA_CTRL_AES_IDX       : integer := 26;
   constant DMA_CTRL_CBC_IDX       : integer := 25;
+  constant DMA_CTRL_DEC_IDX       : integer := 24;
 
   constant AES128_CTRL_START_IDX  : integer := 31;
   constant AES128_CTRL_BUSY_IDX   : integer := 30;
@@ -1134,9 +1135,9 @@ BEGIN
               fifo_toaes_din <=
                 '0' & -- !iskey
                 '0' & -- keylen, ignored
-                '1' & -- encdec, enc for now
+                (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- encdec
                 '0' & -- cbc
-                '1' & -- internal cbc
+                (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- internal cbc; HACKISH - enable for encrypt
                 x"00000000000000000000000000000000" &
                 REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
                 REGISTERS(REG_INDEX_AES128_DATA3) & BUF_DATA_I;
@@ -1145,7 +1146,7 @@ BEGIN
               fifo_toaes_din <=
                 '0' & -- !iskey
                 '0' & -- keylen, ignored
-                '1' & -- encdec, enc for now
+                (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- encdec
                 '0' & -- cbc
                 '0' & -- internal cbc
                 x"00000000000000000000000000000000" &
