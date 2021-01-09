@@ -380,12 +380,16 @@ set_property IOSTANDARD LVTTL [get_ports {LED1}]
 
 #set_property PACKAGE_PIN V6 [get_ports {SD_D3}]
 #set_property IOSTANDARD LVTTL [get_ports {SD_D3}]
+set_property PACKAGE_PIN V6 [get_ports {SD_nCS}]
+set_property IOSTANDARD LVTTL [get_ports {SD_nCS}]
 
 set_property PACKAGE_PIN U6 [get_ports {LED2}]
 set_property IOSTANDARD LVTTL [get_ports {LED2}]
 
 #set_property PACKAGE_PIN V5 [get_ports {SD_D0}]
 #set_property IOSTANDARD LVTTL [get_ports {SD_D0}]
+set_property PACKAGE_PIN V5 [get_ports {SD_DI}]
+set_property IOSTANDARD LVTTL [get_ports {SD_DI}]
 
 set_property PACKAGE_PIN T8 [get_ports {LED3}]
 set_property IOSTANDARD LVTTL [get_ports {LED3}]
@@ -395,9 +399,13 @@ set_property IOSTANDARD LVTTL [get_ports {LED3}]
 
 #set_property PACKAGE_PIN R8 [get_ports {SD_CLK}]
 #set_property IOSTANDARD LVTTL [get_ports {SD_CLK}]
+set_property PACKAGE_PIN R8 [get_ports {SD_CLK}]
+set_property IOSTANDARD LVTTL [get_ports {SD_CLK}]
 
 #set_property PACKAGE_PIN T5 [get_ports {SD_CMD}]
 #set_property IOSTANDARD LVTTL [get_ports {SD_CMD}]
+set_property PACKAGE_PIN T5 [get_ports {SD_DO}]
+set_property IOSTANDARD LVTTL [get_ports {SD_DO}]
 
 set_property PACKAGE_PIN R7 [get_ports {SBUS_3V3_SIZ[0]}]
 set_property IOSTANDARD LVTTL [get_ports {SBUS_3V3_SIZ[0]}]

@@ -13,6 +13,8 @@ USE work.LedHandlerPkg.all;
 USE work.PromPkg.all;
 use work.mastrovito_V2_multiplier_parameters.all;
 
+library XESS;
+
 ENTITY SBusFSM is
   PORT (
     fxclk_in: IN std_logic; -- 48 MHz FX2 clock
@@ -48,7 +50,12 @@ ENTITY SBusFSM is
     LED6 : OUT std_logic := '0';
     LED7 : OUT std_logic := '0';
     -- UART
-    TX : OUT std_logic := 'Z'
+    TX : OUT std_logic := 'Z';
+    -- SD (SPI)
+    SD_nCS : OUT std_logic;
+    SD_DI : IN std_logic;
+    SD_DO : OUT std_logic;
+    SD_CLK : OUT std_logic
     );
   -- SIZ[2..0] is positive true
   CONSTANT SIZ_WORD : std_logic_vector(2 downto 0):= "000";
@@ -79,6 +86,7 @@ ENTITY SBusFSM is
   CONSTANT ROM_ADDR_PFX : std_logic_vector(ADDR_PFX_HIGH downto ADDR_PFX_LOW) := "000000000000";
   CONSTANT REG_ADDR_PFX : std_logic_vector(ADDR_PFX_HIGH downto ADDR_PFX_LOW) := "000000000001";
   CONSTANT REGTRNG_ADDR_PFX : std_logic_vector(ADDR_PFX_HIGH downto ADDR_PFX_LOW) := "000000000010";
+  CONSTANT REGSD_ADDR_PFX : std_logic_vector(ADDR_PFX_HIGH downto ADDR_PFX_LOW) := "000000000011";
   
   
   CONSTANT REG_INDEX_LED        : integer := 0;
@@ -140,6 +148,8 @@ ENTITY SBusFSM is
   constant AES128_CTRL_DEC_IDX    : integer := 25;
   
   CONSTANT REG_INDEX_TRNG_DATA    : integer := 0;
+  
+  CONSTANT REG_INDEX_SD_STATUS    : integer := 0;
 
   -- OFFSET to REGS; (15 downto 0) so 16 bits
   CONSTANT OFFSET_LENGTH : integer := 16;
@@ -303,6 +313,13 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal fifo_fromstrng_full : STD_LOGIC;
   signal fifo_fromstrng_empty : STD_LOGIC;
   
+  signal fifo_fromsdcard_din : STD_LOGIC_VECTOR ( 31 downto 0 );
+  signal fifo_fromsdcard_wr_en : STD_LOGIC;
+  signal fifo_fromsdcard_rd_en : STD_LOGIC;
+  signal fifo_fromsdcard_dout : STD_LOGIC_VECTOR ( 31 downto 0 );
+  signal fifo_fromsdcard_full : STD_LOGIC;
+  signal fifo_fromsdcard_empty : STD_LOGIC;
+  
 
 --  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
   SIGNAL RES_COUNTER : natural range 0 to 4 := 4;
@@ -316,7 +333,8 @@ ARCHITECTURE RTL OF SBusFSM IS
   -- bank of registers (256 bytes) for cryptoengine (and led)
   -- 0-64: 16 for controls (6 used) 16 registers for GCM (12 used), 16 unused, 16 for AES
   -- 64-127: are remmaped from TRNG space
-  type REGISTERS_TYPE is array(0 to 64) of std_logic_vector(31 downto 0);
+  -- 18-191: are remmaped from SDCARD space
+  type REGISTERS_TYPE is array(0 to 128) of std_logic_vector(31 downto 0);
   SIGNAL REGISTERS : REGISTERS_TYPE;
   
   pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
@@ -411,6 +429,11 @@ ARCHITECTURE RTL OF SBusFSM IS
   end function;
 
   pure function REG_OFFSET_IS_ANYTRNGREAD(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
+  begin
+    return true;
+  end function;
+
+  pure function REG_OFFSET_IS_ANYSDREAD(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return true;
   end function;
@@ -557,6 +580,18 @@ ARCHITECTURE RTL OF SBusFSM IS
       empty : out STD_LOGIC
       );
   end component;
+  component fifo_generator_from_sdcard is
+    Port (
+      wr_clk : in STD_LOGIC;
+      rd_clk : in STD_LOGIC;
+      din : in STD_LOGIC_VECTOR ( 31 downto 0 );
+      wr_en : in STD_LOGIC;
+      rd_en : in STD_LOGIC;
+      dout : out STD_LOGIC_VECTOR ( 31 downto 0 );
+      full : out STD_LOGIC;
+      empty : out STD_LOGIC
+      );
+  end component;
   
   component uart_tx is
     generic (
@@ -616,6 +651,21 @@ ARCHITECTURE RTL OF SBusFSM IS
       output_fifo_wr_en : out std_logic
       );
   end component trivium_wrapper;
+  
+  component xess_sdcard_wrapper is
+  port (
+    xess_sdcard_wrapper_rst : in std_logic;
+    xess_sdcard_wrapper_clk : in std_logic;
+    output_fifo_in : out std_logic_vector(31 downto 0);
+    output_fifo_full : in std_logic;
+    output_fifo_wr_en : out std_logic;
+    -- pins
+    cs_bo : out std_logic;
+    sclk_o : out std_logic;
+    mosi_o : out std_logic;
+    miso_i : in std_logic
+    );
+  end component xess_sdcard_wrapper;
 
   PROCEDURE SBus_Set_Default(
 --    signal SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0);
@@ -698,6 +748,9 @@ BEGIN
   label_fifo_fromstrng: fifo_generator_from_strng port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
                                                            din => fifo_fromstrng_din, wr_en => fifo_fromstrng_wr_en, rd_en => fifo_fromstrng_rd_en,
                                                            dout => fifo_fromstrng_dout, full => fifo_fromstrng_full, empty => fifo_fromstrng_empty);
+  label_fifo_fromsdcard: fifo_generator_from_sdcard port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
+                                                           din => fifo_fromsdcard_din, wr_en => fifo_fromsdcard_wr_en, rd_en => fifo_fromsdcard_rd_en,
+                                                           dout => fifo_fromsdcard_dout, full => fifo_fromsdcard_full, empty => fifo_fromsdcard_empty);
   label_aes_wrapper: aes_wrapper port map(
     aes_wrapper_rst => aes_wrapper_rst,
     aes_wrapper_clk => aes_clk_out,
@@ -722,6 +775,19 @@ BEGIN
     output_fifo_in => fifo_fromstrng_din,
     output_fifo_full => fifo_fromstrng_full,
     output_fifo_wr_en => fifo_fromstrng_wr_en
+    );
+    
+  label_xess_sdcard_wrapper: xess_sdcard_wrapper port map (
+    xess_sdcard_wrapper_rst => aes_wrapper_rst,
+    xess_sdcard_wrapper_clk => aes_clk_out,
+    output_fifo_in => fifo_fromsdcard_din,
+    output_fifo_full => fifo_fromsdcard_full,
+    output_fifo_wr_en => fifo_fromsdcard_wr_en,
+    -- pins
+    cs_bo => SD_nCS,
+    sclk_o => SD_CLK,
+    mosi_o => SD_DO,
+    miso_i => SD_DI
     );
 
   -- label_clk_wiz: clk_wiz_0 port map(clk_out1 => uart_clk, clk_in1 => fxclk_in);
@@ -751,7 +817,7 @@ BEGIN
     variable dma_write : boolean := false;
     variable dma_ctrl_idx : integer range 0 to 7;
     variable dma_addr_idx : integer range 0 to 7;
-    variable reg_bank : integer range 0 to 1 := 0;
+    variable reg_bank : integer range 0 to 2 := 0;
   BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
@@ -806,6 +872,15 @@ BEGIN
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
               reg_bank := 1;
+              State <= SBus_Slave_Ack_Read_Reg_Burst;
+            ELSIF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REGSD_ADDR_PFX) AND REG_OFFSET_IS_ANYSDREAD(last_pa(OFFSET_HIGH downto OFFSET_LOW))
+             -- and (fifo_fromstrng_empty = '0')
+                   ) then
+              -- 32 bits read from aligned memory IN REG TRNG space ------------------------------------
+              -- if FIFO is empty, will fallback to returning an error...
+              BUF_ACKs_O <= ACK_WORD;
+              BUF_ERRs_O <= '1'; -- no late error
+              reg_bank := 2;
               State <= SBus_Slave_Ack_Read_Reg_Burst;
             ELSE
               BUF_ACKs_O <= ACK_ERR;
@@ -1443,7 +1518,15 @@ BEGIN
           
         WHEN others =>
           -- do nothing
+      END CASE; --TRNG self-un-fulling FIFO
+      
+      CASE fifo_fromsdcard_empty IS
+        WHEN '0' =>
+          fifo_fromsdcard_rd_en <= '1'; -- remove one word from FIFO
+          REGISTERS(128 + REG_INDEX_SD_STATUS) <= fifo_fromsdcard_dout;
           
+        WHEN others =>
+          -- do nothing
       END CASE; --TRNG self-emptying FIFO
       
     END IF;
