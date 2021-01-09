@@ -76,6 +76,8 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_AES128_CTRL: integer := 1;
   CONSTANT REG_INDEX_DMA_ADDR   : integer := 2;
   CONSTANT REG_INDEX_DMA_CTRL   : integer := 3;
+  CONSTANT REG_INDEX_DMAW_ADDR   : integer := 4;
+  CONSTANT REG_INDEX_DMAW_CTRL   : integer := 5;
   -- starts at 64 so we can do 64 bytes burst (see address wrapping)
   CONSTANT REG_INDEX_GCM_H1     : integer := 16;
   CONSTANT REG_INDEX_GCM_H2     : integer := 17;
@@ -114,7 +116,7 @@ ENTITY SBusFSM is
   constant DMA_CTRL_START_IDX     : integer := 31;
   constant DMA_CTRL_BUSY_IDX      : integer := 30;
   constant DMA_CTRL_ERR_IDX       : integer := 29;
-  constant DMA_CTRL_WRITE_IDX     : integer := 28;
+  constant DMA_CTRL_WRITE_IDX     : integer := 28; -- unused
   constant DMA_CTRL_GCM_IDX       : integer := 27;
   constant DMA_CTRL_AES_IDX       : integer := 26;
 
@@ -130,6 +132,8 @@ ENTITY SBusFSM is
   CONSTANT REG_OFFSET_AES128_CTRL : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_AES128_CTRL*4, 9);
   CONSTANT REG_OFFSET_DMA_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_ADDR  *4, 9);
   CONSTANT REG_OFFSET_DMA_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMA_CTRL  *4, 9);
+  CONSTANT REG_OFFSET_DMAW_ADDR   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMAW_ADDR  *4, 9);
+  CONSTANT REG_OFFSET_DMAW_CTRL   : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_DMAW_CTRL  *4, 9);
   
   CONSTANT REG_OFFSET_GCM_H1     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H1*4, 9);
   CONSTANT REG_OFFSET_GCM_H2     : std_logic_vector(8 downto 0) := conv_std_logic_vector(REG_INDEX_GCM_H2*4, 9);
@@ -313,7 +317,9 @@ ARCHITECTURE RTL OF SBusFSM IS
   pure function REG_OFFSET_IS_ANYDMA(value : in std_logic_vector(8 downto 0)) return boolean is
   begin
     return (REG_OFFSET_DMA_ADDR  = value) OR
-           (REG_OFFSET_DMA_CTRL  = value);
+           (REG_OFFSET_DMA_CTRL  = value) OR
+           (REG_OFFSET_DMAW_ADDR  = value) OR
+           (REG_OFFSET_DMAW_CTRL  = value);
   end function;
   
   pure function REG_OFFSET_IS_AESKEY(value : in std_logic_vector(8 downto 0)) return boolean is
@@ -360,6 +366,7 @@ ARCHITECTURE RTL OF SBusFSM IS
     return REG_OFFSET_IS_GCMC(value) OR
            REG_OFFSET_IS_AESOUT(value) OR
            (REG_OFFSET_DMA_CTRL = value) OR
+           (REG_OFFSET_DMAW_CTRL = value) OR
            (REG_OFFSET_AES128_CTRL = value)
            ;
   end function;
@@ -629,7 +636,7 @@ BEGIN
                                            din => fifo_fromaes_din, wr_en => fifo_fromaes_wr_en, rd_en => fifo_fromaes_rd_en,
                                            dout => fifo_fromaes_dout, full => fifo_fromaes_full, empty => fifo_fromaes_empty);
   label_aes_wrapper: aes_wrapper port map(
-    aes_wrapper_rst => aes_wrapper_rst, -- fixme
+    aes_wrapper_rst => aes_wrapper_rst,
     aes_wrapper_clk => aes_clk_out,
     input_fifo_out => fifo_toaes_dout,
     input_fifo_empty => fifo_toaes_empty,
@@ -663,6 +670,9 @@ BEGIN
   variable BURST_LIMIT : integer range 1 to 16 := 1;
   variable BURST_INDEX : integer range 0 to 15;
   variable seen_ack : boolean := false;
+  variable dma_write : boolean := false;
+  variable dma_ctrl_idx : integer range 0 to 7;
+  variable dma_addr_idx : integer range 0 to 7;
   BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
@@ -794,18 +804,25 @@ BEGIN
               State <= SBus_Slave_Error;
             END IF;
 -- _MASTER_
-          ELSIF (SBUS_3V3_BGs='1' AND 
-                 (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_START_IDX)='1' AND
-                  REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
-                  REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_ERR_IDX)='0')
-                ) then
+          ELSIF (SBUS_3V3_BGs='1' AND
+                 ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_START_IDX)='1' AND
+                   REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
+                   REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
+                  (REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX)='1' AND
+                   REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
+                   REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_ERR_IDX)='0')
+                 )) then
 -- we have a DMA request pending and not been granted the bus
             IF ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_GCM_IDX) = '1') OR
                 ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_AES_IDX) = '1') AND
-                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0))) THEN
+                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0)) OR
+                ((REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_AES_IDX) = '1') AND
+                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0))
+               ) THEN
               fifo_wr_en <= '1'; fifo_din <= x"61"; -- "a"
               -- GCM is always available (1 cycle)
               -- for AES don't request the bus unless the AES block is free
+              -- (so for read we can use it, for write the job is done)
               -- there could be a race condition for AES if someone write the register before we get the bus...
               SBUS_3V3_BRs <= '0'; -- request the bus
             ELSE
@@ -818,18 +835,26 @@ BEGIN
               DATA_T <= '0'; -- set data buffer as output
               SM_T <= '0'; -- PPRD, SIZ becomes output (master mode)
               SMs_T <= '1';
-              BUF_DATA_O <= REGISTERS(REG_INDEX_DMA_ADDR); -- virt address
-              IF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_WRITE_IDX) = '0') THEN
-                BUF_PPRD_O <= '1'; -- reading from slave
-              ELSE
+              IF (REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) = '1') THEN
+                dma_write := true;
+                dma_ctrl_idx := REG_INDEX_DMAW_CTRL;
+                dma_addr_idx := REG_INDEX_DMAW_ADDR;
+                BUF_DATA_O <= REGISTERS(REG_INDEX_DMAW_ADDR); -- virt address
                 BUF_PPRD_O <= '0'; -- writing to slave
+              ELSE
+                dma_write := false;
+                dma_ctrl_idx := REG_INDEX_DMA_CTRL;
+                dma_addr_idx := REG_INDEX_DMA_ADDR;
+                BUF_DATA_O <= REGISTERS(REG_INDEX_DMA_ADDR); -- virt address
+                BUF_PPRD_O <= '1'; -- reading from slave
               END IF;
 --              IF (conv_integer(REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0)) >= 3) THEN
 --                BUF_SIZ_O <= SIZ_BURST16;
 --                BURST_LIMIT := 16;
 --              ELS
-              IF ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_GCM_IDX) = '1') AND
-                  conv_integer(REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0)) >= 1) THEN
+              IF ((dma_write = false) AND
+                  (REGISTERS(dma_ctrl_idx)(DMA_CTRL_GCM_IDX) = '1') AND
+                  conv_integer(REGISTERS(dma_ctrl_idx)(11 downto 0)) >= 1) THEN
               -- 32 bytes burst only for GCM ATM (bit 27)
                 BUF_SIZ_O <= SIZ_BURST8;
                 BURST_LIMIT := 8;
@@ -1007,7 +1032,7 @@ BEGIN
 -- _MASTER_
         when SBus_Master_Translation =>
           fifo_wr_en <= '1'; fifo_din <= x"63"; -- "c"
-          IF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_WRITE_IDX) = '0') THEN
+          IF (dma_write = false) THEN
             DATA_T <= '1'; -- set buffer back to input
           ELSE
             DATA_T <= '0';
@@ -1015,7 +1040,7 @@ BEGIN
           END IF;
           IF (BUF_ACKs_I = ACK_ERR) THEN
             fifo_din <= x"2F"; -- "/"
-            REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_ERR_IDX) <= '1';
+            REGISTERS(dma_ctrl_idx)(DMA_CTRL_ERR_IDX) <= '1';
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
@@ -1027,7 +1052,7 @@ BEGIN
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             State <= SBus_Idle;
           ELSIF (BUF_ACKs_I = ACK_IDLE) THEN
-            IF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_WRITE_IDX) = '0') THEN
+            IF (dma_write = false) THEN
               State <= SBus_Master_Read;
             ELSE
               BURST_COUNTER := BURST_COUNTER + 1; -- should happen only once
@@ -1063,13 +1088,13 @@ BEGIN
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                              SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                              p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
-            REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_ERR_IDX) <= '1';
+            REGISTERS(dma_ctrl_idx)(DMA_CTRL_ERR_IDX) <= '1';
             State <= SBus_Idle;
           end IF;
           
         when SBus_Master_Read_Ack =>
           fifo_wr_en <= '1'; fifo_din <= x"65"; -- "e"
-          IF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_GCM_IDX) = '1') THEN
+          IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_GCM_IDX) = '1') THEN
             REGISTERS(REG_INDEX_GCM_INPUT1 + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
             BURST_COUNTER := BURST_COUNTER + 1;
             IF (finish_gcm) THEN
@@ -1089,7 +1114,7 @@ BEGIN
               mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
               finish_gcm := true;
             END IF;
-          ELSIF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_AES_IDX) = '1') THEN
+          ELSIF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_AES_IDX) = '1') THEN
             REGISTERS(REG_INDEX_AES128_DATA1 + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
             BURST_COUNTER := BURST_COUNTER + 1;
             IF (BURST_COUNTER mod 4 = 0) THEN
@@ -1117,7 +1142,7 @@ BEGIN
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                              SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                              p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
-            REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_ERR_IDX) <= '1';
+            REGISTERS(dma_ctrl_idx)(DMA_CTRL_ERR_IDX) <= '1';
             State <= SBus_Idle;
           end IF;
 
@@ -1131,19 +1156,18 @@ BEGIN
             REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
             REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
           END IF;
-          IF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_GCM_IDX) = '1') THEN
-            -- GCM just chains read
-            IF (REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
-              -- finished, stop the DMA engine
-              REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
-            ELSE
-              -- move to next block
-              REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) <= REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) - (BURST_LIMIT/4);
-              REGISTERS(REG_INDEX_DMA_ADDR) <= REGISTERS(REG_INDEX_DMA_ADDR) + (BURST_LIMIT*4);
-            END IF;
-          ELSIF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_AES_IDX) = '1') THEN
-            -- AES must writeback first
-            REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_WRITE_IDX) <= '1';
+          IF (REGISTERS(dma_ctrl_idx)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
+            -- finished, stop the DMA engine
+            REGISTERS(dma_ctrl_idx) <= (others => '0');
+          ELSE
+            -- move to next block
+            REGISTERS(dma_ctrl_idx)(11 downto 0) <= REGISTERS(dma_ctrl_idx)(11 downto 0) - (BURST_LIMIT/4);
+            REGISTERS(dma_addr_idx) <= REGISTERS(dma_addr_idx) + (BURST_LIMIT*4);
+          END IF;
+          -- for AES always write after read
+          IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_AES_IDX) = '1') THEN
+            REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_START_IDX) <= '0';
+            REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) <= '1';
           END IF;
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
@@ -1176,22 +1200,26 @@ BEGIN
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                              SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                              p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
-            REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_ERR_IDX) <= '1';
+            REGISTERS(dma_ctrl_idx)(DMA_CTRL_ERR_IDX) <= '1';
             State <= SBus_Idle;
           END IF;
           
         when SBus_Master_Write_Final =>
           -- missing the handling of late error
           fifo_wr_en <= '1'; fifo_din <= x"68"; -- "h"
-          IF (REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_AES_IDX) = '1') THEN -- should always be true ATM
-            IF (REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
+          IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_AES_IDX) = '1') THEN -- should always be true ATM
+            IF (REGISTERS(dma_ctrl_idx)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
               -- finished, stop the DMA engine
-              REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
+              REGISTERS(dma_ctrl_idx) <= (others => '0');
             ELSE
-              -- move to next block in read mode
-              REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) <= REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0) - (BURST_LIMIT/4);
-              REGISTERS(REG_INDEX_DMA_ADDR) <= REGISTERS(REG_INDEX_DMA_ADDR) + (BURST_LIMIT*4);
-              REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_WRITE_IDX) <= '0';
+              -- move to next block
+              REGISTERS(dma_ctrl_idx)(11 downto 0) <= REGISTERS(dma_ctrl_idx)(11 downto 0) - (BURST_LIMIT/4);
+              REGISTERS(dma_addr_idx) <= REGISTERS(dma_addr_idx) + (BURST_LIMIT*4);
+              -- only switch ro read if there's one more block
+              IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_AES_IDX) = '1') THEN -- should always be true ATM
+                REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) <= '0';
+                REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_START_IDX) <= '1';
+              END IF;
             END IF;
           END IF;
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
@@ -1206,6 +1234,7 @@ BEGIN
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
+            REGISTERS(REG_INDEX_DMAW_CTRL) <= (others => '0');
             IF (RES_COUNTER = 0) THEN
               -- fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
               State <= SBus_Idle;
