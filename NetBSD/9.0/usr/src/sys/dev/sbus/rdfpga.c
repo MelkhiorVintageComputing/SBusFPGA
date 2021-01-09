@@ -93,12 +93,13 @@ static int rdfpga_wait_aes_ready(struct rdfpga_softc *sc) {
   return 0;
 }
 
+/* should split GCM/AES */
 static int rdfpga_wait_dma_ready(struct rdfpga_softc *sc, const int count) {
   u_int32_t ctrl;
   int ctr;
   
   ctr = 0;
-  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_DMA_CTRL)) != 0) &&
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_GCMDMA_CTRL)) != 0) &&
 	 (ctr < count)) {
     delay(1);
     ctr ++;
@@ -108,7 +109,17 @@ static int rdfpga_wait_dma_ready(struct rdfpga_softc *sc, const int count) {
     return EBUSY;
   
   ctr = 0;
-  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_DMAW_CTRL)) != 0) &&
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AESDMA_CTRL)) != 0) &&
+	 (ctr < count)) {
+    delay(1);
+    ctr ++;
+  }
+
+  if (ctrl)
+    return EBUSY;
+  
+  ctr = 0;
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AESDMAW_CTRL)) != 0) &&
 	 (ctr < count)) {
     delay(1);
     ctr ++;
@@ -310,20 +321,20 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "dma: synced\n"); */
 
-	  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_GCM | ((nblock-1) & RDFPGA_MASK_DMA_CTRL_BLKCNT))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+	  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | ((nblock-1) & RDFPGA_MASK_DMA_CTRL_BLKCNT))) | ((uint64_t)(uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr)) << 32;
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "trying 0x%016llx\n", ctrl); */
 
-	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
+	  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCMDMA_ADDR), ctrl);
 	  
 	  /* aprint_normal_dev(sc->sc_dev, "dma: cmd sent\n"); */
 
-	  res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_CTRL));
+	  res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCMDMA_CTRL));
 	  do {
 	    ctr ++;
 	    delay(2);
 	    oldres = res;
-	    res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_DMA_CTRL));
+	    res = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_GCMDMA_CTRL));
 	  } while ((res & RDFPGA_MASK_DMA_CTRL_START) && !(res & RDFPGA_MASK_DMA_CTRL_ERR) && (res != oldres) && (ctr < 10000));
 
 	  if ((res & RDFPGA_MASK_DMA_CTRL_START) || (res & RDFPGA_MASK_DMA_CTRL_ERR)) {
@@ -1132,11 +1143,11 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, const u_int8_t thesid, struct c
 			  
 			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
 			  /* start write */
-			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
-			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMAW_ADDR), ctrl);
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_AESDMAW_ADDR), ctrl);
 			  /* start read */
-			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | RDFPGA_MASK_DMA_CTRL_CBC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
-			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_CBC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_AESDMA_ADDR), ctrl);
 			  rdfpga_wait_dma_ready(sw, 50000);
 			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
 
@@ -1193,11 +1204,11 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, const u_int8_t thesid, struct c
 			  
 			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
 			  /* start write */
-			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | RDFPGA_MASK_DMA_CTRL_DEC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
-			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMAW_ADDR), ctrl);
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_DEC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_AESDMAW_ADDR), ctrl);
 			  /* start read */
-			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | RDFPGA_MASK_DMA_CTRL_DEC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
-			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_DEC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_AESDMA_ADDR), ctrl);
 			  rdfpga_wait_dma_ready(sw, 50000);
 			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);
 
