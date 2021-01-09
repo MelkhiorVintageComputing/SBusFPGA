@@ -187,31 +187,31 @@ ENTITY SBusFSM is
   CONSTANT REG_OFFSET_AES128_OUT4 : std_logic_vector(OFFSET_HIGH downto OFFSET_LOW) := conv_std_logic_vector(REG_INDEX_AES128_OUT4*4, OFFSET_LENGTH);
 
   constant c_CLKS_PER_BIT : integer := 417; -- 48M/115200
-  -- constant c_CLKS_PER_BIT : integer := 50; -- 5.76M/115200
-  END ENTITY;
+-- constant c_CLKS_PER_BIT : integer := 50; -- 5.76M/115200
+END ENTITY;
 
 ARCHITECTURE RTL OF SBusFSM IS
   TYPE SBus_States IS (
     -- after reset, move to Idle
-                       SBus_Start,
+    SBus_Start,
     -- waiting, all outputs should be set Z
     -- includes the detection logic for the next cycle
     -- also capture PA immediately (useful for address wrapping,
     -- might become useful for extended transfer)
-                       SBus_Idle,
+    SBus_Idle,
     -- cycle during which ACK is IDLE to end SBus Cycle
     -- also check for deasserting of AS
-                       SBus_Slave_Ack_Reg_Write,
+    SBus_Slave_Ack_Reg_Write,
     -- cycle after ACK is idle, everything goes back to Z before Idle
     -- also check for deasserting of AS
-                       SBus_Slave_Ack_Reg_Write_Final,
+    SBus_Slave_Ack_Reg_Write_Final,
     -- cycle(s) with data acquired from the bus & ACK of the next acquisition
     -- between 1 and 16 words (so 1 to 16 cycles in the state)
-                       SBus_Slave_Ack_Reg_Write_Burst,
+    SBus_Slave_Ack_Reg_Write_Burst,
     -- cycle we put the data on the bus when reading from Prom
     -- also ACK goes to idle
     -- byte-wide
-                       SBus_Slave_Ack_Read_Prom_Byte,
+    SBus_Slave_Ack_Read_Prom_Byte,
     -- cycle we put the data on the bus when reading from Prom
     -- also ACK goes to idle
     -- half-word-wide
@@ -219,11 +219,11 @@ ARCHITECTURE RTL OF SBusFSM IS
     -- cycle(s) we put the data on the bus when reading from Prom
     -- also ACK the next word we will put, or goes to idle for last
     -- word-wide, burst from 1 to 16
-                       SBus_Slave_Ack_Read_Prom_Burst,
+    SBus_Slave_Ack_Read_Prom_Burst,
     -- cycle we put the data on the bus when reading from registers
     -- also ACK goes to idle
     -- byte-wide
-                       SBus_Slave_Ack_Read_Reg_Byte,
+    SBus_Slave_Ack_Read_Reg_Byte,
     -- cycle we put the data on the bus when reading from registers
     -- also ACK goes to idle
     -- half-word-wide
@@ -231,26 +231,26 @@ ARCHITECTURE RTL OF SBusFSM IS
     -- cycle(s) we put the data on the bus when reading from registers
     -- also ACK the next word we will put, or goes to idle for last
     -- word-wide, burst from 1 to 16
-                       SBus_Slave_Ack_Read_Reg_Burst,
+    SBus_Slave_Ack_Read_Reg_Burst,
     -- last cycle where the master read our data from the bus
     -- everything goes to Z before Idle
-                       SBus_Slave_Do_Read,
+    SBus_Slave_Do_Read,
     -- delay cycle to assert late error
-                       SBus_Slave_Delay_Error,
+    SBus_Slave_Delay_Error,
     -- cycle where master detect the error (ACK or late)
     -- everything goes to Z before Idle
-                       SBus_Slave_Error,
+    SBus_Slave_Error,
 --                       SBus_Slave_Heartbeat,
-                       SBus_Master_Translation,
-                       SBus_Master_Read,
-                       SBus_Master_Read_Ack,
-                       SBus_Master_Read_Finish,
-                       SBus_Master_Write,
-                       SBus_Master_Write_Final
-                       );
+    SBus_Master_Translation,
+    SBus_Master_Read,
+    SBus_Master_Read_Ack,
+    SBus_Master_Read_Finish,
+    SBus_Master_Write,
+    SBus_Master_Write_Final
+    );
   TYPE Uart_States IS ( UART_IDLE, UART_WAITING );
   TYPE AES_States IS ( AES_IDLE, AES_INIT1, AES_CRYPT1, AES_CRYPT2 );
-                       
+  
   SIGNAL State : SBus_States := SBus_Start;
   SIGNAL Uart_State : Uart_States := UART_IDLE;
   SIGNAL AES_State : AES_States := AES_IDLE;
@@ -322,58 +322,58 @@ ARCHITECTURE RTL OF SBusFSM IS
   pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_GCM_INPUT1 = value) OR
-           (REG_OFFSET_GCM_INPUT2 = value) OR
-           (REG_OFFSET_GCM_INPUT3 = value) OR
-           (REG_OFFSET_GCM_INPUT4 = value);
+      (REG_OFFSET_GCM_INPUT2 = value) OR
+      (REG_OFFSET_GCM_INPUT3 = value) OR
+      (REG_OFFSET_GCM_INPUT4 = value);
   end function;
   pure function REG_OFFSET_IS_GCMH (value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_GCM_H1 = value) OR
-           (REG_OFFSET_GCM_H2 = value) OR
-           (REG_OFFSET_GCM_H3 = value) OR
-           (REG_OFFSET_GCM_H4 = value);
+      (REG_OFFSET_GCM_H2 = value) OR
+      (REG_OFFSET_GCM_H3 = value) OR
+      (REG_OFFSET_GCM_H4 = value);
   end function;
   pure function REG_OFFSET_IS_GCMC (value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_GCM_C1 = value) OR
-           (REG_OFFSET_GCM_C2 = value) OR
-           (REG_OFFSET_GCM_C3 = value) OR
-           (REG_OFFSET_GCM_C4 = value);
+      (REG_OFFSET_GCM_C2 = value) OR
+      (REG_OFFSET_GCM_C3 = value) OR
+      (REG_OFFSET_GCM_C4 = value);
   end function;
   pure function REG_OFFSET_IS_ANYDMA(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_DMA_ADDR  = value) OR
-           (REG_OFFSET_DMA_CTRL  = value) OR
-           (REG_OFFSET_DMAW_ADDR  = value) OR
-           (REG_OFFSET_DMAW_CTRL  = value);
+      (REG_OFFSET_DMA_CTRL  = value) OR
+      (REG_OFFSET_DMAW_ADDR  = value) OR
+      (REG_OFFSET_DMAW_CTRL  = value);
   end function;
   
   pure function REG_OFFSET_IS_AESKEY(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_AES128_KEY1 = value) OR
-           (REG_OFFSET_AES128_KEY2 = value) OR
-           (REG_OFFSET_AES128_KEY3 = value) OR
-           (REG_OFFSET_AES128_KEY4 = value) OR
-           (REG_OFFSET_AES128_KEY5 = value) OR
-           (REG_OFFSET_AES128_KEY6 = value) OR
-           (REG_OFFSET_AES128_KEY7 = value) OR
-           (REG_OFFSET_AES128_KEY8 = value);
+      (REG_OFFSET_AES128_KEY2 = value) OR
+      (REG_OFFSET_AES128_KEY3 = value) OR
+      (REG_OFFSET_AES128_KEY4 = value) OR
+      (REG_OFFSET_AES128_KEY5 = value) OR
+      (REG_OFFSET_AES128_KEY6 = value) OR
+      (REG_OFFSET_AES128_KEY7 = value) OR
+      (REG_OFFSET_AES128_KEY8 = value);
   end function;
   
   pure function REG_OFFSET_IS_AESDATA(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_AES128_DATA1 = value) OR
-           (REG_OFFSET_AES128_DATA2 = value) OR
-           (REG_OFFSET_AES128_DATA3 = value) OR
-           (REG_OFFSET_AES128_DATA4 = value);
+      (REG_OFFSET_AES128_DATA2 = value) OR
+      (REG_OFFSET_AES128_DATA3 = value) OR
+      (REG_OFFSET_AES128_DATA4 = value);
   end function;
   
   pure function REG_OFFSET_IS_AESOUT(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_AES128_OUT1 = value) OR
-           (REG_OFFSET_AES128_OUT2 = value) OR
-           (REG_OFFSET_AES128_OUT3 = value) OR
-           (REG_OFFSET_AES128_OUT4 = value);
+      (REG_OFFSET_AES128_OUT2 = value) OR
+      (REG_OFFSET_AES128_OUT3 = value) OR
+      (REG_OFFSET_AES128_OUT4 = value);
   end function;
 
   pure function REG_OFFSET_IS_ANYGCM(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
@@ -384,25 +384,25 @@ ARCHITECTURE RTL OF SBusFSM IS
   pure function REG_OFFSET_IS_ANYAES(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return REG_OFFSET_IS_AESKEY(value) OR REG_OFFSET_IS_AESDATA(value) OR REG_OFFSET_IS_AESOUT(value) OR
-           (REG_OFFSET_AES128_CTRL = value);
+      (REG_OFFSET_AES128_CTRL = value);
   end function;
 
   pure function REG_OFFSET_IS_ANYREAD(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return REG_OFFSET_IS_GCMC(value) OR
-           REG_OFFSET_IS_AESOUT(value) OR
-           (REG_OFFSET_DMA_CTRL = value) OR
-           (REG_OFFSET_DMAW_CTRL = value) OR
-           (REG_OFFSET_AES128_CTRL = value)
-           ;
+      REG_OFFSET_IS_AESOUT(value) OR
+      (REG_OFFSET_DMA_CTRL = value) OR
+      (REG_OFFSET_DMAW_CTRL = value) OR
+      (REG_OFFSET_AES128_CTRL = value)
+      ;
   end function;
 
   pure function REG_OFFSET_IS_ANYWRITE(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
     return (REG_OFFSET_LED = value) OR
-           REG_OFFSET_IS_ANYGCM(value) OR
-           REG_OFFSET_IS_ANYAES(value) OR
-           REG_OFFSET_IS_ANYDMA(value);
+      REG_OFFSET_IS_ANYGCM(value) OR
+      REG_OFFSET_IS_ANYAES(value) OR
+      REG_OFFSET_IS_ANYDMA(value);
   end function;
 
   pure function REG_OFFSET_IS_ANY(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
@@ -418,36 +418,36 @@ ARCHITECTURE RTL OF SBusFSM IS
   pure function SIZ_IS_WORD(value : in std_logic_vector(2 downto 0)) return boolean is
   begin
     return (SIZ_WORD = value) OR
-           (SIZ_BURST2 = value) OR
-           (SIZ_BURST4 = value) OR
-           (SIZ_BURST8 = value) OR
-           (SIZ_BURST16 = value);
+      (SIZ_BURST2 = value) OR
+      (SIZ_BURST4 = value) OR
+      (SIZ_BURST8 = value) OR
+      (SIZ_BURST16 = value);
   end function;
   
   pure function SIZ_TO_BURSTSIZE(value : in std_logic_vector(2 downto 0)) return integer is
   begin
-  case value is
-    WHEN SIZ_WORD => return 1;
-    WHEN SIZ_BURST2 => return 2;
-    WHEN SIZ_BURST4 => return 4;
-    WHEN SIZ_BURST8 => return 8;
-    WHEN SIZ_BURST16 => return 16;
-    WHEN OTHERS => return 1; -- should not happen
-  end case;
+    case value is
+      WHEN SIZ_WORD => return 1;
+      WHEN SIZ_BURST2 => return 2;
+      WHEN SIZ_BURST4 => return 4;
+      WHEN SIZ_BURST8 => return 8;
+      WHEN SIZ_BURST16 => return 16;
+      WHEN OTHERS => return 1; -- should not happen
+    end case;
   end function;
   
   pure function INDEX_WITH_WRAP(counter: in integer;
-                                 limit: in integer;
-                                 value : in std_logic_vector(3 downto 0)) return std_logic_vector is
+                                limit: in integer;
+                                value : in std_logic_vector(3 downto 0)) return std_logic_vector is
   begin
-  case limit is
-    WHEN 1 => return value(3 downto 0);
-    WHEN 2 => return value(3 downto 1) & conv_std_logic_vector(conv_integer(value(0))         +counter,1);
-    WHEN 4 => return value(3 downto 2) & conv_std_logic_vector(conv_integer(value(1 downto 0))+counter,2);
-    WHEN 8 => return value(3 downto 3) & conv_std_logic_vector(conv_integer(value(2 downto 0))+counter,3);
-    WHEN 16 => return                    conv_std_logic_vector(conv_integer(value(3 downto 0))+counter,4);
-    WHEN others => return value(3 downto 0); -- should not happen
-  end case;
+    case limit is
+      WHEN 1 => return value(3 downto 0);
+      WHEN 2 => return value(3 downto 1) & conv_std_logic_vector(conv_integer(value(0))         +counter,1);
+      WHEN 4 => return value(3 downto 2) & conv_std_logic_vector(conv_integer(value(1 downto 0))+counter,2);
+      WHEN 8 => return value(3 downto 3) & conv_std_logic_vector(conv_integer(value(2 downto 0))+counter,3);
+      WHEN 16 => return                    conv_std_logic_vector(conv_integer(value(3 downto 0))+counter,4);
+      WHEN others => return value(3 downto 0); -- should not happen
+    end case;
   end function;
 
 --COMPONENT LedHandler
@@ -485,11 +485,11 @@ ARCHITECTURE RTL OF SBusFSM IS
   END COMPONENT;
 
   COMPONENT mastrovito_V2_multiplication
-  PORT(
-    a : IN std_logic_vector(M-1 downto 0);
-    b : IN std_logic_vector(M-1 downto 0);
-    c : OUT std_logic_vector(M-1 downto 0)
-    );
+    PORT(
+      a : IN std_logic_vector(M-1 downto 0);
+      b : IN std_logic_vector(M-1 downto 0);
+      c : OUT std_logic_vector(M-1 downto 0)
+      );
   END COMPONENT;
   --Inputs
   SIGNAL mas_a :  std_logic_vector(M-1 downto 0) := (others=>'0');
@@ -519,7 +519,7 @@ ARCHITECTURE RTL OF SBusFSM IS
       dout : out STD_LOGIC_VECTOR ( 7 downto 0 );
       full : out STD_LOGIC;
       empty : out STD_LOGIC
-    );
+      );
   end component;
   component fifo_generator_to_aes is
     Port (
@@ -531,7 +531,7 @@ ARCHITECTURE RTL OF SBusFSM IS
       dout : out STD_LOGIC_VECTOR ( 260 downto 0 );
       full : out STD_LOGIC;
       empty : out STD_LOGIC
-    );
+      );
   end component;
   component fifo_generator_from_aes is
     Port (
@@ -543,7 +543,7 @@ ARCHITECTURE RTL OF SBusFSM IS
       dout : out STD_LOGIC_VECTOR ( 127 downto 0 );
       full : out STD_LOGIC;
       empty : out STD_LOGIC
-    );
+      );
   end component;
   component fifo_generator_from_strng is
     Port (
@@ -555,7 +555,7 @@ ARCHITECTURE RTL OF SBusFSM IS
       dout : out STD_LOGIC_VECTOR ( 31 downto 0 );
       full : out STD_LOGIC;
       empty : out STD_LOGIC
-    );
+      );
   end component;
   
   component uart_tx is
@@ -578,23 +578,23 @@ ARCHITECTURE RTL OF SBusFSM IS
 --  end component clk_wiz_0;
 
   component clk_wiz_aes is
-  port(clk_out1 : out std_logic;
-       clk_in1 : in std_logic);
+    port(clk_out1 : out std_logic;
+         clk_in1 : in std_logic);
   end component clk_wiz_aes;
   
   component aes_wrapper is
-  port (
-    aes_wrapper_rst : in std_logic;
-    aes_wrapper_clk : in std_logic;
+    port (
+      aes_wrapper_rst : in std_logic;
+      aes_wrapper_clk : in std_logic;
 -- iskey?, keylen, encdec, cbc, data (256 or 128 + 128)
-    input_fifo_out : in std_logic_vector(260 downto 0);
-    input_fifo_empty: in std_logic;
-    input_fifo_rd_en : out std_logic;
+      input_fifo_out : in std_logic_vector(260 downto 0);
+      input_fifo_empty: in std_logic;
+      input_fifo_rd_en : out std_logic;
 -- data (128)
-    output_fifo_in : out std_logic_vector(127 downto 0);
-    output_fifo_full : in std_logic;
-    output_fifo_wr_en : out std_logic
-    );
+      output_fifo_in : out std_logic_vector(127 downto 0);
+      output_fifo_full : in std_logic;
+      output_fifo_wr_en : out std_logic
+      );
   end component aes_wrapper;
 
 --  component strng_wrapper is
@@ -608,13 +608,13 @@ ARCHITECTURE RTL OF SBusFSM IS
 --  end component strng_wrapper;
 
   component trivium_wrapper is
-  port (
-    trivium_wrapper_rst : in std_logic;
-    trivium_wrapper_clk : in std_logic;
-    output_fifo_in : out std_logic_vector(31 downto 0);
-    output_fifo_full : in std_logic;
-    output_fifo_wr_en : out std_logic
-    );
+    port (
+      trivium_wrapper_rst : in std_logic;
+      trivium_wrapper_clk : in std_logic;
+      output_fifo_in : out std_logic_vector(31 downto 0);
+      output_fifo_full : in std_logic;
+      output_fifo_wr_en : out std_logic
+      );
   end component trivium_wrapper;
 
   PROCEDURE SBus_Set_Default(
@@ -660,23 +660,23 @@ BEGIN
         IO => SBUS_3V3_D(i),         -- Buffer INOUT PORT (connect directly to top-level PORT)
         I => BUF_DATA_O(i),         -- Buffer input (warning - data going to SBUS so O)
         T => DATA_T              -- 3-state enable input, high=input, low=output
-        -- DATA_T is 1 by default, so input from the SBus (e.g. during slave *write* cycle)
-        -- DATA_T should be set to 1 during slave *read* cycle, when we send data to the SBus (IOBUS is an output)
+       -- DATA_T is 1 by default, so input from the SBus (e.g. during slave *write* cycle)
+       -- DATA_T should be set to 1 during slave *read* cycle, when we send data to the SBus (IOBUS is an output)
         );
   end generate GENDATABUF;
 
   IOBpprd : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
-                  PORT MAP(O => BUF_PPRD_I, IO => SBUS_3V3_PPRD, I => BUF_PPRD_O, T => SM_T);
+    PORT MAP(O => BUF_PPRD_I, IO => SBUS_3V3_PPRD, I => BUF_PPRD_O, T => SM_T);
   GENSIZBUF: for i IN 0 to 2 generate
     IOBsiz : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
-                   PORT MAP (O => BUF_SIZ_I(i), IO => SBUS_3V3_SIZ(i), I => BUF_SIZ_O(i), T => SM_T);
+      PORT MAP (O => BUF_SIZ_I(i), IO => SBUS_3V3_SIZ(i), I => BUF_SIZ_O(i), T => SM_T);
   end generate GENSIZBUF;
   GENACKBUF: for i IN 0 to 2 generate
     IOBacks : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
-                   PORT MAP (O => BUF_ACKs_I(i), IO => SBUS_3V3_ACKs(i), I => BUF_ACKs_O(i), T => SMs_T);
+      PORT MAP (O => BUF_ACKs_I(i), IO => SBUS_3V3_ACKs(i), I => BUF_ACKs_O(i), T => SMs_T);
   end generate GENACKBUF;
   IOBerrs : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
-                  PORT MAP(O => BUF_ERRs_I, IO => SBUS_3V3_ERRs, I => BUF_ERRs_O, T => SMs_T);
+    PORT MAP(O => BUF_ERRs_I, IO => SBUS_3V3_ERRs, I => BUF_ERRs_O, T => SMs_T);
 
   --label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => LED_DATA, l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3 );
   label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => REGISTERS(REG_INDEX_LED), l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
@@ -687,17 +687,17 @@ BEGIN
   --label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
   
   label_fifo_uart: fifo_generator_uart port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
-                                           din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
-                                           dout => fifo_dout, full => fifo_full, empty => fifo_empty);
+                                                din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
+                                                dout => fifo_dout, full => fifo_full, empty => fifo_empty);
   label_fifo_toaes: fifo_generator_to_aes port map(wr_clk => SBUS_3V3_CLK, rd_clk => aes_clk_out,
-                                           din => fifo_toaes_din, wr_en => fifo_toaes_wr_en, rd_en => fifo_toaes_rd_en,
-                                           dout => fifo_toaes_dout, full => fifo_toaes_full, empty => fifo_toaes_empty);
+                                                   din => fifo_toaes_din, wr_en => fifo_toaes_wr_en, rd_en => fifo_toaes_rd_en,
+                                                   dout => fifo_toaes_dout, full => fifo_toaes_full, empty => fifo_toaes_empty);
   label_fifo_fromaes: fifo_generator_from_aes port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
-                                           din => fifo_fromaes_din, wr_en => fifo_fromaes_wr_en, rd_en => fifo_fromaes_rd_en,
-                                           dout => fifo_fromaes_dout, full => fifo_fromaes_full, empty => fifo_fromaes_empty);
+                                                       din => fifo_fromaes_din, wr_en => fifo_fromaes_wr_en, rd_en => fifo_fromaes_rd_en,
+                                                       dout => fifo_fromaes_dout, full => fifo_fromaes_full, empty => fifo_fromaes_empty);
   label_fifo_fromstrng: fifo_generator_from_strng port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
-                                           din => fifo_fromstrng_din, wr_en => fifo_fromstrng_wr_en, rd_en => fifo_fromstrng_rd_en,
-                                           dout => fifo_fromstrng_dout, full => fifo_fromstrng_full, empty => fifo_fromstrng_empty);
+                                                           din => fifo_fromstrng_din, wr_en => fifo_fromstrng_wr_en, rd_en => fifo_fromstrng_rd_en,
+                                                           dout => fifo_fromstrng_dout, full => fifo_fromstrng_full, empty => fifo_fromstrng_empty);
   label_aes_wrapper: aes_wrapper port map(
     aes_wrapper_rst => aes_wrapper_rst,
     aes_wrapper_clk => aes_clk_out,
@@ -708,7 +708,7 @@ BEGIN
     output_fifo_full => fifo_fromaes_full,
     output_fifo_wr_en => fifo_fromaes_wr_en
     );
-    
+  
 --  label_strng_wrapper: strng_wrapper port map (
 --    strng_wrapper_rst => aes_wrapper_rst,
 --    strng_wrapper_clk => aes_clk_out,
@@ -741,17 +741,17 @@ BEGIN
       );
   
   PROCESS (SBUS_3V3_CLK, SBUS_3V3_RSTs) 
-  variable do_gcm : boolean := false;
-  variable finish_gcm : boolean := false;
-  variable last_pa : std_logic_vector(ADDR_PHYS_HIGH downto ADDR_PHYS_LOW) := (others => '0');
-  variable BURST_COUNTER : integer range 0 to 15 := 0;
-  variable BURST_LIMIT : integer range 1 to 16 := 1;
-  variable BURST_INDEX : integer range 0 to 15;
-  variable seen_ack : boolean := false;
-  variable dma_write : boolean := false;
-  variable dma_ctrl_idx : integer range 0 to 7;
-  variable dma_addr_idx : integer range 0 to 7;
-  variable reg_bank : integer range 0 to 1 := 0;
+    variable do_gcm : boolean := false;
+    variable finish_gcm : boolean := false;
+    variable last_pa : std_logic_vector(ADDR_PHYS_HIGH downto ADDR_PHYS_LOW) := (others => '0');
+    variable BURST_COUNTER : integer range 0 to 15 := 0;
+    variable BURST_LIMIT : integer range 1 to 16 := 1;
+    variable BURST_INDEX : integer range 0 to 15;
+    variable seen_ack : boolean := false;
+    variable dma_write : boolean := false;
+    variable dma_ctrl_idx : integer range 0 to 7;
+    variable dma_addr_idx : integer range 0 to 7;
+    variable reg_bank : integer range 0 to 1 := 0;
   BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
@@ -800,7 +800,7 @@ BEGIN
               State <= SBus_Slave_Ack_Read_Reg_Burst;
             ELSIF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REGTRNG_ADDR_PFX) AND REG_OFFSET_IS_ANYTRNGREAD(last_pa(OFFSET_HIGH downto OFFSET_LOW))
              -- and (fifo_fromstrng_empty = '0')
-             ) then
+                   ) then
               -- 32 bits read from aligned memory IN REG TRNG space ------------------------------------
               -- if FIFO is empty, will fallback to returning an error...
               BUF_ACKs_O <= ACK_WORD;
@@ -874,16 +874,16 @@ BEGIN
               LED_RESET <= '1'; -- reset led cycle
               --DATA_T <= '1'; -- set buffer as input
               CASE last_pa(1 downto 0) IS
-              WHEN "00" =>
-                REGISTERS(REG_INDEX_LED)(31 downto 24) <= BUF_DATA_I(31 downto 24);
-              WHEN "01" =>
-                REGISTERS(REG_INDEX_LED)(23 downto 16) <= BUF_DATA_I(31 downto 24);
-              WHEN "10" =>
-                REGISTERS(REG_INDEX_LED)(15 downto 8) <= BUF_DATA_I(31 downto 24);
-              WHEN "11" =>
-                REGISTERS(REG_INDEX_LED)(7 downto 0) <= BUF_DATA_I(31 downto 24);
-              WHEN OTHERS =>
-                -- TODO: FIXME, probably should generate an error
+                WHEN "00" =>
+                  REGISTERS(REG_INDEX_LED)(31 downto 24) <= BUF_DATA_I(31 downto 24);
+                WHEN "01" =>
+                  REGISTERS(REG_INDEX_LED)(23 downto 16) <= BUF_DATA_I(31 downto 24);
+                WHEN "10" =>
+                  REGISTERS(REG_INDEX_LED)(15 downto 8) <= BUF_DATA_I(31 downto 24);
+                WHEN "11" =>
+                  REGISTERS(REG_INDEX_LED)(7 downto 0) <= BUF_DATA_I(31 downto 24);
+                WHEN OTHERS =>
+              -- TODO: FIXME, probably should generate an error
               END CASE;
               BUF_ACKs_O <=  ACK_BYTE; -- acknowledge the Byte
               BUF_ERRs_O <= '1'; -- no late error
@@ -901,7 +901,7 @@ BEGIN
                   (REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX)='1' AND
                    REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
                    REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_ERR_IDX)='0')
-                 )) then
+                  )) then
 -- we have a DMA request pending and not been granted the bus
             IF ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_GCM_IDX) = '1') OR
                 ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_AES_IDX) = '1') AND
@@ -910,7 +910,7 @@ BEGIN
                 ((REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_AES_IDX) = '1') AND
                  (REGISTERS(REG_INDEX_AES128_CTRL) = 0) AND
                  (fifo_fromaes_empty = '0'))
-               ) THEN
+                ) THEN
               fifo_wr_en <= '1'; fifo_din <= x"61"; -- "a"
               -- GCM is always available (1 cycle)
               -- for AES don't request the bus unless the AES block is free
@@ -921,48 +921,48 @@ BEGIN
               fifo_wr_en <= '1'; fifo_din <= x"7a"; -- "z"
             END IF;
           ELSIF (SBUS_3V3_BGs='0') THEN
-              fifo_wr_en <= '1'; fifo_din <= x"62"; -- "b"
+            fifo_wr_en <= '1'; fifo_din <= x"62"; -- "b"
 -- we were granted the bus for DMA
-              SBUS_3V3_BRs <= '1'; -- relinquish the request (required)
-              DATA_T <= '0'; -- set data buffer as output
-              SM_T <= '0'; -- PPRD, SIZ becomes output (master mode)
-              SMs_T <= '1';
-              IF ((REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
-                  (fifo_fromaes_empty = '0')) THEN
-                dma_write := true;
-                dma_ctrl_idx := REG_INDEX_DMAW_CTRL;
-                dma_addr_idx := REG_INDEX_DMAW_ADDR;
-                BUF_DATA_O <= REGISTERS(REG_INDEX_DMAW_ADDR); -- virt address
-                BUF_PPRD_O <= '0'; -- writing to slave
-                REGISTERS(REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
-                REGISTERS(REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
-                REGISTERS(REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
-                REGISTERS(REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
-                fifo_fromaes_rd_en <= '1';
-              ELSE
-                dma_write := false;
-                dma_ctrl_idx := REG_INDEX_DMA_CTRL;
-                dma_addr_idx := REG_INDEX_DMA_ADDR;
-                BUF_DATA_O <= REGISTERS(REG_INDEX_DMA_ADDR); -- virt address
-                BUF_PPRD_O <= '1'; -- reading from slave
-              END IF;
+            SBUS_3V3_BRs <= '1'; -- relinquish the request (required)
+            DATA_T <= '0'; -- set data buffer as output
+            SM_T <= '0'; -- PPRD, SIZ becomes output (master mode)
+            SMs_T <= '1';
+            IF ((REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                (fifo_fromaes_empty = '0')) THEN
+              dma_write := true;
+              dma_ctrl_idx := REG_INDEX_DMAW_CTRL;
+              dma_addr_idx := REG_INDEX_DMAW_ADDR;
+              BUF_DATA_O <= REGISTERS(REG_INDEX_DMAW_ADDR); -- virt address
+              BUF_PPRD_O <= '0'; -- writing to slave
+              REGISTERS(REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
+              REGISTERS(REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
+              REGISTERS(REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
+              REGISTERS(REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
+              fifo_fromaes_rd_en <= '1';
+            ELSE
+              dma_write := false;
+              dma_ctrl_idx := REG_INDEX_DMA_CTRL;
+              dma_addr_idx := REG_INDEX_DMA_ADDR;
+              BUF_DATA_O <= REGISTERS(REG_INDEX_DMA_ADDR); -- virt address
+              BUF_PPRD_O <= '1'; -- reading from slave
+            END IF;
 --              IF (conv_integer(REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0)) >= 3) THEN
 --                BUF_SIZ_O <= SIZ_BURST16;
 --                BURST_LIMIT := 16;
 --              ELS
-              IF ((dma_write = false) AND
-                  (REGISTERS(dma_ctrl_idx)(DMA_CTRL_GCM_IDX) = '1') AND
-                  conv_integer(REGISTERS(dma_ctrl_idx)(11 downto 0)) >= 1) THEN
+            IF ((dma_write = false) AND
+                (REGISTERS(dma_ctrl_idx)(DMA_CTRL_GCM_IDX) = '1') AND
+                conv_integer(REGISTERS(dma_ctrl_idx)(11 downto 0)) >= 1) THEN
               -- 32 bytes burst only for GCM ATM (bit 27)
-                BUF_SIZ_O <= SIZ_BURST8;
-                BURST_LIMIT := 8;
-              ELSE
-                BUF_SIZ_O <= SIZ_BURST4;
-                BURST_LIMIT := 4;
-              END IF;
-              -- REGISTERS(REG_INDEX_LED) <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
-              BURST_COUNTER := 0;
-              State <= SBus_Master_Translation;
+              BUF_SIZ_O <= SIZ_BURST8;
+              BURST_LIMIT := 8;
+            ELSE
+              BUF_SIZ_O <= SIZ_BURST4;
+              BURST_LIMIT := 4;
+            END IF;
+            -- REGISTERS(REG_INDEX_LED) <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
+            BURST_COUNTER := 0;
+            State <= SBus_Master_Translation;
 -- ERROR ERROR ERROR 
           ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I /= SIZ_WORD THEN
             SMs_T <= '0'; -- ACKs/ERRs buffer in slave mode/output
@@ -1144,14 +1144,14 @@ BEGIN
             fifo_din <= x"2F"; -- "/"
             REGISTERS(dma_ctrl_idx)(DMA_CTRL_ERR_IDX) <= '1';
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
-                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             State <= SBus_Idle;
           ELSIF (BUF_ACKs_I = ACK_RERUN) THEN
             fifo_din <= x"5c"; -- "\"
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
-                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             State <= SBus_Idle;
           ELSIF (BUF_ACKs_I = ACK_IDLE) THEN
             IF (dma_write = false) THEN
@@ -1164,8 +1164,8 @@ BEGIN
             -- oups, we lost our bus access without error ?!?
             fifo_din <= x"21"; -- "!"
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
-                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             State <= SBus_Idle;
           END IF;
 
@@ -1223,30 +1223,30 @@ BEGIN
 --              REGISTERS(REG_INDEX_AES128_CTRL) <= x"88000000"; -- request to start a CBC block
               -- enqueue the block in the AES FIFO
               IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) = '0') THEN
-              fifo_toaes_din <=
-                '0' & -- !iskey
-                '0' & -- keylen, ignored
-                (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- encdec
-                '0' & -- cbc
-                (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- internal cbc; HACKISH - enable for encrypt
-                x"00000000000000000000000000000000" &
-                REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
-                REGISTERS(REG_INDEX_AES128_DATA3) & BUF_DATA_I;
-              fifo_toaes_wr_en <= '1';
+                fifo_toaes_din <=
+                  '0' & -- !iskey
+                  '0' & -- keylen, ignored
+                  (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- encdec
+                  '0' & -- cbc
+                  (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- internal cbc; HACKISH - enable for encrypt
+                  x"00000000000000000000000000000000" &
+                  REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
+                  REGISTERS(REG_INDEX_AES128_DATA3) & BUF_DATA_I;
+                fifo_toaes_wr_en <= '1';
               ELSE
-              fifo_toaes_din <=
-                '0' & -- !iskey
-                '0' & -- keylen, ignored
-                (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- encdec
-                '0' & -- cbc
-                '0' & -- internal cbc
-                x"00000000000000000000000000000000" &
-                (REGISTERS(REG_INDEX_AES128_DATA1) XOR REGISTERS(REG_INDEX_AES128_OUT1)) & 
-                (REGISTERS(REG_INDEX_AES128_DATA2) XOR REGISTERS(REG_INDEX_AES128_OUT2)) &
-                (REGISTERS(REG_INDEX_AES128_DATA3) XOR REGISTERS(REG_INDEX_AES128_OUT3)) & 
-                (BUF_DATA_I                        XOR REGISTERS(REG_INDEX_AES128_OUT4));
-              fifo_toaes_wr_en <= '1';
-              REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) <= '0';
+                fifo_toaes_din <=
+                  '0' & -- !iskey
+                  '0' & -- keylen, ignored
+                  (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- encdec
+                  '0' & -- cbc
+                  '0' & -- internal cbc
+                  x"00000000000000000000000000000000" &
+                  (REGISTERS(REG_INDEX_AES128_DATA1) XOR REGISTERS(REG_INDEX_AES128_OUT1)) & 
+                  (REGISTERS(REG_INDEX_AES128_DATA2) XOR REGISTERS(REG_INDEX_AES128_OUT2)) &
+                  (REGISTERS(REG_INDEX_AES128_DATA3) XOR REGISTERS(REG_INDEX_AES128_OUT3)) & 
+                  (BUF_DATA_I                        XOR REGISTERS(REG_INDEX_AES128_OUT4));
+                fifo_toaes_wr_en <= '1';
+                REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) <= '0';
               END IF;
             END IF;
           END IF; -- GCM | AES
@@ -1301,7 +1301,7 @@ BEGIN
         when SBus_Master_Write =>
           fifo_wr_en <= '1'; fifo_din <= x"67"; -- "g"
           IF (BUF_ACKs_I = ACK_IDLE) THEN
-            -- wait some more
+          -- wait some more
           ELSIF (BUF_ACKs_I = ACK_WORD) THEN
             IF (BURST_COUNTER = BURST_LIMIT) THEN
               State <= SBus_Master_Write_Final;
@@ -1348,9 +1348,9 @@ BEGIN
 -- FALLBACK
         WHEN OTHERS => -- include SBus_Start
           if SBUS_3V3_RSTs = '1' then
-          SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
-                           SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
-                           p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
+            SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
+                             SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
+                             p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
             REGISTERS(REG_INDEX_DMA_CTRL) <= (others => '0');
             REGISTERS(REG_INDEX_DMAW_CTRL) <= (others => '0');
             IF (RES_COUNTER = 0) THEN
@@ -1368,42 +1368,42 @@ BEGIN
       END CASE; -- SBus state machine
       
       CASE AES_State IS
-      WHEN AES_IDLE =>
-        IF ((REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_START_IDX) = '1') AND
-            (fifo_toaes_full = '0')
-            ) THEN
+        WHEN AES_IDLE =>
+          IF ((REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_START_IDX) = '1') AND
+              (fifo_toaes_full = '0')
+              ) THEN
             fifo_wr_en <= '1'; fifo_din <= x"30"; -- "0"
             REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_BUSY_IDX) <= '1';
-          -- start & !busy & !aesbusy -> start processing
-          if (REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_NEWKEY_IDX) = '1') THEN --newkey 
-            fifo_toaes_din <=
-              '1' & -- iskey
-              REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
-              (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
-              REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
-              '0' & -- internal cbc
-              REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
-              REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
-              REGISTERS(REG_INDEX_AES128_KEY5) & REGISTERS(REG_INDEX_AES128_KEY6) &
-              REGISTERS(REG_INDEX_AES128_KEY7) & REGISTERS(REG_INDEX_AES128_KEY8);
-            fifo_toaes_wr_en <= '1';
-            AES_State <= AES_INIT1;
-          ELSE
-            fifo_toaes_din <=
-              '0' & -- !iskey
-              REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
-              (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
-              REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
-              '0' & -- internal cbc
-              REGISTERS(REG_INDEX_AES128_OUT1) & REGISTERS(REG_INDEX_AES128_OUT2) &
-              REGISTERS(REG_INDEX_AES128_OUT3) & REGISTERS(REG_INDEX_AES128_OUT4) &
-              REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
-              REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
-            fifo_toaes_wr_en <= '1';
-            AES_State <= AES_CRYPT1;
+            -- start & !busy & !aesbusy -> start processing
+            if (REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_NEWKEY_IDX) = '1') THEN --newkey 
+              fifo_toaes_din <=
+                '1' & -- iskey
+                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
+                (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
+                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
+                '0' & -- internal cbc
+                REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
+                REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
+                REGISTERS(REG_INDEX_AES128_KEY5) & REGISTERS(REG_INDEX_AES128_KEY6) &
+                REGISTERS(REG_INDEX_AES128_KEY7) & REGISTERS(REG_INDEX_AES128_KEY8);
+              fifo_toaes_wr_en <= '1';
+              AES_State <= AES_INIT1;
+            ELSE
+              fifo_toaes_din <=
+                '0' & -- !iskey
+                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
+                (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
+                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
+                '0' & -- internal cbc
+                REGISTERS(REG_INDEX_AES128_OUT1) & REGISTERS(REG_INDEX_AES128_OUT2) &
+                REGISTERS(REG_INDEX_AES128_OUT3) & REGISTERS(REG_INDEX_AES128_OUT4) &
+                REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
+                REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
+              fifo_toaes_wr_en <= '1';
+              AES_State <= AES_CRYPT1;
+            END IF;
           END IF;
-        END IF;
-        
+          
         when AES_INIT1 =>
           fifo_wr_en <= '1'; fifo_din <= x"31"; -- "1"
           fifo_toaes_wr_en <= '0';
@@ -1438,12 +1438,12 @@ BEGIN
       
       CASE fifo_fromstrng_full IS
         WHEN '1' =>
-            fifo_fromstrng_rd_en <= '1'; -- remove one word from FIFO
-            REGISTERS(64 + REG_INDEX_TRNG_DATA) <= fifo_fromstrng_dout;
-            
+          fifo_fromstrng_rd_en <= '1'; -- remove one word from FIFO
+          REGISTERS(64 + REG_INDEX_TRNG_DATA) <= fifo_fromstrng_dout;
+          
         WHEN others =>
-            -- do nothing
-        
+          -- do nothing
+          
       END CASE; --TRNG self-emptying FIFO
       
     END IF;
@@ -1451,50 +1451,50 @@ BEGIN
   
   process(fxclk_in, fifo_rst)
   BEGIN
-  if (fifo_rst = '1') THEN
-    Uart_State <= UART_IDLE;
-  ELSIF RISING_EDGE(fxclk_in) THEN
-    r_TX_DV <= '0';
-    fifo_rd_en <= '0';
-    CASE Uart_State IS
-    WHEN UART_IDLE =>
-        IF (fifo_empty = '0') THEN
+    if (fifo_rst = '1') THEN
+      Uart_State <= UART_IDLE;
+    ELSIF RISING_EDGE(fxclk_in) THEN
+      r_TX_DV <= '0';
+      fifo_rd_en <= '0';
+      CASE Uart_State IS
+        WHEN UART_IDLE =>
+          IF (fifo_empty = '0') THEN
             r_TX_DV <= '1';
             fifo_rd_en <= '1';
             r_TX_BYTE <= fifo_dout;
             Uart_State <= UART_WAITING;
-        END IF;
-    WHEN UART_WAITING =>
-        if (w_TX_DONE = '1') then
+          END IF;
+        WHEN UART_WAITING =>
+          if (w_TX_DONE = '1') then
             Uart_State <= UART_IDLE;
-        END IF;
-    END CASE;
-  END IF;
+          END IF;
+      END CASE;
+    END IF;
   END PROCESS;
   
   -- process to enable signal after a while
   process(fxclk_in)
   BEGIN
-  IF RISING_EDGE(fxclk_in) THEN
-    IF (OE_COUNTER = 0) THEN
+    IF RISING_EDGE(fxclk_in) THEN
+      IF (OE_COUNTER = 0) THEN
         SBUS_OE <= '0';
-    ELSE
+      ELSE
         OE_COUNTER <= OE_COUNTER - 1;
+      END IF;
     END IF;
-  END IF;
   END PROCESS;
   
   -- process to enable AES block
   process (aes_clk_out)
   BEGIN
-  IF RISING_EDGE(aes_clk_out) THEN
-    if (AES_RST_COUNTER = 0) THEN
+    IF RISING_EDGE(aes_clk_out) THEN
+      if (AES_RST_COUNTER = 0) THEN
         aes_wrapper_rst <= '1';
-    else
+      else
         AES_RST_COUNTER <= (AES_RST_COUNTER - 1);
         aes_wrapper_rst <= '0';
-    end if;
-  END IF;
+      end if;
+    END IF;
   END PROCESS;
   
 END rtl;
