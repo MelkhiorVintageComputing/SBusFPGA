@@ -1084,11 +1084,11 @@ rdfpga_encdec_aes128cbc(struct rdfpga_softc *sw, const u_int8_t thesid, struct c
 			  memcpy(kvap, idat, tocopy);
 			  
 			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_PREWRITE | BUS_DMASYNC_PREREAD);
-			  /* prepare write w/o start */
-			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_AES | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  /* start write */
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
 			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMAW_ADDR), ctrl);
 			  /* start read */
-			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
+			  ctrl = ((uint64_t)(RDFPGA_MASK_DMA_CTRL_START | RDFPGA_MASK_DMA_CTRL_AES | RDFPGA_MASK_DMA_CTRL_CBC | ((tocopy/16)-1))) | ((uint64_t)(uint32_t)(sw->sc_dmamap->dm_segs[0].ds_addr)) << 32;
 			  bus_space_write_8(sw->sc_bustag, sw->sc_bhregs, (RDFPGA_REG_DMA_ADDR), ctrl);
 			  rdfpga_wait_dma_ready(sw, 50000);
 			  bus_dmamap_sync(sw->sc_dmatag, sw->sc_dmamap, 0, tocopy, BUS_DMASYNC_POSTWRITE | BUS_DMASYNC_POSTREAD);

@@ -119,6 +119,7 @@ ENTITY SBusFSM is
   constant DMA_CTRL_WRITE_IDX     : integer := 28; -- unused
   constant DMA_CTRL_GCM_IDX       : integer := 27;
   constant DMA_CTRL_AES_IDX       : integer := 26;
+  constant DMA_CTRL_CBC_IDX       : integer := 25;
 
   constant AES128_CTRL_START_IDX  : integer := 31;
   constant AES128_CTRL_BUSY_IDX   : integer := 30;
@@ -266,10 +267,10 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal r_TX_BYTE   : std_logic_vector(7 downto 0) := (others => '0');
   
   signal aes_wrapper_rst : std_logic := '0';
-  signal fifo_toaes_din : STD_LOGIC_VECTOR ( 259 downto 0 );
+  signal fifo_toaes_din : STD_LOGIC_VECTOR ( 260 downto 0 );
   signal fifo_toaes_wr_en : STD_LOGIC;
   signal fifo_toaes_rd_en : STD_LOGIC;
-  signal fifo_toaes_dout : STD_LOGIC_VECTOR ( 259 downto 0 );
+  signal fifo_toaes_dout : STD_LOGIC_VECTOR ( 260 downto 0 );
   signal fifo_toaes_full : STD_LOGIC;
   signal fifo_toaes_empty : STD_LOGIC;
   signal fifo_fromaes_din : STD_LOGIC_VECTOR ( 127 downto 0 );
@@ -494,10 +495,10 @@ ARCHITECTURE RTL OF SBusFSM IS
     Port (
       wr_clk : in STD_LOGIC;
       rd_clk : in STD_LOGIC;
-      din : in STD_LOGIC_VECTOR ( 259 downto 0 );
+      din : in STD_LOGIC_VECTOR ( 260 downto 0 );
       wr_en : in STD_LOGIC;
       rd_en : in STD_LOGIC;
-      dout : out STD_LOGIC_VECTOR ( 259 downto 0 );
+      dout : out STD_LOGIC_VECTOR ( 260 downto 0 );
       full : out STD_LOGIC;
       empty : out STD_LOGIC
     );
@@ -544,7 +545,7 @@ ARCHITECTURE RTL OF SBusFSM IS
     aes_wrapper_rst : in std_logic;
     aes_wrapper_clk : in std_logic;
 -- iskey?, keylen, encdec, cbc, data (256 or 128 + 128)
-    input_fifo_out : in std_logic_vector(259 downto 0);
+    input_fifo_out : in std_logic_vector(260 downto 0);
     input_fifo_empty: in std_logic;
     input_fifo_rd_en : out std_logic;
 -- data (128)
@@ -815,9 +816,11 @@ BEGIN
 -- we have a DMA request pending and not been granted the bus
             IF ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_GCM_IDX) = '1') OR
                 ((REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_AES_IDX) = '1') AND
-                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0)) OR
+                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0) AND
+                 (fifo_toaes_full = '0')) OR
                 ((REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_AES_IDX) = '1') AND
-                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0))
+                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0) AND
+                 (fifo_fromaes_empty = '0'))
                ) THEN
               fifo_wr_en <= '1'; fifo_din <= x"61"; -- "a"
               -- GCM is always available (1 cycle)
@@ -835,12 +838,18 @@ BEGIN
               DATA_T <= '0'; -- set data buffer as output
               SM_T <= '0'; -- PPRD, SIZ becomes output (master mode)
               SMs_T <= '1';
-              IF (REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) = '1') THEN
+              IF ((REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                  (fifo_fromaes_empty = '0')) THEN
                 dma_write := true;
                 dma_ctrl_idx := REG_INDEX_DMAW_CTRL;
                 dma_addr_idx := REG_INDEX_DMAW_ADDR;
                 BUF_DATA_O <= REGISTERS(REG_INDEX_DMAW_ADDR); -- virt address
                 BUF_PPRD_O <= '0'; -- writing to slave
+                REGISTERS(REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
+                REGISTERS(REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
+                REGISTERS(REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
+                REGISTERS(REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
+                fifo_fromaes_rd_en <= '1';
               ELSE
                 dma_write := false;
                 dma_ctrl_idx := REG_INDEX_DMA_CTRL;
@@ -1118,7 +1127,34 @@ BEGIN
             REGISTERS(REG_INDEX_AES128_DATA1 + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
             BURST_COUNTER := BURST_COUNTER + 1;
             IF (BURST_COUNTER mod 4 = 0) THEN
-              REGISTERS(REG_INDEX_AES128_CTRL) <= x"88000000"; -- request to start a CBC block
+--              REGISTERS(REG_INDEX_AES128_CTRL) <= x"88000000"; -- request to start a CBC block
+              -- enqueue the block in the AES FIFO
+              IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) = '0') THEN
+              fifo_toaes_din <=
+                '0' & -- !iskey
+                '0' & -- keylen, ignored
+                '1' & -- encdec
+                '0' & -- cbc
+                '1' & -- internal cbc
+                x"00000000000000000000000000000000" &
+                REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
+                REGISTERS(REG_INDEX_AES128_DATA3) & BUF_DATA_I;
+              fifo_toaes_wr_en <= '1';
+              ELSE
+              fifo_toaes_din <=
+                '0' & -- !iskey
+                '0' & -- keylen, ignored
+                '1' & -- encdec
+                '0' & -- cbc
+                '0' & -- internal cbc
+                x"00000000000000000000000000000000" &
+                (REGISTERS(REG_INDEX_AES128_DATA1) XOR REGISTERS(REG_INDEX_AES128_OUT1)) & 
+                (REGISTERS(REG_INDEX_AES128_DATA2) XOR REGISTERS(REG_INDEX_AES128_OUT2)) &
+                (REGISTERS(REG_INDEX_AES128_DATA3) XOR REGISTERS(REG_INDEX_AES128_OUT3)) & 
+                (BUF_DATA_I                        XOR REGISTERS(REG_INDEX_AES128_OUT4));
+              fifo_toaes_wr_en <= '1';
+              REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) <= '0';
+              END IF;
             END IF;
           END IF; -- GCM | AES
           if (BURST_COUNTER = BURST_LIMIT) THEN
@@ -1163,11 +1199,6 @@ BEGIN
             -- move to next block
             REGISTERS(dma_ctrl_idx)(11 downto 0) <= REGISTERS(dma_ctrl_idx)(11 downto 0) - (BURST_LIMIT/4);
             REGISTERS(dma_addr_idx) <= REGISTERS(dma_addr_idx) + (BURST_LIMIT*4);
-          END IF;
-          -- for AES always write after read
-          IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_AES_IDX) = '1') THEN
-            REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_START_IDX) <= '0';
-            REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) <= '1';
           END IF;
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
@@ -1215,11 +1246,6 @@ BEGIN
               -- move to next block
               REGISTERS(dma_ctrl_idx)(11 downto 0) <= REGISTERS(dma_ctrl_idx)(11 downto 0) - (BURST_LIMIT/4);
               REGISTERS(dma_addr_idx) <= REGISTERS(dma_addr_idx) + (BURST_LIMIT*4);
-              -- only switch ro read if there's one more block
-              IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_AES_IDX) = '1') THEN -- should always be true ATM
-                REGISTERS(REG_INDEX_DMAW_CTRL)(DMA_CTRL_START_IDX) <= '0';
-                REGISTERS(REG_INDEX_DMA_CTRL)(DMA_CTRL_START_IDX) <= '1';
-              END IF;
             END IF;
           END IF;
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
@@ -1252,10 +1278,10 @@ BEGIN
       CASE AES_State IS
       WHEN AES_IDLE =>
         IF ((REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_START_IDX) = '1') AND
-            (REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_BUSY_IDX) = '0') AND
             (fifo_toaes_full = '0')
             ) THEN
             fifo_wr_en <= '1'; fifo_din <= x"30"; -- "0"
+            REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_BUSY_IDX) <= '1';
           -- start & !busy & !aesbusy -> start processing
           if (REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_NEWKEY_IDX) = '1') THEN --newkey 
             fifo_toaes_din <=
@@ -1263,6 +1289,7 @@ BEGIN
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
               '1' & -- encdec
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
+              '0' & -- internal cbc
               REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
               REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
               REGISTERS(REG_INDEX_AES128_KEY5) & REGISTERS(REG_INDEX_AES128_KEY6) &
@@ -1275,6 +1302,7 @@ BEGIN
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
               '1' & -- encdec
               REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
+              '0' & -- internal cbc
               REGISTERS(REG_INDEX_AES128_OUT1) & REGISTERS(REG_INDEX_AES128_OUT2) &
               REGISTERS(REG_INDEX_AES128_OUT3) & REGISTERS(REG_INDEX_AES128_OUT4) &
               REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &

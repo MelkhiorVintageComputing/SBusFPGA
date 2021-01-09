@@ -6,8 +6,8 @@ entity aes_wrapper is
   port (
     aes_wrapper_rst : in std_logic;
     aes_wrapper_clk : in std_logic;
--- iskey?, keylen, encdec, cbc, data (256 or 128 + 128)
-    input_fifo_out : in std_logic_vector(259 downto 0);
+-- iskey?, keylen, encdec, cbc, internal cbc, data (256 or 128 + 128)
+    input_fifo_out : in std_logic_vector(260 downto 0);
     input_fifo_empty: in std_logic;
     input_fifo_rd_en : out std_logic;
 -- data (128)
@@ -28,11 +28,14 @@ entity aes_wrapper is
   signal aes_block : std_logic_vector(127 downto 0);
   signal aes_result : std_logic_vector(127 downto 0);
   signal aes_result_valid : std_logic;
+  
+  signal aes_last : std_logic_vector(127 downto 0);
 
-  constant iskey_idx : integer := 259;
-  constant keylen_idx : integer := 258;
-  constant encdec_idx : integer := 257;
-  constant cbc_idx : integer := 256;
+  constant iskey_idx : integer := 260;
+  constant keylen_idx : integer := 259;
+  constant encdec_idx : integer := 258;
+  constant cbc_idx : integer := 257;
+  constant intcbc_idx : integer := 256;
 end aes_wrapper;
 
 
@@ -97,12 +100,15 @@ begin
             ELSE
               aes_next <= '1';
               aes_encdec <= input_fifo_out(encdec_idx);
-              IF (input_fifo_out(cbc_idx) = '0') THEN
-                -- normal mode
-                aes_block <= input_fifo_out(127 downto 0);
-              ELSE
+              IF (input_fifo_out(cbc_idx) = '1') THEN
                 -- cbc mode
                 aes_block <= input_fifo_out(127 downto 0) XOR input_fifo_out(255 downto 128);
+              ELSIF (input_fifo_out(intcbc_idx) = '1') THEN
+                -- internal cbc mode
+                aes_block <= input_fifo_out(127 downto 0) XOR aes_last;
+              ELSE
+                -- normal mode
+                aes_block <= input_fifo_out(127 downto 0);
               END IF;
               AES_State <= AES_CRYPT1;
             END IF;
@@ -125,6 +131,7 @@ begin
           IF (aes_result_valid = '1') then 
             output_fifo_wr_en <= '1';
             output_fifo_in <= aes_result;
+            aes_last <= aes_result;
             AES_State <= AES_IDLE;
           END IF;
         
