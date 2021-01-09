@@ -303,8 +303,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal fifo_fromstrng_full : STD_LOGIC;
   signal fifo_fromstrng_empty : STD_LOGIC;
   
-  
---  SIGNAL LIFE_COUNTER48 : natural range 0 to 48000000 := 300;
+
 --  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
   SIGNAL RES_COUNTER : natural range 0 to 4 := 4;
   -- counter to wait 20s before enabling SBus signals, without this the SS20 won't POST reliably...
@@ -1348,7 +1347,6 @@ BEGIN
           State <= SBus_Idle;
 -- FALLBACK
         WHEN OTHERS => -- include SBus_Start
-          -- SBUS_OE <= '0'; -- enable all signals -- moved to COUNTER48 timer
           if SBUS_3V3_RSTs = '1' then
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
@@ -1458,7 +1456,6 @@ BEGIN
   ELSIF RISING_EDGE(fxclk_in) THEN
     r_TX_DV <= '0';
     fifo_rd_en <= '0';
---    LIFE_COUNTER48 <= LIFE_COUNTER48 - 1;
     CASE Uart_State IS
     WHEN UART_IDLE =>
         IF (fifo_empty = '0') THEN
@@ -1466,27 +1463,6 @@ BEGIN
             fifo_rd_en <= '1';
             r_TX_BYTE <= fifo_dout;
             Uart_State <= UART_WAITING;
---        ELSIF (LIFE_COUNTER48 <= 500000) THEN
---            LIFE_COUNTER48 <= 48000000;
---            r_TX_DV <= '1';
---            CASE State IS
---                       When SBus_Start => r_TX_BYTE <= x"61"; -- "a"
---                       When SBus_Idle => r_TX_BYTE <= x"62"; -- "b"
---                       When SBus_Slave_Ack_Reg_Write => r_TX_BYTE <= x"63"; -- "c"
---                       When SBus_Slave_Ack_Reg_Write_Final => r_TX_BYTE <= x"64"; -- "d"                
---                       When SBus_Slave_Ack_Reg_Write_Final_Idle => r_TX_BYTE <= x"65"; -- "d"
---                       When SBus_Slave_Ack_Reg_Write_Burst => r_TX_BYTE <= x"66"; -- "f"
---                       When SBus_Slave_Ack_Read_Prom_Byte => r_TX_BYTE <= x"67"; -- "g"
---                       When SBus_Slave_Ack_Read_Prom_HWord => r_TX_BYTE <= x"68"; -- "h"
---                       When SBus_Slave_Ack_Read_Prom_Burst => r_TX_BYTE <= x"69"; -- "i"
---                       When SBus_Slave_Ack_Read_Reg_Byte => r_TX_BYTE <= x"6a"; -- "j"
---                       When SBus_Slave_Ack_Read_Reg_HWord => r_TX_BYTE <= x"6b"; -- "k"
---                       When SBus_Slave_Ack_Read_Reg_Burst => r_TX_BYTE <= x"6c"; -- "l"
---                       When SBus_Slave_Do_Read => r_TX_BYTE <= x"6d"; -- "m"
---                       When SBus_Slave_Delay_Error => r_TX_BYTE <= x"6e"; -- "n"
---                       When SBus_Slave_Error => r_TX_BYTE <= x"6f"; -- "o"
---                       When others => r_TX_BYTE <= x"7a"; -- "z"
---             END CASE;
         END IF;
     WHEN UART_WAITING =>
         if (w_TX_DONE = '1') then
