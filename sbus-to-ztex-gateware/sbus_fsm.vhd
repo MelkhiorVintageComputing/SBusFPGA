@@ -632,14 +632,17 @@ ARCHITECTURE RTL OF SBusFSM IS
   end component;
   component fifo_generator_from_sdcard is
     Port (
+      rst : in STD_LOGIC;
       wr_clk : in STD_LOGIC;
       rd_clk : in STD_LOGIC;
-      din : in STD_LOGIC_VECTOR ( 160 downto 0 );
+      din : in STD_LOGIC_VECTOR(160 DOWNTO 0);
       wr_en : in STD_LOGIC;
       rd_en : in STD_LOGIC;
-      dout : out STD_LOGIC_VECTOR ( 160 downto 0 );
+      dout : out STD_LOGIC_VECTOR(160 DOWNTO 0);
       full : out STD_LOGIC;
-      empty : out STD_LOGIC
+      empty : out STD_LOGIC;
+      wr_rst_busy : out STD_LOGIC;
+      rd_rst_busy : out STD_LOGIC
       );
   end component;
   
@@ -804,9 +807,12 @@ BEGIN
   label_fifo_fromstrng: fifo_generator_from_strng port map(wr_clk => fast_100m_clk_out, rd_clk => SBUS_3V3_CLK,
                                                            din => fifo_fromstrng_din, wr_en => fifo_fromstrng_wr_en, rd_en => fifo_fromstrng_rd_en,
                                                            dout => fifo_fromstrng_dout, full => fifo_fromstrng_full, empty => fifo_fromstrng_empty);
-  label_fifo_fromsdcard: fifo_generator_from_sdcard port map(wr_clk => fast_100m_clk_out, rd_clk => SBUS_3V3_CLK,
-                                                           din => fifo_fromsdcard_din, wr_en => fifo_fromsdcard_wr_en, rd_en => fifo_fromsdcard_rd_en,
-                                                           dout => fifo_fromsdcard_dout, full => fifo_fromsdcard_full, empty => fifo_fromsdcard_empty);
+  label_fifo_fromsdcard: fifo_generator_from_sdcard port map(rst => fifo_rst,
+                                                             wr_clk => fast_100m_clk_out,
+                                                             rd_clk => SBUS_3V3_CLK,
+                                                             din => fifo_fromsdcard_din, wr_en => fifo_fromsdcard_wr_en, rd_en => fifo_fromsdcard_rd_en,
+                                                             dout => fifo_fromsdcard_dout, full => fifo_fromsdcard_full, empty => fifo_fromsdcard_empty,
+                                                             wr_rst_busy => open, rd_rst_busy => open);
   label_aes_wrapper: aes_wrapper port map(
     aes_wrapper_rst => fast_clk_rst_n,
     aes_wrapper_clk => fast_100m_clk_out,
