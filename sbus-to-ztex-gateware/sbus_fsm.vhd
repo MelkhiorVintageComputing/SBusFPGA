@@ -164,6 +164,8 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_SDDMAW_CTRL  : integer := 5;
   CONSTANT REG_INDEX_SD_STATUS_OLD2: integer := 6;
   CONSTANT REG_INDEX_SD_STATUS_OLD3: integer := 7;
+  CONSTANT REG_INDEX_SD_STATUS_DAT  : integer := 8;
+  CONSTANT REG_INDEX_SD_STATUS_DAT2 : integer := 9;
   CONSTANT REG_INDEX_SDDMAW_DATA1 : integer := 16;
   CONSTANT REG_INDEX_SDDMAW_DATA2 : integer := 17;
   CONSTANT REG_INDEX_SDDMAW_DATA3 : integer := 18;
@@ -355,6 +357,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal out_sd_rd_addr_rcv : STD_LOGIC;
   signal out_sd_rd_addr_req : STD_LOGIC;
   signal out_sd_rd_addr_ack : STD_LOGIC;
+  signal sd_LEDs : std_logic_vector(7 downto 0);
 
 --  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
   SIGNAL RES_COUNTER : natural range 0 to 4 := 4;
@@ -715,7 +718,9 @@ ARCHITECTURE RTL OF SBusFSM IS
     cs_bo : out std_logic;
     sclk_o : out std_logic;
     mosi_o : out std_logic;
-    miso_i : in std_logic
+    miso_i : in std_logic;
+    -- leds
+    leds : out std_logic_vector(7 downto 0)
     );
   end component xess_sdcard_wrapper;
 
@@ -780,9 +785,8 @@ BEGIN
   IOBerrs : IOBUF GENERIC MAP(DRIVE => 12, IOSTANDARD => "DEFAULT", SLEW => "SLOW")
     PORT MAP(O => BUF_ERRs_I, IO => SBUS_3V3_ERRs, I => BUF_ERRs_O, T => SMs_T);
 
-  --label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => LED_DATA, l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3 );
-  label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED), l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
-                                          l_LED4 => LED4, l_LED5 => LED5, l_LED6 => LED6, l_LED7 => LED7);
+  --label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED), l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
+  --                                        l_LED4 => LED4, l_LED5 => LED5, l_LED6 => LED6, l_LED7 => LED7);
   
   label_prom: Prom PORT MAP (addr => p_addr, data => p_data);
 
@@ -843,7 +847,9 @@ BEGIN
     cs_bo => SD_nCS,
     sclk_o => SD_CLK,
     mosi_o => SD_DI,
-    miso_i => SD_DO
+    miso_i => SD_DO,
+    -- leds
+    leds => sd_LEDs
     );
 
   -- label_clk_wiz: clk_wiz_0 port map(clk_out1 => uart_clk, clk_in1 => fxclk_in);
@@ -1137,6 +1143,7 @@ BEGIN
               dma_basereg_idx := reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA1;
               BUF_DATA_O <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_ADDR); -- virt address
               BUF_PPRD_O <= '0'; -- writing to slave
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= fifo_fromsdcard_dout(159 downto 128);
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA1) <= fifo_fromsdcard_dout(127 downto 96);
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA2) <= fifo_fromsdcard_dout( 95 downto 64);
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA3) <= fifo_fromsdcard_dout( 63 downto 32);
@@ -1674,13 +1681,20 @@ BEGIN
             -- fixme
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= x"00000000"; 
             END IF;
-          elsif ((fifo_fromsdcard_dout(160) = '0') AND (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) /= x"FFFFFFFF")) THEN
+          elsif (fifo_fromsdcard_dout(160) = '0') THEN
             -- status indicating last stuff out of the FIFO was valid data
             -- indicative, does not remove word from FIFO
-            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD3) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2);
-            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD);
-            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS);
-            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFFFF";
+            IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS)(31 downto 8) /= x"FFFFFF") THEN
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD3) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2);
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD);
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS);
+            END IF;
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= fifo_fromsdcard_dout(159 downto 128);
+            if (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) = x"00000000") THEN
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFF0" & '0' & '0' & fifo_fromsdcard_full & fifo_fromsdcard_empty;
+            else
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFFFF";
+            END IF;
           end if;
 
         WHEN others =>
@@ -1694,7 +1708,8 @@ BEGIN
       -- copy the output of the XDM_CDC_GRAY macro back in the register file
       REGISTERS(reg_bank_size*reg_bank_trng_idx + REG_INDEX_TRNG_TIMER) <= trng_timer_counter_fast;
       
-      IF ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_START_IDX) = '1') AND (out_sd_rd_addr_rcv = '0')) THEN
+      IF ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_START_IDX) = '1') AND
+          (out_sd_rd_addr_rcv = '0')) THEN
         IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_READ_IDX) = '1') THEN
           REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_START_IDX) <= '0';
           REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) <= '1';
@@ -1755,6 +1770,15 @@ BEGIN
       fast_clk_rst_n <= '0';
       AES_RST_COUNTER <= 1;
     ELSIF RISING_EDGE(fast_100m_clk_out) THEN
+      LED0 <= sd_LEDs(0);
+      LED1 <= sd_LEDs(1);
+      LED2 <= sd_LEDs(2);
+      LED3 <= sd_LEDs(3);
+      LED4 <= sd_LEDs(4);
+      LED5 <= sd_LEDs(5);
+      LED6 <= sd_LEDs(6);
+      LED7 <= sd_LEDs(7);
+    
       if (AES_RST_COUNTER = 0) THEN
         fast_clk_rst_n <= '1';
       else

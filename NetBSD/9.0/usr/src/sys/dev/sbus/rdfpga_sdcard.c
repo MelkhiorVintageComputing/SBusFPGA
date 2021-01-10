@@ -91,6 +91,8 @@ struct rdfpga_sdcard_rb_32to512 {
 #define RDFPGA_SDCARD_RSO3  _IOR(0, 5, u_int32_t)
 #define RDFPGA_SDCARD_RSTC  _IOR(0, 6, u_int32_t)
 #define RDFPGA_SDCARD_RSTD  _IOR(0, 7, u_int32_t)
+#define RDFPGA_SDCARD_RSD  _IOR(0, 8, u_int32_t)
+#define RDFPGA_SDCARD_RSD2  _IOR(0, 9, u_int32_t)
 #define RDFPGA_SDCARD_RB   _IOWR(0, 2, struct rdfpga_sdcard_rb_32to512)
 
 int
@@ -111,6 +113,12 @@ rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 	  break;
         case RDFPGA_SDCARD_RSO3:
 	  *((u_int32_t*)data) = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS_OLD3);
+	  break;
+        case RDFPGA_SDCARD_RSD:
+	  *((u_int32_t*)data) = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS_DAT);
+	  break;
+        case RDFPGA_SDCARD_RSD2:
+	  *((u_int32_t*)data) = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS_DAT2);
 	  break;
         case RDFPGA_SDCARD_RSTC:
 	  *((u_int32_t*)data) = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_CTRL);
