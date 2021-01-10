@@ -7,6 +7,9 @@ use ieee.std_logic_unsigned.all;
 -- For Xilinx IOBUF ; UG953
 Library UNISIM;
 use UNISIM.vcomponents.all;
+-- for XPM_CDC
+Library xpm;
+use xpm.vcomponents.all;
 
 library work;
 USE work.LedHandlerPkg.all;
@@ -150,6 +153,7 @@ ENTITY SBusFSM is
   constant AES128_CTRL_DEC_IDX    : integer := 25;
   
   CONSTANT REG_INDEX_TRNG_DATA    : integer := 0;
+  CONSTANT REG_INDEX_TRNG_TIMER   : integer := 1;
   
   CONSTANT REG_INDEX_SD_STATUS    : integer := 0;
 
@@ -283,7 +287,8 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal BUF_ERRs_I, BUF_ERRs_O : std_logic; -- buffers for ERRs from/to
   
   -- signal uart_clk : std_logic; -- 5.76 MHz clock for FIFO write & UART
-  signal aes_clk_out : std_logic; -- 100 MHz clock for AES
+  signal fast_100m_clk_out : std_logic; -- 100 MHz clock
+  signal timer_5m_clk_out : std_logic; -- 5 MHz clock for timer
   
   signal fifo_rst : STD_LOGIC := '1'; -- start in reset mode
   signal fifo_din : STD_LOGIC_VECTOR ( 7 downto 0 );
@@ -296,7 +301,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal w_TX_DONE   : std_logic;
   signal r_TX_BYTE   : std_logic_vector(7 downto 0) := (others => '0');
   
-  signal aes_wrapper_rst : std_logic := '0';
+  signal fast_clk_rst_n : std_logic := '0';
   signal fifo_toaes_din : STD_LOGIC_VECTOR ( 260 downto 0 );
   signal fifo_toaes_wr_en : STD_LOGIC;
   signal fifo_toaes_rd_en : STD_LOGIC;
@@ -316,6 +321,8 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal fifo_fromstrng_dout : STD_LOGIC_VECTOR ( 31 downto 0 );
   signal fifo_fromstrng_full : STD_LOGIC;
   signal fifo_fromstrng_empty : STD_LOGIC;
+  signal trng_timer_counter : std_logic_vector(31 downto 0); -- timer clock domain
+  signal trng_timer_counter_fast : std_logic_vector(31 downto 0); -- sbus clock domain
   
   signal fifo_fromsdcard_din : STD_LOGIC_VECTOR ( 31 downto 0 );
   signal fifo_fromsdcard_wr_en : STD_LOGIC;
@@ -340,6 +347,10 @@ ARCHITECTURE RTL OF SBusFSM IS
   -- 18-191: are remmaped from SDCARD space
   type REGISTERS_TYPE is array(0 to 128) of std_logic_vector(31 downto 0);
   SIGNAL REGISTERS : REGISTERS_TYPE;
+  constant reg_bank_size : integer := 64;
+  constant reg_bank_crypto_idx : integer := 0;
+  constant reg_bank_trng_idx : integer := 1;
+  constant reg_bank_sdcard_idx : integer := 2;
   
   pure function REG_OFFSET_IS_GCMINPUT(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
@@ -620,7 +631,8 @@ ARCHITECTURE RTL OF SBusFSM IS
 --  end component clk_wiz_0;
 
   component clk_wiz_aes is
-    port(clk_out1 : out std_logic;
+    port(clk_out1 : out std_logic; -- 100 MHz 'fast' clock
+         clk_out2 : out std_logic; -- 5 MHz timer clock
          clk_in1 : in std_logic);
   end component clk_wiz_aes;
   
@@ -746,21 +758,21 @@ BEGIN
   label_fifo_uart: fifo_generator_uart port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
                                                 din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
                                                 dout => fifo_dout, full => fifo_full, empty => fifo_empty);
-  label_fifo_toaes: fifo_generator_to_aes port map(wr_clk => SBUS_3V3_CLK, rd_clk => aes_clk_out,
+  label_fifo_toaes: fifo_generator_to_aes port map(wr_clk => SBUS_3V3_CLK, rd_clk => fast_100m_clk_out,
                                                    din => fifo_toaes_din, wr_en => fifo_toaes_wr_en, rd_en => fifo_toaes_rd_en,
                                                    dout => fifo_toaes_dout, full => fifo_toaes_full, empty => fifo_toaes_empty);
-  label_fifo_fromaes: fifo_generator_from_aes port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
+  label_fifo_fromaes: fifo_generator_from_aes port map(wr_clk => fast_100m_clk_out, rd_clk => SBUS_3V3_CLK,
                                                        din => fifo_fromaes_din, wr_en => fifo_fromaes_wr_en, rd_en => fifo_fromaes_rd_en,
                                                        dout => fifo_fromaes_dout, full => fifo_fromaes_full, empty => fifo_fromaes_empty);
-  label_fifo_fromstrng: fifo_generator_from_strng port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
+  label_fifo_fromstrng: fifo_generator_from_strng port map(wr_clk => fast_100m_clk_out, rd_clk => SBUS_3V3_CLK,
                                                            din => fifo_fromstrng_din, wr_en => fifo_fromstrng_wr_en, rd_en => fifo_fromstrng_rd_en,
                                                            dout => fifo_fromstrng_dout, full => fifo_fromstrng_full, empty => fifo_fromstrng_empty);
-  label_fifo_fromsdcard: fifo_generator_from_sdcard port map(wr_clk => aes_clk_out, rd_clk => SBUS_3V3_CLK,
+  label_fifo_fromsdcard: fifo_generator_from_sdcard port map(wr_clk => fast_100m_clk_out, rd_clk => SBUS_3V3_CLK,
                                                            din => fifo_fromsdcard_din, wr_en => fifo_fromsdcard_wr_en, rd_en => fifo_fromsdcard_rd_en,
                                                            dout => fifo_fromsdcard_dout, full => fifo_fromsdcard_full, empty => fifo_fromsdcard_empty);
   label_aes_wrapper: aes_wrapper port map(
-    aes_wrapper_rst => aes_wrapper_rst,
-    aes_wrapper_clk => aes_clk_out,
+    aes_wrapper_rst => fast_clk_rst_n,
+    aes_wrapper_clk => fast_100m_clk_out,
     input_fifo_out => fifo_toaes_dout,
     input_fifo_empty => fifo_toaes_empty,
     input_fifo_rd_en => fifo_toaes_rd_en,
@@ -770,23 +782,23 @@ BEGIN
     );
   
 --  label_strng_wrapper: strng_wrapper port map (
---    strng_wrapper_rst => aes_wrapper_rst,
---    strng_wrapper_clk => aes_clk_out,
+--    strng_wrapper_rst => fast_clk_rst_n,
+--    strng_wrapper_clk => fast_100m_clk_out,
 --    output_fifo_in => fifo_fromstrng_din,
 --    output_fifo_full => fifo_fromstrng_full,
 --    output_fifo_wr_en => fifo_fromstrng_wr_en
 --    );
   label_trivium_wrapper: trivium_wrapper port map (
-    trivium_wrapper_rst => aes_wrapper_rst,
-    trivium_wrapper_clk => aes_clk_out,
+    trivium_wrapper_rst => fast_clk_rst_n,
+    trivium_wrapper_clk => fast_100m_clk_out,
     output_fifo_in => fifo_fromstrng_din,
     output_fifo_full => fifo_fromstrng_full,
     output_fifo_wr_en => fifo_fromstrng_wr_en
     );
     
   label_xess_sdcard_wrapper: xess_sdcard_wrapper port map (
-    xess_sdcard_wrapper_rst => aes_wrapper_rst,
-    xess_sdcard_wrapper_clk => aes_clk_out,
+    xess_sdcard_wrapper_rst => fast_clk_rst_n,
+    xess_sdcard_wrapper_clk => fast_100m_clk_out,
     output_fifo_in => fifo_fromsdcard_din,
     output_fifo_full => fifo_fromsdcard_full,
     output_fifo_wr_en => fifo_fromsdcard_wr_en,
@@ -798,7 +810,7 @@ BEGIN
     );
 
   -- label_clk_wiz: clk_wiz_0 port map(clk_out1 => uart_clk, clk_in1 => fxclk_in);
-  label_aes_clk_wiz: clk_wiz_aes port map(clk_out1 => aes_clk_out, clk_in1 => fxclk_in);
+  label_aes_clk_wiz: clk_wiz_aes port map(clk_out1 => fast_100m_clk_out, clk_out2 => timer_5m_clk_out, clk_in1 => fxclk_in);
   
   label_uart : uart_tx
     generic map (
@@ -812,6 +824,17 @@ BEGIN
       o_tx_serial => TX,
       o_tx_done   => w_TX_DONE
       );
+      
+  xpm_cdc_array_single_inst : xpm_cdc_gray generic map(
+     DEST_SYNC_FF => 2,
+     INIT_SYNC_FF => 0,
+     SIM_ASSERT_CHK => 0,
+     SIM_LOSSLESS_GRAY_CHK => 1,
+     WIDTH => 32)
+     port map (dest_out_bin => trng_timer_counter_fast,
+     dest_clk => SBUS_3V3_CLK, 
+     src_clk => timer_5m_clk_out,
+     src_in_bin => trng_timer_counter);
   
   PROCESS (SBUS_3V3_CLK, SBUS_3V3_RSTs) 
     variable do_gcm : boolean := false;
@@ -1143,7 +1166,7 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"4A"; -- "J"
           DATA_T <= '0'; -- set buffer as output
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          BUF_DATA_O <= REGISTERS(64*reg_bank + conv_integer(last_pa(OFFSET_HIGH downto (OFFSET_LOW+6)))*16 + BURST_INDEX);
+          BUF_DATA_O <= REGISTERS(reg_bank_size*reg_bank + conv_integer(last_pa(OFFSET_HIGH downto (OFFSET_LOW+6)))*16 + BURST_INDEX);
           if (BURST_COUNTER = (BURST_LIMIT-1)) then
             BUF_ACKs_O <= ACK_IDLE;
             State <= SBus_Slave_Do_Read;
@@ -1153,7 +1176,7 @@ BEGIN
           end if;
           IF (reg_bank = 1) THEN -- reading from trng
             fifo_fromstrng_rd_en <= '1'; -- remove one word from FIFO
-            REGISTERS(64 + REG_INDEX_TRNG_DATA) <= fifo_fromstrng_dout;
+            REGISTERS(reg_bank_size*reg_bank_trng_idx + REG_INDEX_TRNG_DATA) <= fifo_fromstrng_dout;
           END IF;
           
         WHEN SBus_Slave_Do_Read => -- this is the (last) cycle IN which the master read
@@ -1541,7 +1564,7 @@ BEGIN
       CASE fifo_fromstrng_full IS
         WHEN '1' =>
           fifo_fromstrng_rd_en <= '1'; -- remove one word from FIFO
-          REGISTERS(64 + REG_INDEX_TRNG_DATA) <= fifo_fromstrng_dout;
+          REGISTERS(reg_bank_size*reg_bank_trng_idx + REG_INDEX_TRNG_DATA) <= fifo_fromstrng_dout;
           
         WHEN others =>
           -- do nothing
@@ -1550,11 +1573,18 @@ BEGIN
       CASE fifo_fromsdcard_empty IS
         WHEN '0' =>
           fifo_fromsdcard_rd_en <= '1'; -- remove one word from FIFO
-          REGISTERS(128 + REG_INDEX_SD_STATUS) <= fifo_fromsdcard_dout;
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= fifo_fromsdcard_dout;
           
         WHEN others =>
           -- do nothing
       END CASE; --TRNG self-emptying FIFO
+
+      -- cross-clock flip-flops from slow to fast clock for the 5 MHz timer
+      --trng_timer_counter_mid <= trng_timer_counter;
+      --trng_timer_counter_out <= trng_timer_counter_mid;
+      --REGISTERS(reg_bank_size*reg_bank_trng_idx + REG_INDEX_TRNG_TIMER) <= trng_timer_counter_out;
+      -- copy the output of the XDM_CDC_GRAY macro back in the register file
+      REGISTERS(reg_bank_size*reg_bank_trng_idx + REG_INDEX_TRNG_TIMER) <= trng_timer_counter_fast;
       
     END IF;
   END PROCESS;
@@ -1595,16 +1625,24 @@ BEGIN
   END PROCESS;
   
   -- process to enable AES block
-  process (aes_clk_out)
+  process (fast_100m_clk_out)
   BEGIN
-    IF RISING_EDGE(aes_clk_out) THEN
+    IF RISING_EDGE(fast_100m_clk_out) THEN
       if (AES_RST_COUNTER = 0) THEN
-        aes_wrapper_rst <= '1';
+        fast_clk_rst_n <= '1';
       else
         AES_RST_COUNTER <= (AES_RST_COUNTER - 1);
-        aes_wrapper_rst <= '0';
+        fast_clk_rst_n <= '0';
       end if;
     END IF;
+  END PROCESS;
+
+  -- timer
+  process (timer_5m_clk_out)
+  BEGIN
+    IF RISING_EDGE(timer_5m_clk_out) THEN
+      trng_timer_counter <= conv_std_logic_vector(conv_integer(trng_timer_counter)+1,32);
+  END IF;
   END PROCESS;
   
 END rtl;

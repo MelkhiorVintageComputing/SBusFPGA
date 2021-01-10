@@ -42,6 +42,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/conf.h>
 
 #include <sys/rndsource.h>
+#include <sys/timetc.h>
 
 #include <dev/sbus/sbusvar.h>
 
@@ -134,6 +135,12 @@ rdfpga_trng_getentropy(size_t nbytes, void *cookie) {
   rnd_add_data_sync(&sc->sc_rndsource, &data, 4, 32);
 }
 
+static u_int
+rdfpga_trng_tc_get_timecount(struct timecounter *tc) {
+  struct rdfpga_trng_softc *sc = tc->tc_priv;
+  return bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_TRNG_REG_TIMER);
+}
+
 /*
  * Attach all the sub-devices we can find
  */
@@ -143,6 +150,7 @@ rdfpga_trng_attach(device_t parent, device_t self, void *aux)
 	struct sbus_attach_args *sa = aux;
 	struct rdfpga_trng_softc *sc = device_private(self);
 	struct sbus_softc *sbsc = device_private(parent);
+	struct timecounter* tc = &sc->sc_tc;
 	int node;
 	int sbusburst;
 		
@@ -187,4 +195,14 @@ rdfpga_trng_attach(device_t parent, device_t self, void *aux)
 
 	rndsource_setcb(&sc->sc_rndsource, rdfpga_trng_getentropy, sc);
 	rnd_attach_source(&sc->sc_rndsource, device_xname(self), RND_TYPE_RNG, RND_FLAG_HASCB | RND_FLAG_COLLECT_VALUE);
+
+	tc->tc_get_timecount = rdfpga_trng_tc_get_timecount;
+	tc->tc_poll_pps = NULL;
+	tc->tc_counter_mask = 0xFFFFFFFF;
+	tc->tc_frequency = 5000000;
+	tc->tc_name = "RDOL,trng builtin 5MHz timer";
+	tc->tc_quality = 1;
+	tc->tc_priv = sc;
+
+	tc_init(tc);
 }

@@ -39,10 +39,12 @@ struct rdfpga_trng_softc {
 	//void *	sc_buffer;		/* VA of the registers */
 	int	sc_bufsiz;		/* Size of buffer */
         struct krndsource       sc_rndsource;
+        struct timecounter      sc_tc;
 };
 
 /* ctrl*/
 #define RDFPGA_TRNG_REG_BASE   0x00
 #define RDFPGA_TRNG_REG_DATA   (RDFPGA_TRNG_REG_BASE + 0x00)
+#define RDFPGA_TRNG_REG_TIMER   (RDFPGA_TRNG_REG_BASE + 0x04)
 
 #endif /* _RDFPGA_TRNG_H_ */
