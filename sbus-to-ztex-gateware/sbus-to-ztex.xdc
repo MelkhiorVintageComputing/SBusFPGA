@@ -373,39 +373,42 @@ set_property PACKAGE_PIN U8 [get_ports {LED0}]
 set_property IOSTANDARD LVTTL [get_ports {LED0}]
 
 #set_property PACKAGE_PIN V7 [get_ports {SD_D2}]
-#set_property IOSTANDARD LVTTL [get_ports {SD_D2}]
+#set_property IOSTANDARD LVCMOS33 [get_ports {SD_D2}]
 
 set_property PACKAGE_PIN U7 [get_ports {LED1}]
 set_property IOSTANDARD LVTTL [get_ports {LED1}]
 
 #set_property PACKAGE_PIN V6 [get_ports {SD_D3}]
-#set_property IOSTANDARD LVTTL [get_ports {SD_D3}]
+#set_property IOSTANDARD LVCMOS33 [get_ports {SD_D3}]
 set_property PACKAGE_PIN V6 [get_ports {SD_nCS}]
-set_property IOSTANDARD LVTTL [get_ports {SD_nCS}]
+set_property IOSTANDARD LVCMOS33 [get_ports {SD_nCS}]
+set_property PULLUP TRUE [get_ports {SD_nCS}]
 
 set_property PACKAGE_PIN U6 [get_ports {LED2}]
 set_property IOSTANDARD LVTTL [get_ports {LED2}]
 
+#mixup in the KiCad schematic between SD_D0 and SD_CMD ?
 #set_property PACKAGE_PIN V5 [get_ports {SD_D0}]
-#set_property IOSTANDARD LVTTL [get_ports {SD_D0}]
-set_property PACKAGE_PIN V5 [get_ports {SD_DI}]
-set_property IOSTANDARD LVTTL [get_ports {SD_DI}]
+#set_property IOSTANDARD LVCMOS33 [get_ports {SD_D0}]
+set_property PACKAGE_PIN V5 [get_ports {SD_DO}]
+set_property IOSTANDARD LVCMOS33 [get_ports {SD_DO}]
+set_property PULLUP TRUE [get_ports {SD_DO}]
 
 set_property PACKAGE_PIN T8 [get_ports {LED3}]
 set_property IOSTANDARD LVTTL [get_ports {LED3}]
 
 #set_property PACKAGE_PIN V4 [get_ports {SD_D1}]
-#set_property IOSTANDARD LVTTL [get_ports {SD_D1}]
+#set_property IOSTANDARD LVCMOS33 [get_ports {SD_D1}]
 
 #set_property PACKAGE_PIN R8 [get_ports {SD_CLK}]
-#set_property IOSTANDARD LVTTL [get_ports {SD_CLK}]
+#set_property IOSTANDARD LVCMOS33 [get_ports {SD_CLK}]
 set_property PACKAGE_PIN R8 [get_ports {SD_CLK}]
-set_property IOSTANDARD LVTTL [get_ports {SD_CLK}]
+set_property IOSTANDARD LVCMOS33 [get_ports {SD_CLK}]
 
 #set_property PACKAGE_PIN T5 [get_ports {SD_CMD}]
-#set_property IOSTANDARD LVTTL [get_ports {SD_CMD}]
-set_property PACKAGE_PIN T5 [get_ports {SD_DO}]
-set_property IOSTANDARD LVTTL [get_ports {SD_DO}]
+#set_property IOSTANDARD LVCMOS33 [get_ports {SD_CMD}]
+set_property PACKAGE_PIN T5 [get_ports {SD_DI}]
+set_property IOSTANDARD LVCMOS33 [get_ports {SD_DI}]
 
 set_property PACKAGE_PIN R7 [get_ports {SBUS_3V3_SIZ[0]}]
 set_property IOSTANDARD LVTTL [get_ports {SBUS_3V3_SIZ[0]}]

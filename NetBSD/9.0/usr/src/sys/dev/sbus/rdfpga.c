@@ -268,6 +268,7 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  void* kvap;
 	  if (bus_dmamem_map(sc->sc_dmatag, &segs, 1, RDFPGA_VAL_DMA_MAX_SZ, &kvap, BUS_DMA_NOWAIT)) {
 	    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
+	    bus_dmamem_free(sc->sc_dmatag, &segs, 1);
 	    return ENXIO;
 	  }
 	  /* else { */
@@ -277,6 +278,8 @@ rdfpga_write(dev_t dev, struct uio *uio, int flags)
 	  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, RDFPGA_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
 	  		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
 	    aprint_error_dev(sc->sc_dev, "cannot load dma map");
+	    bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_VAL_DMA_MAX_SZ);
+	    bus_dmamem_free(sc->sc_dmatag, &segs, 1);
 	    return ENXIO;
 	  }
 	  /* else { */

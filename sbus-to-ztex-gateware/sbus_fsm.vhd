@@ -56,8 +56,8 @@ ENTITY SBusFSM is
     TX : OUT std_logic := 'Z';
     -- SD (SPI)
     SD_nCS : OUT std_logic;
-    SD_DI : IN std_logic;
-    SD_DO : OUT std_logic;
+    SD_DI : OUT std_logic;
+    SD_DO : IN std_logic;
     SD_CLK : OUT std_logic
     );
   -- SIZ[2..0] is positive true
@@ -100,6 +100,7 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_AESDMA_CTRL  : integer := 5;
   CONSTANT REG_INDEX_AESDMAW_ADDR : integer := 6;
   CONSTANT REG_INDEX_AESDMAW_CTRL : integer := 7;
+  
   -- starts at 64 so we can do 64 bytes burst (see address wrapping)
   CONSTANT REG_INDEX_GCM_H1     : integer := 16;
   CONSTANT REG_INDEX_GCM_H2     : integer := 17;
@@ -156,6 +157,22 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_TRNG_TIMER   : integer := 1;
   
   CONSTANT REG_INDEX_SD_STATUS    : integer := 0;
+  CONSTANT REG_INDEX_SD_STATUS_OLD: integer := 1;
+  CONSTANT REG_INDEX_SD_ADDR      : integer := 2;
+  CONSTANT REG_INDEX_SD_CTRL      : integer := 3;
+  CONSTANT REG_INDEX_SDDMAW_ADDR  : integer := 4;
+  CONSTANT REG_INDEX_SDDMAW_CTRL  : integer := 5;
+  CONSTANT REG_INDEX_SD_STATUS_OLD2: integer := 6;
+  CONSTANT REG_INDEX_SD_STATUS_OLD3: integer := 7;
+  CONSTANT REG_INDEX_SDDMAW_DATA1 : integer := 16;
+  CONSTANT REG_INDEX_SDDMAW_DATA2 : integer := 17;
+  CONSTANT REG_INDEX_SDDMAW_DATA3 : integer := 18;
+  CONSTANT REG_INDEX_SDDMAW_DATA4 : integer := 19;
+  
+  CONSTANT SD_CTRL_START_IDX      : integer := 31;
+  CONSTANT SD_CTRL_READ_IDX       : integer := 30;
+  CONSTANT SD_CTRL_RESET_IDX      : integer := 29;
+  CONSTANT SD_CTRL_SENT_IDX       : integer := 0;
 
   -- OFFSET to REGS; (15 downto 0) so 16 bits
   CONSTANT OFFSET_LENGTH : integer := 16;
@@ -302,6 +319,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal r_TX_BYTE   : std_logic_vector(7 downto 0) := (others => '0');
   
   signal fast_clk_rst_n : std_logic := '0';
+  signal fast_100m_rst_fromsbus_n : std_logic;
   signal fifo_toaes_din : STD_LOGIC_VECTOR ( 260 downto 0 );
   signal fifo_toaes_wr_en : STD_LOGIC;
   signal fifo_toaes_rd_en : STD_LOGIC;
@@ -324,13 +342,19 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal trng_timer_counter : std_logic_vector(31 downto 0); -- timer clock domain
   signal trng_timer_counter_fast : std_logic_vector(31 downto 0); -- sbus clock domain
   
-  signal fifo_fromsdcard_din : STD_LOGIC_VECTOR ( 31 downto 0 );
+  signal fifo_fromsdcard_din : STD_LOGIC_VECTOR ( 160 downto 0 );
   signal fifo_fromsdcard_wr_en : STD_LOGIC;
   signal fifo_fromsdcard_rd_en : STD_LOGIC;
-  signal fifo_fromsdcard_dout : STD_LOGIC_VECTOR ( 31 downto 0 );
+  signal fifo_fromsdcard_dout : STD_LOGIC_VECTOR ( 160 downto 0 );
   signal fifo_fromsdcard_full : STD_LOGIC;
   signal fifo_fromsdcard_empty : STD_LOGIC;
   
+  signal out_sd_rd_addr_fast : std_logic_vector(32 downto 0); -- rd and address signal combined
+  signal out_sd_rd_addr : std_logic_vector(32 downto 0); -- rd and address signal combined
+  signal out_sd_rd_addr_send : STD_LOGIC;
+  signal out_sd_rd_addr_rcv : STD_LOGIC;
+  signal out_sd_rd_addr_req : STD_LOGIC;
+  signal out_sd_rd_addr_ack : STD_LOGIC;
 
 --  SIGNAL LIFE_COUNTER25 : natural range 0 to 25000000 := 300;
   SIGNAL RES_COUNTER : natural range 0 to 4 := 4;
@@ -338,14 +362,14 @@ ARCHITECTURE RTL OF SBusFSM IS
   -- this means a need to probe-sbus from the PROM to find the board (or warm reset)
   SIGNAL OE_COUNTER : natural range 0 to 960000000 := 960000000;
   
-  SIGNAL AES_RST_COUNTER : natural range 0 to 31 := 31;
+  SIGNAL AES_RST_COUNTER : natural range 0 to 31 := 5;
   SIGNAL AES_TIMEOUT_COUNTER : natural range 0 to 63 := 63;
 
   -- bank of registers (256 bytes) for cryptoengine (and led)
   -- 0-64: 16 for controls (8 used) 16 registers for GCM (12 used), 16 unused, 16 for AES
   -- 64-127: are remmaped from TRNG space
   -- 18-191: are remmaped from SDCARD space
-  type REGISTERS_TYPE is array(0 to 128) of std_logic_vector(31 downto 0);
+  type REGISTERS_TYPE is array(0 to 191) of std_logic_vector(31 downto 0);
   SIGNAL REGISTERS : REGISTERS_TYPE;
   constant reg_bank_size : integer := 64;
   constant reg_bank_crypto_idx : integer := 0;
@@ -453,7 +477,12 @@ ARCHITECTURE RTL OF SBusFSM IS
 
   pure function REG_OFFSET_IS_ANYSDREAD(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
   begin
-    return true;
+    return true; -- fixme
+  end function;
+
+  pure function REG_OFFSET_IS_ANYSDWRITE(value : in std_logic_vector(OFFSET_HIGH downto OFFSET_LOW)) return boolean is
+  begin
+    return true; --fixme
   end function;
   
   pure function SIZ_IS_WORD(value : in std_logic_vector(2 downto 0)) return boolean is
@@ -602,10 +631,10 @@ ARCHITECTURE RTL OF SBusFSM IS
     Port (
       wr_clk : in STD_LOGIC;
       rd_clk : in STD_LOGIC;
-      din : in STD_LOGIC_VECTOR ( 31 downto 0 );
+      din : in STD_LOGIC_VECTOR ( 160 downto 0 );
       wr_en : in STD_LOGIC;
       rd_en : in STD_LOGIC;
-      dout : out STD_LOGIC_VECTOR ( 31 downto 0 );
+      dout : out STD_LOGIC_VECTOR ( 160 downto 0 );
       full : out STD_LOGIC;
       empty : out STD_LOGIC
       );
@@ -675,9 +704,13 @@ ARCHITECTURE RTL OF SBusFSM IS
   port (
     xess_sdcard_wrapper_rst : in std_logic;
     xess_sdcard_wrapper_clk : in std_logic;
-    output_fifo_in : out std_logic_vector(31 downto 0);
+    output_fifo_in : out std_logic_vector(160 downto 0);
     output_fifo_full : in std_logic;
     output_fifo_wr_en : out std_logic;
+    out_sd_rd : in std_logic;
+    out_sd_addr : in std_logic_vector(31 downto 0);
+    out_sd_rd_addr_req : in std_logic;
+    out_sd_rd_addr_ack : out std_logic;
     -- pins
     cs_bo : out std_logic;
     sclk_o : out std_logic;
@@ -748,12 +781,12 @@ BEGIN
     PORT MAP(O => BUF_ERRs_I, IO => SBUS_3V3_ERRs, I => BUF_ERRs_O, T => SMs_T);
 
   --label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => LED_DATA, l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3 );
-  label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => REGISTERS(REG_INDEX_LED), l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
+  label_led_handler: LedHandler PORT MAP( l_ifclk => SBUS_3V3_CLK, l_LED_RESET => LED_RESET, l_LED_DATA => REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED), l_LED0 => LED0, l_LED1 => LED1, l_LED2 => LED2, l_LED3 => LED3,
                                           l_LED4 => LED4, l_LED5 => LED5, l_LED6 => LED6, l_LED7 => LED7);
   
   label_prom: Prom PORT MAP (addr => p_addr, data => p_data);
 
-  label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
+  --label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
   
   label_fifo_uart: fifo_generator_uart port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
                                                 din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
@@ -802,11 +835,15 @@ BEGIN
     output_fifo_in => fifo_fromsdcard_din,
     output_fifo_full => fifo_fromsdcard_full,
     output_fifo_wr_en => fifo_fromsdcard_wr_en,
+    out_sd_rd => out_sd_rd_addr_fast(32),
+    out_sd_addr => out_sd_rd_addr_fast(31 downto 0),
+    out_sd_rd_addr_req => out_sd_rd_addr_req,
+    out_sd_rd_addr_ack => out_sd_rd_addr_ack,
     -- pins
     cs_bo => SD_nCS,
     sclk_o => SD_CLK,
-    mosi_o => SD_DO,
-    miso_i => SD_DI
+    mosi_o => SD_DI,
+    miso_i => SD_DO
     );
 
   -- label_clk_wiz: clk_wiz_0 port map(clk_out1 => uart_clk, clk_in1 => fxclk_in);
@@ -825,7 +862,15 @@ BEGIN
       o_tx_done   => w_TX_DONE
       );
       
-  xpm_cdc_array_single_inst : xpm_cdc_gray generic map(
+  xpm_cdc_single_reset_n :xpm_cdc_single generic map(
+       DEST_SYNC_FF=>2)
+     port map (
+       src_clk => SBUS_3V3_CLK,
+       src_in => SBUS_3V3_RSTs,
+       dest_clk => fast_100m_clk_out,
+       dest_out => fast_100m_rst_fromsbus_n);
+      
+  xpm_cdc_gray_timer : xpm_cdc_gray generic map(
      DEST_SYNC_FF => 2,
      INIT_SYNC_FF => 0,
      SIM_ASSERT_CHK => 0,
@@ -835,6 +880,23 @@ BEGIN
      dest_clk => SBUS_3V3_CLK, 
      src_clk => timer_5m_clk_out,
      src_in_bin => trng_timer_counter);
+     
+  xpm_cdc_handshake_sd_rd_addr : xpm_cdc_handshake generic map(
+     DEST_EXT_HSK => 1,
+     DEST_SYNC_FF => 2,
+     SIM_ASSERT_CHK => 0,
+     SRC_SYNC_FF => 2,
+     WIDTH => 33)
+     port map (
+     src_clk => SBUS_3V3_CLK,
+     src_in => out_sd_rd_addr,
+     src_send => out_sd_rd_addr_send,
+     src_rcv => out_sd_rd_addr_rcv,
+     dest_clk => fast_100m_clk_out,
+     dest_req => out_sd_rd_addr_req,
+     dest_ack => out_sd_rd_addr_ack,
+     dest_out => out_sd_rd_addr_fast
+     );
   
   PROCESS (SBUS_3V3_CLK, SBUS_3V3_RSTs) 
     variable do_gcm : boolean := false;
@@ -845,9 +907,9 @@ BEGIN
     variable BURST_INDEX : integer range 0 to 15;
     variable seen_ack : boolean := false;
     variable dma_write : boolean := false;
-    variable dma_ctrl_idx : integer range 0 to 7;
-    variable dma_addr_idx : integer range 0 to 7;
-    variable dma_basereg_idx : integer range 0 to 255;
+    variable dma_ctrl_idx : integer range 0 to 191;
+    variable dma_addr_idx : integer range 0 to 191;
+    variable dma_basereg_idx : integer range 0 to 191;
     variable reg_bank : integer range 0 to 2 := 0;
   BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
@@ -860,6 +922,7 @@ BEGIN
       fifo_toaes_wr_en <= '0';
       fifo_fromaes_rd_en <= '0';
       fifo_fromstrng_rd_en <= '0';
+      fifo_fromsdcard_rd_en <= '0';
 --      LIFE_COUNTER25 <= LIFE_COUNTER25 - 1;
       
       CASE State IS
@@ -893,7 +956,7 @@ BEGIN
               -- 32 bits read from aligned memory IN REG space ------------------------------------
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
-              reg_bank := 0;
+              reg_bank := reg_bank_crypto_idx;
               State <= SBus_Slave_Ack_Read_Reg_Burst;
             ELSIF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REGTRNG_ADDR_PFX) AND REG_OFFSET_IS_ANYTRNGREAD(last_pa(OFFSET_HIGH downto OFFSET_LOW))
              -- and (fifo_fromstrng_empty = '0')
@@ -902,7 +965,7 @@ BEGIN
               -- if FIFO is empty, will fallback to returning an error...
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
-              reg_bank := 1;
+              reg_bank := reg_bank_trng_idx;
               State <= SBus_Slave_Ack_Read_Reg_Burst;
             ELSIF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REGSD_ADDR_PFX) AND REG_OFFSET_IS_ANYSDREAD(last_pa(OFFSET_HIGH downto OFFSET_LOW))
              -- and (fifo_fromstrng_empty = '0')
@@ -911,7 +974,7 @@ BEGIN
               -- if FIFO is empty, will fallback to returning an error...
               BUF_ACKs_O <= ACK_WORD;
               BUF_ERRs_O <= '1'; -- no late error
-              reg_bank := 2;
+              reg_bank := reg_bank_sdcard_idx;
               State <= SBus_Slave_Ack_Read_Reg_Burst;
             ELSE
               BUF_ACKs_O <= ACK_ERR;
@@ -962,10 +1025,17 @@ BEGIN
             BURST_LIMIT := SIZ_TO_BURSTSIZE(BUF_SIZ_I);
             IF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REG_ADDR_PFX) and REG_OFFSET_IS_ANYWRITE(last_pa(OFFSET_HIGH downto OFFSET_LOW))) then
               -- 32 bits write to register  ------------------------------------
+              reg_bank := reg_bank_crypto_idx;
               BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
               BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Ack_Reg_Write_Burst;
-            ELSE
+            ELSIF ((last_pa(ADDR_PFX_HIGH downto ADDR_PFX_LOW) = REGSD_ADDR_PFX) and REG_OFFSET_IS_ANYSDWRITE(last_pa(OFFSET_HIGH downto OFFSET_LOW))) then
+              -- 32 bits write to register  ------------------------------------
+              reg_bank := reg_bank_sdcard_idx;
+              BUF_ACKs_O <=  ACK_WORD; -- acknowledge the Word
+              BUF_ERRs_O <= '1'; -- no late error
+              State <= SBus_Slave_Ack_Reg_Write_Burst;
+           ELSE
               BUF_ACKs_O <= ACK_ERR; -- unsupported address, signal error
               BUF_ERRs_O <= '1'; -- no late error
               State <= SBus_Slave_Error; 
@@ -981,13 +1051,13 @@ BEGIN
               --DATA_T <= '1'; -- set buffer as input
               CASE last_pa(1 downto 0) IS
                 WHEN "00" =>
-                  REGISTERS(REG_INDEX_LED)(31 downto 24) <= BUF_DATA_I(31 downto 24);
+                  REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED)(31 downto 24) <= BUF_DATA_I(31 downto 24);
                 WHEN "01" =>
-                  REGISTERS(REG_INDEX_LED)(23 downto 16) <= BUF_DATA_I(31 downto 24);
+                  REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED)(23 downto 16) <= BUF_DATA_I(31 downto 24);
                 WHEN "10" =>
-                  REGISTERS(REG_INDEX_LED)(15 downto 8) <= BUF_DATA_I(31 downto 24);
+                  REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED)(15 downto 8) <= BUF_DATA_I(31 downto 24);
                 WHEN "11" =>
-                  REGISTERS(REG_INDEX_LED)(7 downto 0) <= BUF_DATA_I(31 downto 24);
+                  REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED)(7 downto 0) <= BUF_DATA_I(31 downto 24);
                 WHEN OTHERS =>
               -- TODO: FIXME, probably should generate an error
               END CASE;
@@ -1001,24 +1071,31 @@ BEGIN
             END IF;
 -- _MASTER_
           ELSIF (SBUS_3V3_BGs='1' AND
-                 ((REGISTERS(REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_START_IDX)='1' AND
-                   REGISTERS(REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
-                   REGISTERS(REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
-                  (REGISTERS(REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX)='1' AND
-                   REGISTERS(REG_INDEX_AESDMA_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
-                   REGISTERS(REG_INDEX_AESDMA_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
-                  (REGISTERS(REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_START_IDX)='1' AND
-                   REGISTERS(REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
-                   REGISTERS(REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_ERR_IDX)='0')
+                 ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_START_IDX)='1' AND
+                   REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
+                   REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
+                  (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX)='1' AND
+                   REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
+                   REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
+                  (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_START_IDX)='1' AND
+                   REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
+                   REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
+                  (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_START_IDX)='1' AND
+                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
+                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_ERR_IDX)='0')
                   )) then
 -- we have a DMA request pending and not been granted the bus
-            IF ((REGISTERS(REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_START_IDX) = '1') OR
-                ((REGISTERS(REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
-                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0) AND
+            IF ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_START_IDX) = '1') OR
+                ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                 (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL) = 0) AND
                  (fifo_toaes_full = '0')) OR
-                ((REGISTERS(REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
-                 (REGISTERS(REG_INDEX_AES128_CTRL) = 0) AND
-                 (fifo_fromaes_empty = '0'))
+                ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                 (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL) = 0) AND
+                 (fifo_fromaes_empty = '0')) OR
+                ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                 (fifo_fromsdcard_empty = '0') AND
+                 (fifo_fromsdcard_dout(160) = '0')
+                 )
                 ) THEN
               fifo_wr_en <= '1'; fifo_din <= x"61"; -- "a"
               -- GCM is always available (1 cycle)
@@ -1027,6 +1104,7 @@ BEGIN
               -- there could be a race condition for AES if someone write the register before we get the bus...
               SBUS_3V3_BRs <= '0'; -- request the bus
             ELSE
+              -- this could mask a slave error by trapping in this branch ?
               fifo_wr_en <= '1'; fifo_din <= x"7a"; -- "z"
             END IF;
           ELSIF (SBUS_3V3_BGs='0') THEN
@@ -1036,42 +1114,57 @@ BEGIN
             DATA_T <= '0'; -- set data buffer as output
             SM_T <= '0'; -- PPRD, SIZ becomes output (master mode)
             SMs_T <= '1';
-            IF ((REGISTERS(REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+            IF ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
                 (fifo_fromaes_empty = '0')) THEN
               dma_write := true;
               dma_ctrl_idx := REG_INDEX_AESDMAW_CTRL;
               dma_addr_idx := REG_INDEX_AESDMAW_ADDR;
               dma_basereg_idx := REG_INDEX_AES128_OUT1;
-              BUF_DATA_O <= REGISTERS(REG_INDEX_AESDMAW_ADDR); -- virt address
+              BUF_DATA_O <= REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_ADDR); -- virt address
               BUF_PPRD_O <= '0'; -- writing to slave
-              REGISTERS(REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
-              REGISTERS(REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
-              REGISTERS(REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
-              REGISTERS(REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
               fifo_fromaes_rd_en <= '1';
               State <= SBus_Master_Translation;
-            ELSIF ((REGISTERS(REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+            ELSIF ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                   (fifo_fromsdcard_empty = '0') AND
+                   (fifo_fromsdcard_dout(160) = '0')) THEN
+              dma_write := true;
+              dma_ctrl_idx := reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL;
+              dma_addr_idx := reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_ADDR;
+              dma_basereg_idx := reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA1;
+              BUF_DATA_O <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_ADDR); -- virt address
+              BUF_PPRD_O <= '0'; -- writing to slave
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA1) <= fifo_fromsdcard_dout(127 downto 96);
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA2) <= fifo_fromsdcard_dout( 95 downto 64);
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA3) <= fifo_fromsdcard_dout( 63 downto 32);
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA4) <= fifo_fromsdcard_dout( 31 downto 0);
+              fifo_fromsdcard_rd_en <= '1';
+              State <= SBus_Master_Translation;
+            ELSIF ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
                    (fifo_fromaes_full = '0')) THEN
               dma_write := false;
               dma_ctrl_idx := REG_INDEX_AESDMA_CTRL;
               dma_addr_idx := REG_INDEX_AESDMA_ADDR;
               dma_basereg_idx := REG_INDEX_AES128_DATA1;
-              BUF_DATA_O <= REGISTERS(REG_INDEX_AESDMA_ADDR); -- virt address
+              BUF_DATA_O <= REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_ADDR); -- virt address
               BUF_PPRD_O <= '1'; -- reading from slave
               State <= SBus_Master_Translation;
-            ELSIF (REGISTERS(REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_START_IDX) = '1') THEN
+            ELSIF (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_START_IDX) = '1') THEN
               dma_write := false;
               dma_ctrl_idx := REG_INDEX_GCMDMA_CTRL;
               dma_addr_idx := REG_INDEX_GCMDMA_ADDR;
               dma_basereg_idx := REG_INDEX_GCM_INPUT1;
-              BUF_DATA_O <= REGISTERS(REG_INDEX_GCMDMA_ADDR); -- virt address
+              BUF_DATA_O <= REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_ADDR); -- virt address
               BUF_PPRD_O <= '1'; -- reading from slave
               State <= SBus_Master_Translation;
             ELSE
               State <= SBus_Idle;
               -- should not happen ?
             END IF;
---              IF (conv_integer(REGISTERS(REG_INDEX_DMA_CTRL)(11 downto 0)) >= 3) THEN
+--              IF (conv_integer(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_DMA_CTRL)(11 downto 0)) >= 3) THEN
 --                BUF_SIZ_O <= SIZ_BURST16;
 --                BURST_LIMIT := 16;
 --              ELS
@@ -1085,7 +1178,7 @@ BEGIN
               BUF_SIZ_O <= SIZ_BURST4;
               BURST_LIMIT := 4;
             END IF;
-            -- REGISTERS(REG_INDEX_LED) <= REGISTERS(REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
+            -- REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_LED) <= REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_DMA_ADDR); -- show the virt on the LEDs
             BURST_COUNTER := 0;
 -- ERROR ERROR ERROR 
           ELSIF SBUS_3V3_SELs='0' AND SBUS_3V3_ASs='0' AND BUF_SIZ_I /= SIZ_WORD THEN
@@ -1112,10 +1205,10 @@ BEGIN
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
           IF (finish_gcm) THEN
             finish_gcm := false;
-            REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
-            REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
-            REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
-            REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
           END IF;
           IF ((seen_ack) OR (SBUS_3V3_ASs='1')) THEN
             seen_ack := false;
@@ -1125,18 +1218,18 @@ BEGIN
         WHEN SBus_Slave_Ack_Reg_Write_Burst =>
           fifo_wr_en <= '1'; fifo_din <= x"48"; -- "H"
           BURST_INDEX := conv_integer(INDEX_WITH_WRAP(BURST_COUNTER, BURST_LIMIT, last_pa(5 downto 2)));
-          REGISTERS(conv_integer(last_pa(OFFSET_HIGH downto (OFFSET_LOW+6)))*16 + BURST_INDEX) <= BUF_DATA_I;
+          REGISTERS(reg_bank_size*reg_bank + conv_integer(last_pa(OFFSET_HIGH downto (OFFSET_LOW+6)))*16 + BURST_INDEX) <= BUF_DATA_I;
           IF (last_pa(OFFSET_HIGH downto OFFSET_LOW) = REG_OFFSET_LED) THEN
             LED_RESET <= '1'; -- reset led cycle
           ELSIF (last_pa(OFFSET_HIGH downto OFFSET_LOW) = REG_OFFSET_GCM_INPUT4) THEN
-            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
-            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
-            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
-            mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                      xor REGISTERS(REG_INDEX_GCM_C4));
-            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
-            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
-            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
-            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
+            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT1) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1));
+            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT2) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2));
+            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT3) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3));
+            mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                                                          xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4));
+            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H1));
+            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H2));
+            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H3));
+            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H4));
             finish_gcm := true;
           END IF;
           if (BURST_COUNTER = (BURST_LIMIT-1)) THEN
@@ -1213,7 +1306,7 @@ BEGIN
             State <= SBus_Slave_Do_Read;
           ELSE
             BUF_ACKs_O <= ACK_IDLE;
-            State <= SBus_Slave_Delay_Error; 
+            State <= SBus_Slave_Delay_Error;
           END IF;
           
 --        WHEN SBus_Slave_Ack_Read_Prom_HWord =>
@@ -1325,26 +1418,26 @@ BEGIN
             BURST_COUNTER := BURST_COUNTER + 1;
             IF (finish_gcm) THEN
               finish_gcm := false;
-              REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
-              REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
-              REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
-              REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
             ELSIF (BURST_COUNTER mod 4 = 0) THEN
-              mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT1) xor REGISTERS(REG_INDEX_GCM_C1));
-              mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT2) xor REGISTERS(REG_INDEX_GCM_C2));
-              mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_INPUT3) xor REGISTERS(REG_INDEX_GCM_C3));
-              mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                      xor REGISTERS(REG_INDEX_GCM_C4)); -- INPUT4 will only be valid next cycle
-              mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H1));
-              mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H2));
-              mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H3));
-              mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(REG_INDEX_GCM_H4));
+              mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT1) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1));
+              mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT2) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2));
+              mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT3) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3));
+              mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                                                          xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4)); -- INPUT4 will only be valid next cycle
+              mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H1));
+              mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H2));
+              mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H3));
+              mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H4));
               finish_gcm := true;
             END IF;
           ELSIF (dma_ctrl_idx = REG_INDEX_AESDMA_CTRL) THEN
             REGISTERS(dma_basereg_idx + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
             BURST_COUNTER := BURST_COUNTER + 1;
             IF (BURST_COUNTER mod 4 = 0) THEN
---              REGISTERS(REG_INDEX_AES128_CTRL) <= x"88000000"; -- request to start a CBC block
+--              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL) <= x"88000000"; -- request to start a CBC block
               -- enqueue the block in the AES FIFO
               IF (REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) = '0') THEN
                 fifo_toaes_din <=
@@ -1354,8 +1447,8 @@ BEGIN
                   '0' & -- cbc
                   (NOT REGISTERS(dma_ctrl_idx)(DMA_CTRL_DEC_IDX)) & -- internal cbc; HACKISH - enable for encrypt
                   x"00000000000000000000000000000000" &
-                  REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
-                  REGISTERS(REG_INDEX_AES128_DATA3) & BUF_DATA_I;
+                  REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA1) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA2) &
+                  REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA3) & BUF_DATA_I;
                 fifo_toaes_wr_en <= '1';
               ELSE
                 fifo_toaes_din <=
@@ -1365,10 +1458,10 @@ BEGIN
                   '0' & -- cbc
                   '0' & -- internal cbc
                   x"00000000000000000000000000000000" &
-                  (REGISTERS(REG_INDEX_AES128_DATA1) XOR REGISTERS(REG_INDEX_AES128_OUT1)) & 
-                  (REGISTERS(REG_INDEX_AES128_DATA2) XOR REGISTERS(REG_INDEX_AES128_OUT2)) &
-                  (REGISTERS(REG_INDEX_AES128_DATA3) XOR REGISTERS(REG_INDEX_AES128_OUT3)) & 
-                  (BUF_DATA_I                        XOR REGISTERS(REG_INDEX_AES128_OUT4));
+                  (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA1) XOR REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT1)) & 
+                  (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA2) XOR REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT2)) &
+                  (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA3) XOR REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT3)) & 
+                  (BUF_DATA_I                                                            XOR REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT4));
                 fifo_toaes_wr_en <= '1';
                 REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) <= '0';
               END IF;
@@ -1404,10 +1497,10 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"66"; -- "f"
           IF (finish_gcm) THEN
             finish_gcm := false;
-            REGISTERS(REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
-            REGISTERS(REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
-            REGISTERS(REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
-            REGISTERS(REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
           END IF;
           IF (REGISTERS(dma_ctrl_idx)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
             -- finished, stop the DMA engine
@@ -1455,15 +1548,13 @@ BEGIN
         when SBus_Master_Write_Final =>
           -- missing the handling of late error
           fifo_wr_en <= '1'; fifo_din <= x"68"; -- "h"
-          IF (dma_ctrl_idx = REG_INDEX_AESDMAW_CTRL) THEN -- should always be true ATM
-            IF (REGISTERS(dma_ctrl_idx)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
-              -- finished, stop the DMA engine
-              REGISTERS(dma_ctrl_idx) <= (others => '0');
-            ELSE
-              -- move to next block
-              REGISTERS(dma_ctrl_idx)(11 downto 0) <= REGISTERS(dma_ctrl_idx)(11 downto 0) - (BURST_LIMIT/4);
-              REGISTERS(dma_addr_idx) <= REGISTERS(dma_addr_idx) + (BURST_LIMIT*4);
-            END IF;
+          IF (REGISTERS(dma_ctrl_idx)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
+            -- finished, stop the DMA engine
+            REGISTERS(dma_ctrl_idx) <= (others => '0');
+          ELSE
+            -- move to next block
+            REGISTERS(dma_ctrl_idx)(11 downto 0) <= REGISTERS(dma_ctrl_idx)(11 downto 0) - (BURST_LIMIT/4);
+            REGISTERS(dma_addr_idx) <= REGISTERS(dma_addr_idx) + (BURST_LIMIT*4);
           END IF;
           SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                            SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
@@ -1475,9 +1566,10 @@ BEGIN
             SBus_Set_Default(SBUS_3V3_INT1s, SBUS_3V3_INT7s,
                              SBUS_DATA_OE_LED, SBUS_DATA_OE_LED_2,
                              p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
-            REGISTERS(REG_INDEX_GCMDMA_CTRL) <= (others => '0');
-            REGISTERS(REG_INDEX_AESDMA_CTRL) <= (others => '0');
-            REGISTERS(REG_INDEX_AESDMAW_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= (others => '0');
             IF (RES_COUNTER = 0) THEN
               -- fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
               State <= SBus_Idle;
@@ -1494,36 +1586,36 @@ BEGIN
       
       CASE AES_State IS
         WHEN AES_IDLE =>
-          IF ((REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_START_IDX) = '1') AND
+          IF ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_START_IDX) = '1') AND
               (fifo_toaes_full = '0')
               ) THEN
             fifo_wr_en <= '1'; fifo_din <= x"30"; -- "0"
-            REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_BUSY_IDX) <= '1';
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_BUSY_IDX) <= '1';
             -- start & !busy & !aesbusy -> start processing
-            if (REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_NEWKEY_IDX) = '1') THEN --newkey 
+            if (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_NEWKEY_IDX) = '1') THEN --newkey 
               fifo_toaes_din <=
                 '1' & -- iskey
-                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
-                (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
-                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
+                (NOT REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
                 '0' & -- internal cbc
-                REGISTERS(REG_INDEX_AES128_KEY1) & REGISTERS(REG_INDEX_AES128_KEY2) &
-                REGISTERS(REG_INDEX_AES128_KEY3) & REGISTERS(REG_INDEX_AES128_KEY4) &
-                REGISTERS(REG_INDEX_AES128_KEY5) & REGISTERS(REG_INDEX_AES128_KEY6) &
-                REGISTERS(REG_INDEX_AES128_KEY7) & REGISTERS(REG_INDEX_AES128_KEY8);
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY1) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY2) &
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY3) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY4) &
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY5) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY6) &
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY7) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_KEY8);
               fifo_toaes_wr_en <= '1';
               AES_State <= AES_INIT1;
             ELSE
               fifo_toaes_din <=
                 '0' & -- !iskey
-                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
-                (NOT REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
-                REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_AES256_IDX) & -- keylen
+                (NOT REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_DEC_IDX)) & -- encdec
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_CBCMOD_IDX) & -- cbc
                 '0' & -- internal cbc
-                REGISTERS(REG_INDEX_AES128_OUT1) & REGISTERS(REG_INDEX_AES128_OUT2) &
-                REGISTERS(REG_INDEX_AES128_OUT3) & REGISTERS(REG_INDEX_AES128_OUT4) &
-                REGISTERS(REG_INDEX_AES128_DATA1) & REGISTERS(REG_INDEX_AES128_DATA2) &
-                REGISTERS(REG_INDEX_AES128_DATA3) & REGISTERS(REG_INDEX_AES128_DATA4);
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT1) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT2) &
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT3) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT4) &
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA1) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA2) &
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA3) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA4);
               fifo_toaes_wr_en <= '1';
               AES_State <= AES_CRYPT1;
             END IF;
@@ -1532,7 +1624,7 @@ BEGIN
         when AES_INIT1 =>
           fifo_wr_en <= '1'; fifo_din <= x"31"; -- "1"
           fifo_toaes_wr_en <= '0';
-          REGISTERS(REG_INDEX_AES128_CTRL)(AES128_CTRL_NEWKEY_IDX) <= '0';
+          REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_NEWKEY_IDX) <= '0';
           AES_State <= AES_IDLE;
           
         when AES_CRYPT1 =>
@@ -1547,16 +1639,16 @@ BEGIN
             fifo_wr_en <= '1'; fifo_din <= x"35"; -- "5"
             fifo_fromaes_rd_en <= '1';
             -- start & busy & !aesbusy -> done processing
-            REGISTERS(REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
-            REGISTERS(REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
-            REGISTERS(REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
-            REGISTERS(REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
-            REGISTERS(REG_INDEX_AES128_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT1) <= fifo_fromaes_dout(127 downto 96);
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT2) <= fifo_fromaes_dout( 95 downto 64);
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT3) <= fifo_fromaes_dout( 63 downto 32);
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_OUT4) <= fifo_fromaes_dout( 31 downto 0);
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL) <= (others => '0');
             AES_State <= AES_IDLE;
           ELSIF (AES_TIMEOUT_COUNTER = 0) THEN
             fifo_wr_en <= '1'; fifo_din <= x"36"; -- "6"
             -- oups
-            REGISTERS(REG_INDEX_AES128_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL) <= (others => '0');
             AES_State <= AES_IDLE;
           END IF;
       END CASE; -- AES state machine
@@ -1572,9 +1664,25 @@ BEGIN
       
       CASE fifo_fromsdcard_empty IS
         WHEN '0' =>
-          fifo_fromsdcard_rd_en <= '1'; -- remove one word from FIFO
-          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= fifo_fromsdcard_dout;
-          
+          if (fifo_fromsdcard_dout(160) = '1') THEN -- status msg
+            fifo_fromsdcard_rd_en <= '1'; -- remove one word from FIFO
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD3) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2);
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD);
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS);
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= fifo_fromsdcard_dout(159 downto 128);
+            IF (fifo_fromsdcard_dout(159 downto 144) = x"1000") THEN
+            -- fixme
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= x"00000000"; 
+            END IF;
+          elsif ((fifo_fromsdcard_dout(160) = '0') AND (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) /= x"FFFFFFFF")) THEN
+            -- status indicating last stuff out of the FIFO was valid data
+            -- indicative, does not remove word from FIFO
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD3) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2);
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD);
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS);
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFFFF";
+          end if;
+
         WHEN others =>
           -- do nothing
       END CASE; --TRNG self-emptying FIFO
@@ -1585,6 +1693,22 @@ BEGIN
       --REGISTERS(reg_bank_size*reg_bank_trng_idx + REG_INDEX_TRNG_TIMER) <= trng_timer_counter_out;
       -- copy the output of the XDM_CDC_GRAY macro back in the register file
       REGISTERS(reg_bank_size*reg_bank_trng_idx + REG_INDEX_TRNG_TIMER) <= trng_timer_counter_fast;
+      
+      IF ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_START_IDX) = '1') AND (out_sd_rd_addr_rcv = '0')) THEN
+        IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_READ_IDX) = '1') THEN
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_START_IDX) <= '0';
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) <= '1';
+          out_sd_rd_addr <= '1' & REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_ADDR);
+          out_sd_rd_addr_send <= '1';
+        END IF;
+      END IF;
+      IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) = '1') THEN
+        IF (out_sd_rd_addr_rcv = '1') THEN
+          out_sd_rd_addr_send <= '0';
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= x"8000001F"; -- write 32 block (16 * 32 = 512 bytes)
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL) <= (others => '0');
+        END IF;
+      END IF;
       
     END IF;
   END PROCESS;
@@ -1625,9 +1749,12 @@ BEGIN
   END PROCESS;
   
   -- process to enable AES block
-  process (fast_100m_clk_out)
+  process (fast_100m_clk_out, fast_100m_rst_fromsbus_n)
   BEGIN
-    IF RISING_EDGE(fast_100m_clk_out) THEN
+    if (fast_100m_rst_fromsbus_n = '0') THEN
+      fast_clk_rst_n <= '0';
+      AES_RST_COUNTER <= 1;
+    ELSIF RISING_EDGE(fast_100m_clk_out) THEN
       if (AES_RST_COUNTER = 0) THEN
         fast_clk_rst_n <= '1';
       else
