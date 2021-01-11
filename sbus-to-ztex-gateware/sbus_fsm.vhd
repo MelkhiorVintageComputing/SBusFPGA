@@ -166,6 +166,8 @@ ENTITY SBusFSM is
   CONSTANT REG_INDEX_SD_STATUS_OLD3: integer := 7;
   CONSTANT REG_INDEX_SD_STATUS_DAT  : integer := 8;
   CONSTANT REG_INDEX_SD_STATUS_DAT2 : integer := 9;
+  CONSTANT REG_INDEX_SDDMA_ADDR   : integer := 10;
+  CONSTANT REG_INDEX_SDDMA_CTRL   : integer := 11;
   CONSTANT REG_INDEX_SDDMAW_DATA1 : integer := 16;
   CONSTANT REG_INDEX_SDDMAW_DATA2 : integer := 17;
   CONSTANT REG_INDEX_SDDMAW_DATA3 : integer := 18;
@@ -351,9 +353,16 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal fifo_fromsdcard_full : STD_LOGIC;
   signal fifo_fromsdcard_empty : STD_LOGIC;
   
+  signal fifo_tosdcard_din : STD_LOGIC_VECTOR ( 127 downto 0 );
+  signal fifo_tosdcard_wr_en : STD_LOGIC;
+  signal fifo_tosdcard_rd_en : STD_LOGIC;
+  signal fifo_tosdcard_dout : STD_LOGIC_VECTOR ( 127 downto 0 );
+  signal fifo_tosdcard_full : STD_LOGIC;
+  signal fifo_tosdcard_empty : STD_LOGIC;
+  
   signal out_sd_rd_addr_fast : std_logic_vector(32 downto 0); -- rd and address signal combined
   signal out_sd_rd_addr : std_logic_vector(32 downto 0); -- rd and address signal combined
-  signal out_sd_rd_addr_send : STD_LOGIC;
+  signal out_sd_rd_addr_send : STD_LOGIC := '0';
   signal out_sd_rd_addr_rcv : STD_LOGIC;
   signal out_sd_rd_addr_req : STD_LOGIC;
   signal out_sd_rd_addr_ack : STD_LOGIC;
@@ -645,6 +654,21 @@ ARCHITECTURE RTL OF SBusFSM IS
       rd_rst_busy : out STD_LOGIC
       );
   end component;
+  component fifo_generator_to_sdcard is
+    Port (
+      rst : in STD_LOGIC;
+      wr_clk : in STD_LOGIC;
+      rd_clk : in STD_LOGIC;
+      din : in STD_LOGIC_VECTOR(127 DOWNTO 0);
+      wr_en : in STD_LOGIC;
+      rd_en : in STD_LOGIC;
+      dout : out STD_LOGIC_VECTOR(127 DOWNTO 0);
+      full : out STD_LOGIC;
+      empty : out STD_LOGIC;
+      wr_rst_busy : out STD_LOGIC;
+      rd_rst_busy : out STD_LOGIC
+      );
+  end component;
   
   component uart_tx is
     generic (
@@ -713,6 +737,9 @@ ARCHITECTURE RTL OF SBusFSM IS
     output_fifo_in : out std_logic_vector(160 downto 0);
     output_fifo_full : in std_logic;
     output_fifo_wr_en : out std_logic;
+    input_fifo_out : in std_logic_vector(127 downto 0);
+    input_fifo_empty : in std_logic;
+    input_fifo_rd_en : out std_logic;
     out_sd_rd : in std_logic;
     out_sd_addr : in std_logic_vector(31 downto 0);
     out_sd_rd_addr_req : in std_logic;
@@ -813,6 +840,12 @@ BEGIN
                                                              din => fifo_fromsdcard_din, wr_en => fifo_fromsdcard_wr_en, rd_en => fifo_fromsdcard_rd_en,
                                                              dout => fifo_fromsdcard_dout, full => fifo_fromsdcard_full, empty => fifo_fromsdcard_empty,
                                                              wr_rst_busy => open, rd_rst_busy => open);
+  label_fifo_tosdcard: fifo_generator_to_sdcard port map(rst => fifo_rst,
+                                                         wr_clk => SBUS_3V3_CLK,
+                                                         rd_clk => fast_100m_clk_out,
+                                                         din => fifo_tosdcard_din, wr_en => fifo_tosdcard_wr_en, rd_en => fifo_tosdcard_rd_en,
+                                                         dout => fifo_tosdcard_dout, full => fifo_tosdcard_full, empty => fifo_tosdcard_empty,
+                                                         wr_rst_busy => open, rd_rst_busy => open);
   label_aes_wrapper: aes_wrapper port map(
     aes_wrapper_rst => fast_clk_rst_n,
     aes_wrapper_clk => fast_100m_clk_out,
@@ -845,6 +878,9 @@ BEGIN
     output_fifo_in => fifo_fromsdcard_din,
     output_fifo_full => fifo_fromsdcard_full,
     output_fifo_wr_en => fifo_fromsdcard_wr_en,
+    input_fifo_out => fifo_tosdcard_dout,
+    input_fifo_empty => fifo_tosdcard_empty,
+    input_fifo_rd_en => fifo_tosdcard_rd_en,
     out_sd_rd => out_sd_rd_addr_fast(32),
     out_sd_addr => out_sd_rd_addr_fast(31 downto 0),
     out_sd_rd_addr_req => out_sd_rd_addr_req,
@@ -923,6 +959,7 @@ BEGIN
     variable dma_addr_idx : integer range 0 to 191;
     variable dma_basereg_idx : integer range 0 to 191;
     variable reg_bank : integer range 0 to 2 := 0;
+    variable sdcard_deadbeef_counter : integer range 0 to 65535 := 0;
   BEGIN
     IF (SBUS_3V3_RSTs = '0') THEN
       State <= SBus_Start;
@@ -935,6 +972,7 @@ BEGIN
       fifo_fromaes_rd_en <= '0';
       fifo_fromstrng_rd_en <= '0';
       fifo_fromsdcard_rd_en <= '0';
+      fifo_tosdcard_wr_en <= '0';
 --      LIFE_COUNTER25 <= LIFE_COUNTER25 - 1;
       
       CASE State IS
@@ -1094,7 +1132,10 @@ BEGIN
                    REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
                   (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_START_IDX)='1' AND
                    REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
-                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_ERR_IDX)='0')
+                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_ERR_IDX)='0') OR
+                  (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL)(DMA_CTRL_START_IDX)='1' AND
+                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL)(DMA_CTRL_BUSY_IDX)='0' AND
+                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL)(DMA_CTRL_ERR_IDX)='0')
                   )) then
 -- we have a DMA request pending and not been granted the bus
             IF ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCMDMA_CTRL)(DMA_CTRL_START_IDX) = '1') OR
@@ -1106,8 +1147,9 @@ BEGIN
                  (fifo_fromaes_empty = '0')) OR
                 ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL)(DMA_CTRL_START_IDX) = '1') AND
                  (fifo_fromsdcard_empty = '0') AND
-                 (fifo_fromsdcard_dout(160) = '0')
-                 )
+                 (fifo_fromsdcard_dout(160) = '0')) OR
+                ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                 (fifo_tosdcard_full = '0'))
                 ) THEN
               fifo_wr_en <= '1'; fifo_din <= x"61"; -- "a"
               -- GCM is always available (1 cycle)
@@ -1155,6 +1197,15 @@ BEGIN
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA3) <= fifo_fromsdcard_dout( 63 downto 32);
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA4) <= fifo_fromsdcard_dout( 31 downto 0);
               fifo_fromsdcard_rd_en <= '1';
+              State <= SBus_Master_Translation;
+            ELSIF ((REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
+                   (fifo_tosdcard_full = '0')) THEN
+              dma_write := false;
+              dma_ctrl_idx := reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL;
+              dma_addr_idx := reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_ADDR;
+              dma_basereg_idx := reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA1; -- fixme
+              BUF_DATA_O <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_ADDR); -- virt address
+              BUF_PPRD_O <= '1'; -- reading from slave
               State <= SBus_Master_Translation;
             ELSIF ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
                    (fifo_fromaes_full = '0')) THEN
@@ -1426,9 +1477,9 @@ BEGIN
           
         when SBus_Master_Read_Ack =>
           fifo_wr_en <= '1'; fifo_din <= x"65"; -- "e"
+          REGISTERS(dma_basereg_idx + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
+          BURST_COUNTER := BURST_COUNTER + 1;
           IF (dma_ctrl_idx = REG_INDEX_GCMDMA_CTRL) THEN
-            REGISTERS(dma_basereg_idx + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
-            BURST_COUNTER := BURST_COUNTER + 1;
             IF (finish_gcm) THEN
               finish_gcm := false;
               REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
@@ -1447,8 +1498,6 @@ BEGIN
               finish_gcm := true;
             END IF;
           ELSIF (dma_ctrl_idx = REG_INDEX_AESDMA_CTRL) THEN
-            REGISTERS(dma_basereg_idx + (BURST_COUNTER mod 4)) <= BUF_DATA_I;
-            BURST_COUNTER := BURST_COUNTER + 1;
             IF (BURST_COUNTER mod 4 = 0) THEN
 --              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL) <= x"88000000"; -- request to start a CBC block
               -- enqueue the block in the AES FIFO
@@ -1479,7 +1528,15 @@ BEGIN
                 REGISTERS(dma_ctrl_idx)(DMA_CTRL_CBC_IDX) <= '0';
               END IF;
             END IF;
-          END IF; -- GCM | AES
+          ELSIF (dma_ctrl_idx = (reg_bank_size*reg_bank_crypto_idx + REG_INDEX_SDDMA_CTRL)) THEN
+            IF (BURST_COUNTER mod 4 = 0) THEN
+              fifo_tosdcard_wr_en <= '1';
+              fifo_tosdcard_din <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA1) & -- fixme
+                                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA2) &
+                                   REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_DATA3) &
+                                   BUF_DATA_I;
+            END IF;
+          END IF; -- GCM | AES | SD
           if (BURST_COUNTER = BURST_LIMIT) THEN
             State <= SBus_Master_Read_Finish;
           ELSIF (BUF_ACKs_I = ACK_WORD) THEN
@@ -1583,7 +1640,15 @@ BEGIN
             REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL) <= (others => '0');
             REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMAW_CTRL) <= (others => '0');
             REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2) <= (others => '0');
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD3) <= (others => '0');
+            out_sd_rd_addr_send <= '0';
             IF (RES_COUNTER = 0) THEN
+              fifo_rst <= '0';
               -- fifo_wr_en <= '1'; fifo_din <= x"2A"; -- "*"
               State <= SBus_Idle;
             ELSE
@@ -1687,6 +1752,10 @@ BEGIN
             -- fixme
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= x"00000000"; 
             END IF;
+            IF (fifo_fromsdcard_dout(159 downto 144) = x"1001") THEN
+            -- fixme
+              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= x"00000000"; 
+            END IF;
           elsif (fifo_fromsdcard_dout(160) = '0') THEN
             -- status indicating last stuff out of the FIFO was valid data
             -- indicative, does not remove word from FIFO
@@ -1721,14 +1790,40 @@ BEGIN
           REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) <= '1';
           out_sd_rd_addr <= '1' & REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_ADDR);
           out_sd_rd_addr_send <= '1';
+        ELSE
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_START_IDX) <= '0';
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) <= '1';
+          out_sd_rd_addr <= '0' & REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_ADDR);
+          out_sd_rd_addr_send <= '1';
         END IF;
+        sdcard_deadbeef_counter := 0;
       END IF;
       IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) = '1') THEN
         IF (out_sd_rd_addr_rcv = '1') THEN
           out_sd_rd_addr_send <= '0';
-          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= x"8000001F"; -- write 32 block (16 * 32 = 512 bytes)
+          IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_READ_IDX) = '1') THEN
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= x"8000001F"; -- write 32 block (16 * 32 = 512 bytes) to memory
+          ELSE
+            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= x"8000001F"; -- read 32 block (16 * 32 = 512 bytes) to memory
+          END IF;
           REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL) <= (others => '0');
         END IF;
+        IF (sdcard_deadbeef_counter = 255) THEN
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= x"C0FFEE00";
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= x"0000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
+          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL) <= (others => '0');
+        END IF;
+        sdcard_deadbeef_counter := sdcard_deadbeef_counter + 1;
+      END IF;
+      if ((fifo_fromsdcard_full = '1') AND (fifo_fromsdcard_empty = '1')) THEN
+        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= (others => '0');
+        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= (others => '0');
+        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= x"DEADBEEF";
+        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= x"C000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
+        sdcard_deadbeef_counter := sdcard_deadbeef_counter + 1;
+      ELSIF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) = x"DEADBEEF") THEN
+        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= 
+          fifo_fromsdcard_full & fifo_fromsdcard_empty & '0' & '0' & x"000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
       END IF;
       
     END IF;

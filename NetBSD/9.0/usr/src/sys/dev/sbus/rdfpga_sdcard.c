@@ -77,23 +77,24 @@ extern struct cfdriver rdfpga_sdcard_cd;
 static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const int count);
 static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const int count);
 static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
+static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
 
 struct rdfpga_sdcard_rb_32to512 {
-  union {
-    u_int32_t block;
-    u_int8_t data[512];
-  } x;
+  u_int32_t block;
+  u_int8_t data[512];
 };
 
-#define RDFPGA_SDCARD_RS   _IOR(0, 1, u_int32_t)
-#define RDFPGA_SDCARD_RSO  _IOR(0, 3, u_int32_t)
+#define RDFPGA_SDCARD_RS    _IOR(0, 1, u_int32_t)
+#define RDFPGA_SDCARD_RSO   _IOR(0, 3, u_int32_t)
 #define RDFPGA_SDCARD_RSO2  _IOR(0, 4, u_int32_t)
 #define RDFPGA_SDCARD_RSO3  _IOR(0, 5, u_int32_t)
 #define RDFPGA_SDCARD_RSTC  _IOR(0, 6, u_int32_t)
 #define RDFPGA_SDCARD_RSTD  _IOR(0, 7, u_int32_t)
-#define RDFPGA_SDCARD_RSD  _IOR(0, 8, u_int32_t)
+#define RDFPGA_SDCARD_RSD   _IOR(0, 8, u_int32_t)
 #define RDFPGA_SDCARD_RSD2  _IOR(0, 9, u_int32_t)
-#define RDFPGA_SDCARD_RB   _IOWR(0, 2, struct rdfpga_sdcard_rb_32to512)
+#define RDFPGA_SDCARD_RB    _IOWR(0, 2, struct rdfpga_sdcard_rb_32to512)
+#define RDFPGA_SDCARD_WB    _IOW(0, 10, struct rdfpga_sdcard_rb_32to512)
+#define RDFPGA_SDCARD_RSTD2  _IOR(0, 11, u_int32_t)
 
 int
 rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
@@ -128,10 +129,20 @@ rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 	  *((u_int32_t*)data) = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_CTRL);
 	  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_CTRL, 0);
 	  break;
+        case RDFPGA_SDCARD_RSTD2:
+	  *((u_int32_t*)data) = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_CTRL);
+	  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_CTRL, 0);
+	  break;
         case RDFPGA_SDCARD_RB:
 	  {
 	    struct rdfpga_sdcard_rb_32to512* u = data; 
-	    err = rdfpga_sdcard_read_block(sc, u->x.block, u->x.data);
+	    err = rdfpga_sdcard_read_block(sc, u->block, u->data);
+	    break;
+	  }
+        case RDFPGA_SDCARD_WB:
+	  {
+	    struct rdfpga_sdcard_rb_32to512* u = data; 
+	    err = rdfpga_sdcard_write_block(sc, u->block, u->data);
 	    break;
 	  }
         default:
@@ -228,7 +239,10 @@ rdfpga_sdcard_attach(device_t parent, device_t self, void *aux)
 	} else {
 		aprint_normal_dev(self, "dmamap: %lu %lu %d (%p)\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs, sc->sc_dmatag->_dmamap_load);
 	}
-	
+
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_CTRL, 0);
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_CTRL, 0);
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_CTRL, 0);
 }
 
 static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const int count) {
@@ -237,6 +251,16 @@ static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const in
   
   ctr = 0;
   while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_CTRL)) != 0) &&
+	 (ctr < count)) {
+    delay(1);
+    ctr ++;
+  }
+
+  if (ctrl)
+    return EBUSY;
+  
+  ctr = 0;
+  while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_CTRL)) != 0) &&
 	 (ctr < count)) {
     delay(1);
     ctr ++;
@@ -262,9 +286,9 @@ static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const
     ctr ++;
   }
   
-  aprint_normal_dev(sc->sc_dev, "ctrl is 0x%08x (%d, old status 0x%08x, current 0x%08x)\n", ctrl, ctr,
-		    bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS_OLD),
-		    bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS));
+  /* aprint_normal_dev(sc->sc_dev, "ctrl is 0x%08x (%d, old status 0x%08x, current 0x%08x)\n", ctrl, ctr, */
+  /* 		    bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS_OLD), */
+  /* 		    bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS)); */
 
 
   if (ctrl)
@@ -292,7 +316,7 @@ static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int3
   }
 
   /* for testing only, remove */
-  memcpy(kvap, data, 512);
+  //memcpy(kvap, data, 512);
   
   if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
 		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_READ)) {
@@ -320,6 +344,62 @@ static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int3
   /* aprint_normal_dev(sc->sc_dev, "dma: unloaded\n"); */
 
   memcpy(data, kvap, 512);
+  
+  bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
+	  /* aprint_normal_dev(sc->sc_dev, "dma: unmapped\n"); */
+  
+  bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
+  
+  return res;
+}
+
+
+static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data) {
+  int res = 0;
+  u_int32_t ctrl;
+  if ((res = rdfpga_sdcard_wait_device_ready(sc, 50000)) != 0)
+    return res;
+  
+  if (bus_dmamem_alloc(sc->sc_dmatag, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, 64, 64, &sc->sc_segs, 1, &sc->sc_rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
+    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
+    return ENXIO;
+  }
+  
+  void* kvap;
+  if (bus_dmamem_map(sc->sc_dmatag, &sc->sc_segs, 1, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, &kvap, BUS_DMA_NOWAIT)) {
+    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
+    bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
+    return ENXIO;
+  }
+
+  memcpy(kvap, data, 512);
+  
+  if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
+		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+    aprint_error_dev(sc->sc_dev, "cannot load dma map");
+    bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
+    bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
+    return ENXIO;
+  }
+  
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_PREWRITE);
+
+  /* set DMA address */
+  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_ADDR, (uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr));
+  /* set block to read */
+  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_ADDR, block);
+  ctrl = RDFPGA_SDCARD_CTRL_START;
+  /* initiate reading block from SDcard; once the read request is acknowledged, the HW will start the DMA engine */
+  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_CTRL, ctrl);
+
+  res = rdfpga_sdcard_wait_device_ready(sc, 100000);
+
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_POSTWRITE);
+  
+  bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
+  /* aprint_normal_dev(sc->sc_dev, "dma: unloaded\n"); */
+
+  //memcpy(data, kvap, 512);
   
   bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
 	  /* aprint_normal_dev(sc->sc_dev, "dma: unmapped\n"); */

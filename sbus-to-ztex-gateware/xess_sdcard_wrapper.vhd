@@ -14,6 +14,9 @@ entity xess_sdcard_wrapper is
     output_fifo_in : out std_logic_vector(160 downto 0); --1+ 32 +128
     output_fifo_full : in std_logic;
     output_fifo_wr_en : out std_logic;
+    input_fifo_out : in std_logic_vector(127 downto 0);
+    input_fifo_empty : in std_logic;
+    input_fifo_rd_en : out std_logic;
     out_sd_rd : in std_logic;
     out_sd_addr : in std_logic_vector(31 downto 0);
     out_sd_rd_addr_req : in std_logic;
@@ -81,7 +84,10 @@ architecture RTL of xess_sdcard_wrapper is
     XESS_SDCARD_READ_WAIT_BUSY,
     XESS_SDCARD_READ_WAIT_READ,
     XESS_SDCARD_READ_WAIT_READ2,
-    XESS_SDCARD_READ_WAIT_NOTBUSY);
+    XESS_SDCARD_WAIT_NOTBUSY,
+    XESS_SDCARD_WRITE_WAIT_BUSY,
+    XESS_SDCARD_WRITE_WAIT_WRITE,
+    XESS_SDCARD_WRITE_WAIT_WRITE2);
   SIGNAL XESS_SDCARD_State : XESS_SDCARD_States := XESS_SDCARD_INIT;
     
 begin
@@ -113,7 +119,8 @@ begin
     
   xess_sdcard_wrapper: process (xess_sdcard_wrapper_rst, xess_sdcard_wrapper_clk)
     variable init_done : boolean := false;
-    variable timeout_counter : natural range 0 to 100000 := 0;
+    constant TIMEOUT_MAX : integer := 1000000;
+    variable timeout_counter : natural range 0 to TIMEOUT_MAX := 0;
     variable timedout : std_logic_vector(15 downto 0) := x"0000";
     variable byte_counter : natural range 0 to BLOCK_SIZE_G := 0; -- fixme, wasteful
     variable databuf : std_logic_vector(127 downto 0);
@@ -127,14 +134,16 @@ begin
         XESS_SDCARD_State <= XESS_SDCARD_INIT;
         timedout := x"0000";
         byte_counter := 0;
-        timeout_counter := 100000;
+        timeout_counter := TIMEOUT_MAX;
         init_done := false;
         buf_counter := 0;
  --     end if;
       
     ELSIF RISING_EDGE(xess_sdcard_wrapper_clk) then
       sd_reset <= '0';
+      leds <= x"EE";
       output_fifo_wr_en <= '0';
+      input_fifo_rd_en <= '0';
       if (out_sd_rd_addr_req = '0') THEN
         out_sd_rd_addr_ack <= '0';
       END IF;
@@ -150,19 +159,23 @@ begin
 --output_fifo_in <= '1' & x"6000" & sd_error & x"00000000000000000000000000000000";
 --output_fifo_wr_en <= '1';
               sd_rd <= '1';
-              sd_addr <= out_sd_addr;
-last_addr := out_sd_addr;
-              byte_counter := 0;
-              buf_counter := 0;
-              timeout_counter := 100000;
               XESS_SDCARD_State <= XESS_SDCARD_READ_WAIT_BUSY;
+            ELSE
+              sd_wr <= '1';
+              XESS_SDCARD_State <= XESS_SDCARD_WRITE_WAIT_BUSY;
             END IF;
+
+            sd_addr <= out_sd_addr;
+last_addr := out_sd_addr;
+            byte_counter := 0;
+            buf_counter := 0;
+            timeout_counter := TIMEOUT_MAX;
           END IF;
 --          if (timeout_counter = 0) then
 --            output_fifo_in <= (NOT timedout) & sd_error;
 --            output_fifo_wr_en <= '1';
 --            timedout := conv_std_logic_vector(conv_integer(timedout)+1,16);
---            timeout_counter := 100000;
+--            timeout_counter := TIMEOUT_MAX;
 --          else
 --            timeout_counter := timeout_counter - 1;
 --          end if;
@@ -188,7 +201,7 @@ output_fifo_wr_en <= '1';
 output_fifo_in <= '1' & x"F" & timedout(11 downto 0) & sd_error & x"00000000000000000000000000000000";
 output_fifo_wr_en <= '1';
             timedout := conv_std_logic_vector(conv_integer(timedout)+1,16);
-            timeout_counter := 100000;
+            timeout_counter := TIMEOUT_MAX;
           else
             timeout_counter := timeout_counter - 1;
           end IF;
@@ -198,14 +211,15 @@ output_fifo_wr_en <= '1';
           IF (sd_busy = '1') THEN
 --output_fifo_in <= '1' & x"5000" & sd_error & x"00000000000000000000000000000000";
 --output_fifo_wr_en <= '1';
-                sd_rd <= '0';
-                sd_addr <= (others => '0');
-                XESS_SDCARD_State <= XESS_SDCARD_READ_WAIT_READ;
-            elsif (timeout_counter = 0) then
+            sd_rd <= '0';
+            sd_addr <= (others => '0');
+            XESS_SDCARD_State <= XESS_SDCARD_READ_WAIT_READ;
+            timeout_counter := TIMEOUT_MAX;
+          elsif (timeout_counter = 0) then
 output_fifo_in <= '1' & x"E" & timedout(11 downto 0) & sd_error & x"00000000000000000000000000000000";
 output_fifo_wr_en <= '1';
             timedout := conv_std_logic_vector(conv_integer(timedout)+1,16);
-            timeout_counter := 100000;
+            timeout_counter := TIMEOUT_MAX;
           else
             timeout_counter := timeout_counter - 1;
           END IF;
@@ -220,6 +234,12 @@ output_fifo_wr_en <= '1';
             sd_hndshk_i <= '1';
             byte_counter := byte_counter + 1;
             XESS_SDCARD_State <= XESS_SDCARD_READ_WAIT_READ2;
+          ELSIF ((output_fifo_full = '0') AND (timeout_counter = 0)) THEN
+output_fifo_in <= '1' & x"1100" & sd_error & x"00000000000000000000000000000000";
+output_fifo_wr_en <= '1';
+              XESS_SDCARD_State <= XESS_SDCARD_IDLE;
+          ELSIF (output_fifo_full = '0') THEN
+            timeout_counter := timeout_counter - 1;
           ELSIF (sd_busy = '0') THEN
 output_fifo_in <= '1' & x"1000" & sd_error & x"00000000000000000000000000000000";
 output_fifo_wr_en <= '1';
@@ -238,14 +258,14 @@ output_fifo_wr_en <= '1';
               buf_counter := buf_counter + 1;
             END IF;
             IF (byte_counter = BLOCK_SIZE_G) THEN
-              timeout_counter := 100000;
-              XESS_SDCARD_State <= XESS_SDCARD_READ_WAIT_NOTBUSY;
+              timeout_counter := TIMEOUT_MAX;
+              XESS_SDCARD_State <= XESS_SDCARD_WAIT_NOTBUSY;
             ELSE
               XESS_SDCARD_State <= XESS_SDCARD_READ_WAIT_READ;
             END IF;
           END IF;
           
-        when XESS_SDCARD_READ_WAIT_NOTBUSY =>
+        when XESS_SDCARD_WAIT_NOTBUSY =>
           leds <= x"04";
           IF (sd_busy = '0') THEN
             XESS_SDCARD_State <= XESS_SDCARD_IDLE;
@@ -253,9 +273,69 @@ output_fifo_wr_en <= '1';
 output_fifo_in <= '1' & x"D" & timedout(11 downto 0) & sd_error & x"00000000000000000000000000000000";
 output_fifo_wr_en <= '1';
             timedout := conv_std_logic_vector(conv_integer(timedout)+1,16);
-            timeout_counter := 100000;
+            timeout_counter := TIMEOUT_MAX;
           else
             timeout_counter := timeout_counter - 1;
+          END IF;
+
+          
+        when XESS_SDCARD_WRITE_WAIT_BUSY =>
+          leds <= x"03";
+          IF (sd_busy = '1') THEN
+--output_fifo_in <= '1' & x"5000" & sd_error & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
+            sd_wr <= '0';
+            sd_addr <= (others => '0');
+            XESS_SDCARD_State <= XESS_SDCARD_WRITE_WAIT_WRITE;
+            timeout_counter := TIMEOUT_MAX;
+          elsif (timeout_counter = 0) then
+output_fifo_in <= '1' & x"C" & timedout(11 downto 0) & sd_error & x"00000000000000000000000000000000";
+output_fifo_wr_en <= '1';
+            timedout := conv_std_logic_vector(conv_integer(timedout)+1,16);
+            timeout_counter := TIMEOUT_MAX;
+          else
+            timeout_counter := timeout_counter - 1;
+          END IF;
+        
+        when XESS_SDCARD_WRITE_WAIT_WRITE =>
+          leds <= x"1c";
+          --only write byte if we have some space to output the buffer
+          IF ((sd_hndshk_o = '1') AND
+            ((input_fifo_empty = '0') OR ((byte_counter mod 16) /= 0))) THEN
+--output_fifo_in <= '1' & x"40" & sd_data_o & conv_std_logic_vector(byte_counter,16) & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
+            IF ((byte_counter mod 16) = 0) THEN
+              databuf := input_fifo_out;
+              input_fifo_rd_en <= '1';
+            END IF;
+            sd_data_i <= databuf(((15 - (byte_counter mod 16))*8 + 7) downto ((15 - (byte_counter mod 16))*8));
+            sd_hndshk_i <= '1';
+            byte_counter := byte_counter + 1;
+            XESS_SDCARD_State <= XESS_SDCARD_WRITE_WAIT_WRITE2;
+          ELSIF ((input_fifo_empty = '0') AND (timeout_counter = 0)) THEN
+output_fifo_in <= '1' & x"1101" & sd_error & x"00000000000000000000000000000000";
+output_fifo_wr_en <= '1';
+              XESS_SDCARD_State <= XESS_SDCARD_IDLE;
+          ELSIF (input_fifo_empty = '0') THEN
+            timeout_counter := timeout_counter - 1;
+          ELSIF (sd_busy = '0') THEN
+output_fifo_in <= '1' & x"1001" & sd_error & x"00000000000000000000000000000000";
+output_fifo_wr_en <= '1';
+              XESS_SDCARD_State <= XESS_SDCARD_IDLE;
+          END IF;
+          
+        when XESS_SDCARD_WRITE_WAIT_WRITE2 =>
+          leds <= x"2c";
+          IF (sd_hndshk_o = '0') THEN
+--output_fifo_in <= '1' & x"3000" & sd_error & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
+            sd_hndshk_i <= '0';
+            IF (byte_counter = BLOCK_SIZE_G) THEN
+              timeout_counter := TIMEOUT_MAX;
+              XESS_SDCARD_State <= XESS_SDCARD_WAIT_NOTBUSY;
+            ELSE
+              XESS_SDCARD_State <= XESS_SDCARD_WRITE_WAIT_WRITE;
+            END IF;
           END IF;
         
       end case;
