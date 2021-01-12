@@ -1208,7 +1208,7 @@ BEGIN
               BUF_PPRD_O <= '1'; -- reading from slave
               State <= SBus_Master_Translation;
             ELSIF ((REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AESDMA_CTRL)(DMA_CTRL_START_IDX) = '1') AND
-                   (fifo_fromaes_full = '0')) THEN
+                   (fifo_toaes_full = '0')) THEN
               dma_write := false;
               dma_ctrl_idx := REG_INDEX_AESDMA_CTRL;
               dma_addr_idx := REG_INDEX_AESDMA_ADDR;
