@@ -95,7 +95,8 @@ begin
   label_xess_sdcard_core: SdCardCtrl
     generic map (
       BLOCK_SIZE_G => BLOCK_SIZE_G,
-      CARD_TYPE_G => SDHC_CARD_E
+      CARD_TYPE_G => SDHC_CARD_E,
+      SPI_FREQ_G => 25.0
     )
     port map (
       clk_i => xess_sdcard_wrapper_clk,
@@ -119,8 +120,8 @@ begin
     
   xess_sdcard_wrapper: process (xess_sdcard_wrapper_rst, xess_sdcard_wrapper_clk)
     variable init_done : boolean := false;
-    constant TIMEOUT_MAX : integer := 1000000;
-    variable timeout_counter : natural range 0 to TIMEOUT_MAX := 0;
+    constant TIMEOUT_MAX : integer := 5000000;
+    variable timeout_counter : natural range 0 to TIMEOUT_MAX := TIMEOUT_MAX;
     variable timedout : std_logic_vector(15 downto 0) := x"0000";
     variable byte_counter : natural range 0 to BLOCK_SIZE_G := 0; -- fixme, wasteful
     variable databuf : std_logic_vector(127 downto 0);
@@ -252,13 +253,13 @@ output_fifo_wr_en <= '1';
 --output_fifo_in <= '1' & x"3000" & sd_error & x"00000000000000000000000000000000";
 --output_fifo_wr_en <= '1';
             sd_hndshk_i <= '0';
+            timeout_counter := TIMEOUT_MAX;
             IF ((byte_counter mod 16) = 0) THEN
               output_fifo_in <= '0' & last_addr(15 downto 0) & conv_std_logic_vector(buf_counter,16) & databuf;
               output_fifo_wr_en <= '1';
               buf_counter := buf_counter + 1;
             END IF;
             IF (byte_counter = BLOCK_SIZE_G) THEN
-              timeout_counter := TIMEOUT_MAX;
               XESS_SDCARD_State <= XESS_SDCARD_WAIT_NOTBUSY;
             ELSE
               XESS_SDCARD_State <= XESS_SDCARD_READ_WAIT_READ;
@@ -330,8 +331,8 @@ output_fifo_wr_en <= '1';
 --output_fifo_in <= '1' & x"3000" & sd_error & x"00000000000000000000000000000000";
 --output_fifo_wr_en <= '1';
             sd_hndshk_i <= '0';
+            timeout_counter := TIMEOUT_MAX;
             IF (byte_counter = BLOCK_SIZE_G) THEN
-              timeout_counter := TIMEOUT_MAX;
               XESS_SDCARD_State <= XESS_SDCARD_WAIT_NOTBUSY;
             ELSE
               XESS_SDCARD_State <= XESS_SDCARD_WRITE_WAIT_WRITE;
