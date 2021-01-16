@@ -16,8 +16,6 @@ USE work.LedHandlerPkg.all;
 USE work.PromPkg.all;
 use work.mastrovito_V2_multiplier_parameters.all;
 
-library XESS;
-
 ENTITY SBusFSM is
   PORT (
     fxclk_in: IN std_logic; -- 48 MHz FX2 clock
@@ -353,6 +351,9 @@ ARCHITECTURE RTL OF SBusFSM IS
   signal fifo_fromsdcard_full : STD_LOGIC;
   signal fifo_fromsdcard_empty : STD_LOGIC;
   
+  signal mid_clk_rst_n : std_logic := '0';
+  signal mid_50m_clk_out : std_logic;
+  signal mid_50m_rst_fromsbus_n : std_logic;
   signal fifo_tosdcard_din : STD_LOGIC_VECTOR ( 127 downto 0 );
   signal fifo_tosdcard_wr_en : STD_LOGIC;
   signal fifo_tosdcard_rd_en : STD_LOGIC;
@@ -376,6 +377,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   
   SIGNAL AES_RST_COUNTER : natural range 0 to 31 := 5;
   SIGNAL AES_TIMEOUT_COUNTER : natural range 0 to 63 := 63;
+  SIGNAL SD_RST_COUNTER : natural range 0 to 31 := 5;
 
   -- bank of registers (256 bytes) for cryptoengine (and led)
   -- 0-64: 16 for controls (8 used) 16 registers for GCM (12 used), 16 unused, 16 for AES
@@ -692,6 +694,7 @@ ARCHITECTURE RTL OF SBusFSM IS
   component clk_wiz_aes is
     port(clk_out1 : out std_logic; -- 100 MHz 'fast' clock
          clk_out2 : out std_logic; -- 5 MHz timer clock
+         clk_out3 : out std_logic; -- 50 MHz sd clock
          clk_in1 : in std_logic);
   end component clk_wiz_aes;
   
@@ -730,10 +733,10 @@ ARCHITECTURE RTL OF SBusFSM IS
       );
   end component trivium_wrapper;
   
-  component xess_sdcard_wrapper is
+  component SimpleSDHC_wrapper is
   port (
-    xess_sdcard_wrapper_rst : in std_logic;
-    xess_sdcard_wrapper_clk : in std_logic;
+    SimpleSDHC_wrapper_rst : in std_logic;
+    SimpleSDHC_wrapper_clk : in std_logic;
     output_fifo_in : out std_logic_vector(160 downto 0);
     output_fifo_full : in std_logic;
     output_fifo_wr_en : out std_logic;
@@ -752,7 +755,7 @@ ARCHITECTURE RTL OF SBusFSM IS
     -- leds
     leds : out std_logic_vector(7 downto 0)
     );
-  end component xess_sdcard_wrapper;
+  end component SimpleSDHC_wrapper;
 
   PROCEDURE SBus_Set_Default(
 --    signal SBUS_3V3_ACKs :     OUT std_logic_vector(2 downto 0);
@@ -835,14 +838,14 @@ BEGIN
                                                            din => fifo_fromstrng_din, wr_en => fifo_fromstrng_wr_en, rd_en => fifo_fromstrng_rd_en,
                                                            dout => fifo_fromstrng_dout, full => fifo_fromstrng_full, empty => fifo_fromstrng_empty);
   label_fifo_fromsdcard: fifo_generator_from_sdcard port map(rst => fifo_rst,
-                                                             wr_clk => fast_100m_clk_out,
+                                                             wr_clk => mid_50m_clk_out,
                                                              rd_clk => SBUS_3V3_CLK,
                                                              din => fifo_fromsdcard_din, wr_en => fifo_fromsdcard_wr_en, rd_en => fifo_fromsdcard_rd_en,
                                                              dout => fifo_fromsdcard_dout, full => fifo_fromsdcard_full, empty => fifo_fromsdcard_empty,
                                                              wr_rst_busy => open, rd_rst_busy => open);
   label_fifo_tosdcard: fifo_generator_to_sdcard port map(rst => fifo_rst,
                                                          wr_clk => SBUS_3V3_CLK,
-                                                         rd_clk => fast_100m_clk_out,
+                                                         rd_clk => mid_50m_clk_out,
                                                          din => fifo_tosdcard_din, wr_en => fifo_tosdcard_wr_en, rd_en => fifo_tosdcard_rd_en,
                                                          dout => fifo_tosdcard_dout, full => fifo_tosdcard_full, empty => fifo_tosdcard_empty,
                                                          wr_rst_busy => open, rd_rst_busy => open);
@@ -872,9 +875,9 @@ BEGIN
     output_fifo_wr_en => fifo_fromstrng_wr_en
     );
     
-  label_xess_sdcard_wrapper: xess_sdcard_wrapper port map (
-    xess_sdcard_wrapper_rst => fast_clk_rst_n,
-    xess_sdcard_wrapper_clk => fast_100m_clk_out,
+  label_SimpleSDHC_wrapper: SimpleSDHC_wrapper port map (
+    SimpleSDHC_wrapper_rst => mid_clk_rst_n,
+    SimpleSDHC_wrapper_clk => mid_50m_clk_out,
     output_fifo_in => fifo_fromsdcard_din,
     output_fifo_full => fifo_fromsdcard_full,
     output_fifo_wr_en => fifo_fromsdcard_wr_en,
@@ -895,7 +898,10 @@ BEGIN
     );
 
   -- label_clk_wiz: clk_wiz_0 port map(clk_out1 => uart_clk, clk_in1 => fxclk_in);
-  label_aes_clk_wiz: clk_wiz_aes port map(clk_out1 => fast_100m_clk_out, clk_out2 => timer_5m_clk_out, clk_in1 => fxclk_in);
+  label_aes_clk_wiz: clk_wiz_aes port map(clk_out1 => fast_100m_clk_out,
+                                          clk_out2 => timer_5m_clk_out,
+                                          clk_out3 => mid_50m_clk_out,
+                                          clk_in1 => fxclk_in);
   
   label_uart : uart_tx
     generic map (
@@ -917,6 +923,14 @@ BEGIN
        src_in => SBUS_3V3_RSTs,
        dest_clk => fast_100m_clk_out,
        dest_out => fast_100m_rst_fromsbus_n);
+      
+  xpm_cdc_single_reset2_n :xpm_cdc_single generic map(
+       DEST_SYNC_FF=>2)
+     port map (
+       src_clk => SBUS_3V3_CLK,
+       src_in => SBUS_3V3_RSTs,
+       dest_clk => mid_50m_clk_out,
+       dest_out => mid_50m_rst_fromsbus_n);
       
   xpm_cdc_gray_timer : xpm_cdc_gray generic map(
      DEST_SYNC_FF => 2,
@@ -940,7 +954,7 @@ BEGIN
      src_in => out_sd_rd_addr,
      src_send => out_sd_rd_addr_send,
      src_rcv => out_sd_rd_addr_rcv,
-     dest_clk => fast_100m_clk_out,
+     dest_clk => mid_50m_clk_out,
      dest_req => out_sd_rd_addr_req,
      dest_ack => out_sd_rd_addr_ack,
      dest_out => out_sd_rd_addr_fast
@@ -1871,6 +1885,22 @@ BEGIN
       fast_clk_rst_n <= '0';
       AES_RST_COUNTER <= 1;
     ELSIF RISING_EDGE(fast_100m_clk_out) THEN
+      if (AES_RST_COUNTER = 0) THEN
+        fast_clk_rst_n <= '1';
+      else
+        AES_RST_COUNTER <= (AES_RST_COUNTER - 1);
+        fast_clk_rst_n <= '0';
+      end if;
+    END IF;
+  END PROCESS;
+  
+  -- process to enable SDcard block
+  process (mid_50m_clk_out, mid_50m_rst_fromsbus_n)
+  BEGIN
+    if (mid_50m_rst_fromsbus_n = '0') THEN
+      mid_clk_rst_n <= '0';
+      SD_RST_COUNTER <= 1;
+    ELSIF RISING_EDGE(mid_50m_clk_out) THEN
       LED0 <= sd_LEDs(0);
       LED1 <= sd_LEDs(1);
       LED2 <= sd_LEDs(2);
@@ -1880,11 +1910,11 @@ BEGIN
       LED6 <= sd_LEDs(6);
       LED7 <= sd_LEDs(7);
     
-      if (AES_RST_COUNTER = 0) THEN
-        fast_clk_rst_n <= '1';
+      if (SD_RST_COUNTER = 0) THEN
+        mid_clk_rst_n <= '1';
       else
-        AES_RST_COUNTER <= (AES_RST_COUNTER - 1);
-        fast_clk_rst_n <= '0';
+        SD_RST_COUNTER <= (SD_RST_COUNTER - 1);
+        mid_clk_rst_n <= '0';
       end if;
     END IF;
   END PROCESS;
