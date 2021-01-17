@@ -1765,8 +1765,7 @@ BEGIN
             IF (fifo_fromsdcard_dout(159 downto 144) = x"1000") THEN
             -- fixme
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= x"00000000"; 
-            END IF;
-            IF (fifo_fromsdcard_dout(159 downto 144) = x"1001") THEN
+            ELSIF (fifo_fromsdcard_dout(159 downto 144) = x"1001") THEN
             -- fixme
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= x"00000000"; 
             END IF;
@@ -1811,8 +1810,7 @@ BEGIN
           out_sd_rd_addr_send <= '1';
         END IF;
         sdcard_deadbeef_counter := 0;
-      END IF;
-      IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) = '1') THEN
+      ELSIF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_SENT_IDX) = '1') THEN
         IF (out_sd_rd_addr_rcv = '1') THEN
           out_sd_rd_addr_send <= '0';
           IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL)(SD_CTRL_READ_IDX) = '1') THEN
@@ -1822,23 +1820,23 @@ BEGIN
           END IF;
           REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL) <= (others => '0');
         END IF;
-        IF (sdcard_deadbeef_counter = 255) THEN
-          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= x"C0FFEE00";
-          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= x"0000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
-          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL) <= (others => '0');
-        END IF;
-        sdcard_deadbeef_counter := sdcard_deadbeef_counter + 1;
+--        IF (sdcard_deadbeef_counter = 255) THEN
+--          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= x"C0FFEE00";
+--          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= x"0000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
+--          REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_CTRL) <= (others => '0');
+--        END IF;
+--        sdcard_deadbeef_counter := sdcard_deadbeef_counter + 1;
       END IF;
-      if ((fifo_fromsdcard_full = '1') AND (fifo_fromsdcard_empty = '1')) THEN
-        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= (others => '0');
-        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= (others => '0');
-        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= x"DEADBEEF";
-        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= x"C000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
-        sdcard_deadbeef_counter := sdcard_deadbeef_counter + 1;
-      ELSIF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) = x"DEADBEEF") THEN
-        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= 
-          fifo_fromsdcard_full & fifo_fromsdcard_empty & '0' & '0' & x"000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
-      END IF;
+--      if ((fifo_fromsdcard_full = '1') AND (fifo_fromsdcard_empty = '1')) THEN
+--        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) <= (others => '0');
+--        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= (others => '0');
+--        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) <= x"DEADBEEF";
+--        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= x"C000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
+--        sdcard_deadbeef_counter := sdcard_deadbeef_counter + 1;
+--      ELSIF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT) = x"DEADBEEF") THEN
+--        REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= 
+--          fifo_fromsdcard_full & fifo_fromsdcard_empty & '0' & '0' & x"000" & conv_std_logic_vector(sdcard_deadbeef_counter, 16);
+--      END IF;
       
     END IF;
   END PROCESS;
