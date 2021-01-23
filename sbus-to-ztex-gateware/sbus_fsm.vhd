@@ -591,6 +591,16 @@ ARCHITECTURE RTL OF SBusFSM IS
     t(31 downto 24) := a(24)&a(25)&a(26)&a(27)&a(28)&a(29)&a(30)&a(31);
     return t;
   end;
+  function reverse_bit_in_word (a: in std_logic_vector(31 downto 0))
+    return std_logic_vector is 
+    variable t: std_logic_vector(31 downto 0);
+  begin 
+    t(31 downto 24) := a( 0)&a( 1)&a( 2)&a( 3)&a( 4)&a( 5)&a( 6)&a( 7);
+    t(23 downto 16) := a( 8)&a( 9)&a(10)&a(11)&a(12)&a(13)&a(14)&a(15);
+    t(15 downto  8) := a(16)&a(17)&a(18)&a(19)&a(20)&a(21)&a(22)&a(23);
+    t( 7 downto  0) := a(24)&a(25)&a(26)&a(27)&a(28)&a(29)&a(30)&a(31);
+    return t;
+  end;
   
   component fifo_generator_uart is
     Port ( 
@@ -823,7 +833,7 @@ BEGIN
   
   label_prom: Prom PORT MAP (addr => p_addr, data => p_data);
 
-  --label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
+  label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
   
   label_fifo_uart: fifo_generator_uart port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
                                                 din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
@@ -1283,10 +1293,10 @@ BEGIN
                            p_addr, DATA_T, SM_T, SMs_T, LED_RESET);
           IF (finish_gcm) THEN
             finish_gcm := false;
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_word(mas_c(31  downto  0));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_word(mas_c(63  downto 32));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_word(mas_c(95  downto 64));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_word(mas_c(127 downto 96));
           END IF;
           IF ((seen_ack) OR (SBUS_3V3_ASs='1')) THEN
             seen_ack := false;
@@ -1300,14 +1310,14 @@ BEGIN
           IF (last_pa(OFFSET_HIGH downto OFFSET_LOW) = REG_OFFSET_LED) THEN
             LED_RESET <= '1'; -- reset led cycle
           ELSIF (last_pa(OFFSET_HIGH downto OFFSET_LOW) = REG_OFFSET_GCM_INPUT4) THEN
-            mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT1) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1));
-            mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT2) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2));
-            mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT3) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3));
-            mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                                                          xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4));
-            mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H1));
-            mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H2));
-            mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H3));
-            mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H4));
+            mas_a(31  downto  0) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT1) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1));
+            mas_a(63  downto 32) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT2) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2));
+            mas_a(95  downto 64) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT3) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3));
+            mas_a(127 downto 96) <= reverse_bit_in_word(BUF_DATA_I                                                          xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4));
+            mas_b(31  downto  0) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H1));
+            mas_b(63  downto 32) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H2));
+            mas_b(95  downto 64) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H3));
+            mas_b(127 downto 96) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H4));
             finish_gcm := true;
           END IF;
           if (BURST_COUNTER = (BURST_LIMIT-1)) THEN
@@ -1496,19 +1506,19 @@ BEGIN
           IF (dma_ctrl_idx = REG_INDEX_GCMDMA_CTRL) THEN
             IF (finish_gcm) THEN
               finish_gcm := false;
-              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
-              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
-              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
-              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_word(mas_c(31  downto  0));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_word(mas_c(63  downto 32));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_word(mas_c(95  downto 64));
+              REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_word(mas_c(127 downto 96));
             ELSIF (BURST_COUNTER mod 4 = 0) THEN
-              mas_a(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT1) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1));
-              mas_a(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT2) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2));
-              mas_a(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT3) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3));
-              mas_a(127 downto 96) <= reverse_bit_in_byte(BUF_DATA_I                                                          xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4)); -- INPUT4 will only be valid next cycle
-              mas_b(31  downto  0) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H1));
-              mas_b(63  downto 32) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H2));
-              mas_b(95  downto 64) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H3));
-              mas_b(127 downto 96) <= reverse_bit_in_byte(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H4));
+              mas_a(31  downto  0) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT1) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1));
+              mas_a(63  downto 32) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT2) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2));
+              mas_a(95  downto 64) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_INPUT3) xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3));
+              mas_a(127 downto 96) <= reverse_bit_in_word(BUF_DATA_I                                                          xor REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4)); -- INPUT4 will only be valid next cycle
+              mas_b(31  downto  0) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H1));
+              mas_b(63  downto 32) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H2));
+              mas_b(95  downto 64) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H3));
+              mas_b(127 downto 96) <= reverse_bit_in_word(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_H4));
               finish_gcm := true;
             END IF;
           ELSIF (dma_ctrl_idx = REG_INDEX_AESDMA_CTRL) THEN
@@ -1581,10 +1591,10 @@ BEGIN
           fifo_wr_en <= '1'; fifo_din <= x"66"; -- "f"
           IF (finish_gcm) THEN
             finish_gcm := false;
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_byte(mas_c(31  downto  0));
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_byte(mas_c(63  downto 32));
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_byte(mas_c(95  downto 64));
-            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_byte(mas_c(127 downto 96));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C1) <= reverse_bit_in_word(mas_c(31  downto  0));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C2) <= reverse_bit_in_word(mas_c(63  downto 32));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C3) <= reverse_bit_in_word(mas_c(95  downto 64));
+            REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_GCM_C4) <= reverse_bit_in_word(mas_c(127 downto 96));
           END IF;
           IF (REGISTERS(dma_ctrl_idx)(11 downto 0) = ((BURST_LIMIT/4)-1)) THEN
             -- finished, stop the DMA engine
