@@ -50,6 +50,7 @@ struct rdfpga_softc {
         u_int32_t cr_id;
         u_int16_t sid;
         u_int16_t aes_key_refresh;
+        u_int8_t aes_key_bits;
 
   struct rdfpga_cryptosession sessions[16];
 };

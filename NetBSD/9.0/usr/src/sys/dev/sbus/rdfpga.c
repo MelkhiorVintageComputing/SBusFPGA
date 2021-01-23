@@ -140,6 +140,9 @@ struct rdfpga_128bits {
 struct rdfpga_128bits_alt {
 	uint64_t x[2];
 };
+struct rdfpga_256bits {
+	uint64_t x[4];
+};
 
 #define RDFPGA_WC   _IOW(0, 1, struct rdfpga_128bits)
 #define RDFPGA_WH   _IOW(0, 2, struct rdfpga_128bits)
@@ -148,6 +151,7 @@ struct rdfpga_128bits_alt {
 #define RDFPGA_WL   _IOW(0, 5, uint32_t)
 
 #define RDFPGA_AESWK   _IOW(0, 10, struct rdfpga_128bits)
+#define RDFPGA_AESWK256   _IOW(0, 13, struct rdfpga_256bits)
 #define RDFPGA_AESWD   _IOW(0, 11, struct rdfpga_128bits)
 #define RDFPGA_AESRO   _IOR(0, 12, struct rdfpga_128bits)
 
@@ -156,6 +160,7 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 {
         struct rdfpga_softc *sc = device_lookup_private(&rdfpga_cd, minor(dev));
 	struct rdfpga_128bits_alt *bits = (struct rdfpga_128bits_alt*)data;
+	struct rdfpga_256bits *bits256 = (struct rdfpga_256bits*)data;
         int err = 0, i;
 	uint32_t ctrl;
 
@@ -187,6 +192,15 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 		for (i = 0 ; i < 2 ; i++)
 			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), bits->x[i] );
 		sc->aes_key_refresh = 0xFFFF;
+		sc->aes_key_bits = 0;
+                break;
+        case RDFPGA_AESWK256:
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
+		for (i = 0 ; i < 4 ; i++)
+			bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_KEY + (i*8)), bits256->x[i] );
+		sc->aes_key_refresh = 0xFFFF;
+		sc->aes_key_bits = 1;
                 break;
         case RDFPGA_AESWD:
 		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
@@ -197,6 +211,9 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 		if (sc->aes_key_refresh != 0x8000) {
 		  ctrl |= RDFPGA_MASK_AES128_NEWKEY;
 		  sc->aes_key_refresh = 0x8000;
+		}
+		if (sc->aes_key_bits == 1) {
+		  ctrl |= RDFPGA_MASK_AES128_AES256;
 		}
 	        bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
                 break;
