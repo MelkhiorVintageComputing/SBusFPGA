@@ -150,6 +150,7 @@ ENTITY SBusFSM is
   constant AES128_CTRL_CBCMOD_IDX : integer := 27;
   constant AES128_CTRL_AES256_IDX : integer := 26;
   constant AES128_CTRL_DEC_IDX    : integer := 25;
+  constant AES128_CTRL_GCMPOSTINC_IDX : integer := 24;
   
   CONSTANT REG_INDEX_TRNG_DATA    : integer := 0;
   CONSTANT REG_INDEX_TRNG_TIMER   : integer := 1;
@@ -468,6 +469,7 @@ ARCHITECTURE RTL OF SBusFSM IS
       (REG_OFFSET_AESDMA_CTRL = value) OR
       (REG_OFFSET_AESDMAW_CTRL = value) OR
       (REG_OFFSET_AES128_CTRL = value)
+      -- OR (REG_OFFSET_IS_AESDATA(value))
       ;
   end function;
 
@@ -1720,6 +1722,10 @@ BEGIN
                 REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA3) & REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA4);
               fifo_toaes_wr_en <= '1';
               AES_State <= AES_CRYPT1;
+              IF (REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_CTRL)(AES128_CTRL_GCMPOSTINC_IDX) = '1') THEN
+                REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA4) <= 
+                  conv_std_logic_vector(conv_integer(REGISTERS(reg_bank_size*reg_bank_crypto_idx + REG_INDEX_AES128_DATA4))+1,32);
+              END IF;
             END IF;
           END IF;
           

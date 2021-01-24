@@ -151,9 +151,15 @@ struct rdfpga_256bits {
 #define RDFPGA_WL   _IOW(0, 5, uint32_t)
 
 #define RDFPGA_AESWK   _IOW(0, 10, struct rdfpga_128bits)
-#define RDFPGA_AESWK256   _IOW(0, 13, struct rdfpga_256bits)
 #define RDFPGA_AESWD   _IOW(0, 11, struct rdfpga_128bits)
 #define RDFPGA_AESRO   _IOR(0, 12, struct rdfpga_128bits)
+#define RDFPGA_AESWK256   _IOW(0, 13, struct rdfpga_256bits)
+#define RDFPGA_AESGCMF   _IOWR(0, 14, struct rdfpga_128bits)
+#define RDFPGA_AESGCMN   _IOR(0, 15, struct rdfpga_128bits)
+
+#if 0
+#define RDFPGA_AESRD   _IOR(0, 100, struct rdfpga_128bits) /* fixme: remove */
+#endif
 
 int
 rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
@@ -223,6 +229,50 @@ rdfpga_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 		for (i = 0 ; i < 2 ; i++)
 			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
                 break;
+        case RDFPGA_AESGCMF:
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
+		for (i = 0 ; i < 2 ; i++)
+		  bus_space_write_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)), bits->x[i] );
+		ctrl = RDFPGA_MASK_AES128_START | RDFPGA_MASK_AES128_GCMPOSTINC;
+		if (sc->aes_key_refresh != 0x8000) {
+		  ctrl |= RDFPGA_MASK_AES128_NEWKEY;
+		  sc->aes_key_refresh = 0x8000;
+		}
+		if (sc->aes_key_bits == 1) {
+		  ctrl |= RDFPGA_MASK_AES128_AES256;
+		}
+	        bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
+		for (i = 0 ; i < 2 ; i++)
+			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
+                break;
+        case RDFPGA_AESGCMN:
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
+		ctrl = RDFPGA_MASK_AES128_START | RDFPGA_MASK_AES128_GCMPOSTINC;
+		if (sc->aes_key_refresh != 0x8000) {
+		  ctrl |= RDFPGA_MASK_AES128_NEWKEY;
+		  sc->aes_key_refresh = 0x8000;
+		}
+		if (sc->aes_key_bits == 1) {
+		  ctrl |= RDFPGA_MASK_AES128_AES256;
+		}
+	        bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_REG_AES128_CTRL, ctrl);
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
+		for (i = 0 ; i < 2 ; i++)
+			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_OUT + (i*8)));
+                break;
+#if 0
+        case RDFPGA_AESRD: /* fixme: disable */
+		if ((err = rdfpga_wait_aes_ready(sc)) != 0)
+		  return err;
+		for (i = 0 ; i < 2 ; i++)
+			bits->x[i] = bus_space_read_8(sc->sc_bustag, sc->sc_bhregs, (RDFPGA_REG_AES128_DATA + (i*8)));
+                break;
+#endif
         default:
                 err = EINVAL;
                 break;
