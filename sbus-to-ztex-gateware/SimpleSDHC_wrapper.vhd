@@ -246,14 +246,14 @@ output_fifo_wr_en <= '1';
           
         when SIMPLESDHC_READ_WAIT_BUSY =>
           IF (sd_busy = '1') THEN
-output_fifo_in <= '1' & x"5000" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
-output_fifo_wr_en <= '1';
+--output_fifo_in <= '1' & x"5000" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
             --sd_addr <= (others => '0');
             SIMPLESDHC_State <= SIMPLESDHC_READ_WAIT_READ;
             timeout_counter := TIMEOUT_MAX;
           elsif (timeout_counter = 0) then
-output_fifo_in <= '1' & x"E" & timedout(11 downto 0) & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
-output_fifo_wr_en <= '1';
+--output_fifo_in <= '1' & x"E" & timedout(11 downto 0) & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
             timedout := conv_std_logic_vector(conv_integer(timedout)+1,16);
             timeout_counter := TIMEOUT_MAX;
           else
@@ -262,14 +262,14 @@ output_fifo_wr_en <= '1';
         
         when SIMPLESDHC_READ_WAIT_READ =>
           IF (sd_error = '1') THEN
-output_fifo_in <= '1' & x"1100" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
-output_fifo_wr_en <= '1';
+--output_fifo_in <= '1' & x"1100" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
             sd_rd <= '0';
             SIMPLESDHC_State <= SIMPLESDHC_IDLE;
           --only read byte if we'll have some space to output the buffer
           ELSIF ((output_fifo_full = '0') AND (sd_dout_avail = '1')) THEN
-output_fifo_in <= '1' & x"40" & sd_data_o & conv_std_logic_vector(byte_counter,16) & x"00000000000000000000000000000000";
-output_fifo_wr_en <= '1';
+--output_fifo_in <= '1' & x"40" & sd_data_o & conv_std_logic_vector(byte_counter,16) & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
             databuf(((15 - (byte_counter mod 16))*8 + 7) downto ((15 - (byte_counter mod 16))*8)) := sd_data_o;
             sd_dout_taken <= '1';
             byte_counter := byte_counter + 1;
@@ -281,20 +281,20 @@ output_fifo_wr_en <= '1';
 --          ELSIF (output_fifo_full = '0') THEN
 --            timeout_counter := timeout_counter - 1;
           ELSIF (sd_busy = '0') THEN
-output_fifo_in <= '1' & x"1000" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
-output_fifo_wr_en <= '1';
+--output_fifo_in <= '1' & x"1000" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
               SIMPLESDHC_State <= SIMPLESDHC_IDLE;
           END IF;
           
         when SIMPLESDHC_READ_WAIT_READ2 =>
           IF (sd_error = '1') THEN
-output_fifo_in <= '1' & x"3100" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
-output_fifo_wr_en <= '1';
+--output_fifo_in <= '1' & x"3100" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
             sd_rd <= '0';
             SIMPLESDHC_State <= SIMPLESDHC_IDLE;
           ELSIF (sd_dout_avail = '0') THEN
-output_fifo_in <= '1' & x"3000" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
-output_fifo_wr_en <= '1';
+--output_fifo_in <= '1' & x"3000" & x"0" & sd_type & '0' & sd_error & sd_error_code & x"00000000000000000000000000000000";
+--output_fifo_wr_en <= '1';
             sd_dout_taken <= '0';
             timeout_counter := TIMEOUT_MAX;
             IF ((byte_counter mod 16) = 0) THEN

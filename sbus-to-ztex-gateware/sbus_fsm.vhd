@@ -835,7 +835,7 @@ BEGIN
   
   label_prom: Prom PORT MAP (addr => p_addr, data => p_data);
 
-  label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
+  --label_mas: mastrovito_V2_multiplication PORT MAP( a => mas_a, b => mas_b, c => mas_c );
   
   label_fifo_uart: fifo_generator_uart port map(rst => fifo_rst, wr_clk => SBUS_3V3_CLK, rd_clk => fxclk_in,
                                                 din => fifo_din, wr_en => fifo_wr_en, rd_en => fifo_rd_en,
@@ -1785,25 +1785,25 @@ BEGIN
             -- fixme
               REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMA_CTRL) <= x"00000000"; 
             END IF;
-          elsif (fifo_fromsdcard_dout(160) = '0') THEN
-            -- status indicating last stuff out of the FIFO was valid data
-            -- indicative, does not remove word from FIFO
-            IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS)(31 downto 8) /= x"FFFFFF") THEN
-              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD3) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2);
-              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD);
-              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS);
-            END IF;
-            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= fifo_fromsdcard_dout(159 downto 128);
-            if (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) = x"00000000") THEN
-              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFF0" & '0' & '0' & fifo_fromsdcard_full & fifo_fromsdcard_empty;
-            else
-              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFFFF";
-            END IF;
+--          elsif (fifo_fromsdcard_dout(160) = '0') THEN
+--            -- status indicating last stuff out of the FIFO was valid data
+--            -- indicative, does not remove word from FIFO
+--            IF (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS)(31 downto 8) /= x"FFFFFF") THEN
+--              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD3) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2);
+--              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD2) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD);
+--              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_OLD) <= REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS);
+--            END IF;
+--            REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS_DAT2) <= fifo_fromsdcard_dout(159 downto 128);
+--            if (REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SDDMAW_CTRL) = x"00000000") THEN
+--              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFF0" & '0' & '0' & fifo_fromsdcard_full & fifo_fromsdcard_empty;
+--            else
+--              REGISTERS(reg_bank_size*reg_bank_sdcard_idx + REG_INDEX_SD_STATUS) <= x"FFFFFFFF";
+--            END IF;
           end if;
 
         WHEN others =>
           -- do nothing
-      END CASE; --TRNG self-emptying FIFO
+      END CASE; --sdcard self-emptying FIFO
 
       -- cross-clock flip-flops from slow to fast clock for the 5 MHz timer
       --trng_timer_counter_mid <= trng_timer_counter;
