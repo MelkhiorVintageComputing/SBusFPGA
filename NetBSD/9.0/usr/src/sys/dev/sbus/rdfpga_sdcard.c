@@ -256,8 +256,10 @@ static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const in
     ctr ++;
   }
 
-  if (ctrl)
+  if (ctrl) {
+	  aprint_error_dev(sc->sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
     return EBUSY;
+  }
   
   ctr = 0;
   while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_CTRL)) != 0) &&
@@ -266,8 +268,10 @@ static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const in
     ctr ++;
   }
 
-  if (ctrl)
+  if (ctrl) {
+	  aprint_error_dev(sc->sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
     return EBUSY;
+  }
 
   return 0;
 }
@@ -291,8 +295,10 @@ static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const
   /* 		    bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS)); */
 
 
-  if (ctrl)
+  if (ctrl) {
+	  aprint_error_dev(sc->sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
     return EBUSY;
+  }
 
   return rdfpga_sdcard_wait_dma_ready(sc, count);
 }
@@ -300,6 +306,8 @@ static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const
 static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data) {
   int res = 0;
   u_int32_t ctrl;
+  //aprint_normal_dev(sc->sc_dev, "Reading block %u from sdcard\n", block);
+  
   if ((res = rdfpga_sdcard_wait_device_ready(sc, 50000)) != 0)
     return res;
   
