@@ -2,7 +2,7 @@
 
 ## Goal
 
-The goal of this repository is to be able to interface a modern (2020 era) [FPGA](https://en.wikipedia.org/wiki/Field-programmable_gate_array) with a [SBus](https://en.wikipedia.org/wiki/SBus) host. SBus was widely used in SPARCstation and compatibles system in the first halt of the 90s. It was progressively displaced by PCI from the mid-90s onward.
+The goal of this repository is to be able to interface a modern (2020 era) [FPGA](https://en.wikipedia.org/wiki/Field-programmable_gate_array) with a [SBus](https://en.wikipedia.org/wiki/SBus) host. SBus was widely used in SPARCstation and compatibles system in the first halt of the 90s. It was progressively displaced by PCI from the mid-90s onward, and is thoroughly obsolete.
 
 So unless you're a retrocomputing enthusiast with such a machine, this is useless. To be honest, even if you are such an enthusiast, it's probably not that useful...
 
@@ -12,13 +12,13 @@ To save on PCB cost, the board is smaller than a 'true' SBus board; the hardware
 
 ## Current status
 
-2021-01-23: The adapter board seems to work fine in two different SS20. Currently the embedded PROM code exposes three devices in the FPGA:
+2021-03-14: The adapter board seems to work fine in two different SS20. Currently the embedded PROM code exposes three devices in the FPGA:
 
 * "RDOL,cryptoengine": exposes a (way too large) polynomial multiplier to implement GCM mode and a AES block. Currently used to implement DMA-based acceleration of AES-256-CBC through /dev/crypto. Unfortunately OpenSSL doesn't support AES-256-GCM in the cryptodev engine, and disagree with NetBSD's /dev/crypto on how to implement AES-256-CTR. And the default SSH cannot use cryptodev, it closes all file descriptors after cryptodev has opened /dev/crypto... still WiP.
 
-* "RDOL,trng": exposes a 5 MHz counter (didn't realize the SS20 already had a good counter) and a so-far-not-true TRNG (implemented by a PRNG). The 'true' random generators I've found make Vivado screams very loudly when synthesizing... anyway both works fine in NetBSD 9.0 as a timecounter and an entropy source.  still WiP.
+* "RDOL,trng": exposes a 5 MHz counter (didn't realize the SS20 already had a good counter) and a so-far-not-true TRNG (implemented by a PRNG). The 'true' random generators I've found make Vivado screams very loudly when synthesizing... anyway both works fine in NetBSD 9.0 as a timecounter and an entropy source (which a PRNG really isn't, I know).  still WiP.
 
-* "RDOL,sdcard": trying to expose the micro-sd card slot as a storage device, at first using SPI mode. Not working, as I can't reliably get the FPGA to read from the micro-sd card in SPI mode. Frustratingly, the HW should be fine: a [Linux--on-LiteX-VexRiscV SoC](https://github.com/litex-hub/linux-on-litex-vexriscv) has no issue loading both the kernel and the filesystem image from a micro-sd card, using native SD mode - though it won't read the card in SPI mode either. Very much WiP.
+* "RDOL,sdcard": trying to expose the micro-sd card slot as a storage device, at first using SPI mode. So far reading seems to work, and NetBSD can see a Sun disklabel on the micro-sd card if it has been partitioned that way. Mounting a filesystem doesn't work yet. Writing not working yet. Very much WiP.
 
 ## The hardware
 
@@ -40,4 +40,5 @@ The gateware is currently synthesized with Vivado 2020.1
 
 Directory 'NetBSD'
 
-A basic driver for NetBSD 9.0/sparc, with ioctl to access the LED and GHASH registers, along with a small test code.
+Some basic drivers for NetBSD 9.0/sparc to enable the deviced as described above.
+
