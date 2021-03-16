@@ -35,6 +35,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/errno.h>
 #include <sys/device.h>
 #include <sys/malloc.h>
+#include <sys/systm.h>
 
 #include <sys/bus.h>
 #include <machine/autoconf.h>
@@ -45,6 +46,14 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/timetc.h>
 
 #include <dev/sbus/sbusvar.h>
+
+#include <sys/disklabel.h>
+#include <sys/disk.h>
+#include <sys/buf.h>
+
+#include <sys/bufq.h>
+#include <sys/disk.h>
+#include <dev/dkvar.h>
 
 #include <dev/sbus/rdfpga_sdcard.h>
 
@@ -60,16 +69,40 @@ CFATTACH_DECL_NEW(rdfpga_sdcard, sizeof(struct rdfpga_sdcard_softc),
 dev_type_open(rdfpga_sdcard_open);
 dev_type_close(rdfpga_sdcard_close);
 dev_type_ioctl(rdfpga_sdcard_ioctl);
+dev_type_strategy(rdfpga_sdcard_strategy);
+dev_type_size(rdfpga_sdcard_size);
 
 const struct bdevsw rdfpga_sdcard_bdevsw = {
     .d_open = rdfpga_sdcard_open,
     .d_close = rdfpga_sdcard_close,
-    .d_strategy = bdev_strategy,
+    .d_strategy = rdfpga_sdcard_strategy,
     .d_ioctl = rdfpga_sdcard_ioctl,
     .d_dump = nodump,
-    .d_psize = nosize,
+    .d_psize = rdfpga_sdcard_size,
     .d_discard = nodiscard,
     .d_flag = D_DISK
+};
+
+const struct cdevsw rdfpga_sdcard_cdevsw = {
+	.d_open = rdfpga_sdcard_open,
+	.d_close = rdfpga_sdcard_close,
+	.d_read = noread,
+	.d_write = nowrite,
+	.d_ioctl = rdfpga_sdcard_ioctl,
+	.d_stop = nostop,
+	.d_tty = notty,
+	.d_poll = nopoll,
+	.d_mmap = nommap,
+	.d_kqfilter = nokqfilter,
+	.d_discard = nodiscard,
+	.d_flag = D_DISK
+};
+
+static void rdfpga_sdcard_minphys(struct buf *);
+
+struct dkdriver rdfpga_sdcard_dkdriver = {
+	.d_strategy = rdfpga_sdcard_strategy,
+	.d_minphys = rdfpga_sdcard_minphys
 };
 
 extern struct cfdriver rdfpga_sdcard_cd;
@@ -78,6 +111,8 @@ static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const in
 static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const int count);
 static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
 static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
+
+static void	rdfpga_sdcard_set_geometry(struct rdfpga_sdcard_softc *sc);
 
 struct rdfpga_sdcard_rb_32to512 {
   u_int32_t block;
@@ -99,8 +134,15 @@ struct rdfpga_sdcard_rb_32to512 {
 int
 rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 {
-        struct rdfpga_sdcard_softc *sc = device_lookup_private(&rdfpga_sdcard_cd, minor(dev));
-	int err = 0;
+        struct rdfpga_sdcard_softc *sc = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(dev));
+		int err = 0, err2 = 0;
+
+		if (sc == NULL) {
+			aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
+			return (ENXIO);
+		}
+		
+		aprint_normal_dev(sc->dk.sc_dev, "%s:%d: ioctl (0x%08lx, %p, 0x%08x)\n", __PRETTY_FUNCTION__, __LINE__, cmd, data, flag);
 	
         switch (cmd) {
         case RDFPGA_SDCARD_RS:
@@ -145,23 +187,161 @@ rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 	    err = rdfpga_sdcard_write_block(sc, u->block, u->data);
 	    break;
 	  }
+	  
+
+ #if 0
+		case DIOCGDINFO:
+			*(struct disklabel *)data = *(sc->dk.sc_dkdev.dk_label);
+			break;
+			
+		case DIOCGDEFLABEL:
+			{
+		struct disklabel *lp = sc->dk.sc_dkdev.dk_label;
+		struct cpu_disklabel *clp = sc->dk.sc_dkdev.dk_cpulabel;
+		memset(lp, 0, sizeof(struct disklabel));
+		memset(clp, 0, sizeof(struct cpu_disklabel));
+		if (readdisklabel(dev, rdfpga_sdcard_strategy, lp, clp) != NULL) {
+			int i;
+			aprint_normal_dev(sc->dk.sc_dev, "read disk label OK\n");
+			strncpy(lp->d_packname, "default label", sizeof(lp->d_packname));
+			/*
+			 * Reset the partition info; it might have gotten
+			 * trashed in readdisklabel().
+			 *
+			 * XXX Why do we have to do this?  readdisklabel()
+			 * should be safe...
+			 */
+			for (i = 0; i < MAXPARTITIONS; ++i) {
+				lp->d_partitions[i].p_offset = 0;
+				if (i == RAW_PART) {
+					lp->d_partitions[i].p_size =
+						lp->d_secpercyl * lp->d_ncylinders;
+					lp->d_partitions[i].p_fstype = FS_BSDFFS;
+				} else {
+					lp->d_partitions[i].p_size = 0;
+					lp->d_partitions[i].p_fstype = FS_UNUSED;
+				}
+			}
+			lp->d_npartitions = RAW_PART + 1;
+			memcpy(data, lp, sizeof(struct disklabel));
+		} else {
+			aprint_normal_dev(sc->dk.sc_dev, "read disk label FAILED\n");
+		}
+	}
+			break;
+#endif
+			
+	/* case VNDIOCCLR: */
+	/* case VNDIOCCLR50: */
+	case DIOCGDINFO:
+	case DIOCSDINFO:
+	case DIOCWDINFO:
+	case DIOCGPARTINFO:
+	case DIOCKLABEL:
+	case DIOCWLABEL:
+	case DIOCCACHESYNC:
+#ifdef __HAVE_OLD_DISKLABEL
+	case ODIOCGDINFO:
+	case ODIOCSDINFO:
+	case ODIOCWDINFO:
+	case ODIOCGDEFLABEL:
+#endif
+	case DIOCDWEDGE:
+	case DIOCAWEDGE:
+	case DIOCLWEDGES:
+	case DIOCRMWEDGES:
+	case DIOCMWEDGES:
+	case DIOCGWEDGEINFO:
+
+	err2 = dk_ioctl(&sc->dk, dev, cmd, data, flag, l);
+	if (err2 != EPASSTHROUGH)
+		err = err2;
+	break;
+	case DIOCGDEFLABEL:
+		if (0) {
+		struct disklabel *lp = sc->dk.sc_dkdev.dk_label;
+		struct cpu_disklabel *clp = sc->dk.sc_dkdev.dk_cpulabel;
+		const char* buf;
+		memset(lp, 0, sizeof(struct disklabel));
+		memset(clp, 0, sizeof(struct cpu_disklabel));
+		lp->d_type = DKTYPE_FLASH;
+		lp->d_secsize = 512;
+		lp->d_secpercyl = 63;
+		lp->d_nsectors = 62521344; /* wrong, pet track not total */
+		lp->d_ncylinders = 3892;
+		lp->d_ntracks = 255;
+		lp->d_secperunit = lp->d_secpercyl * lp->d_ncylinders;
+		lp->d_rpm = 3600;	/* XXX like it matters... */
+		
+		strncpy(lp->d_typename, "sdcard", sizeof(lp->d_typename));
+		strncpy(lp->d_packname, "fictitious", sizeof(lp->d_packname));
+		lp->d_interleave = 0;
+		
+		lp->d_partitions[RAW_PART].p_offset = 0;
+		lp->d_partitions[RAW_PART].p_size = lp->d_secpercyl * lp->d_ncylinders;
+		lp->d_partitions[RAW_PART].p_fstype = FS_UNUSED;
+		lp->d_npartitions = RAW_PART + 1;
+		
+		lp->d_magic = DISKMAGIC;
+		lp->d_magic2 = DISKMAGIC;
+		lp->d_checksum = dkcksum(lp);
+		
+		if ((buf = readdisklabel(dev, rdfpga_sdcard_strategy, lp, clp)) != NULL) {
+			aprint_normal_dev(sc->dk.sc_dev, "read disk label err '%s'\n", buf);
+		} else {
+			aprint_normal_dev(sc->dk.sc_dev, "read disk label success\n");
+		}
+		}
+	err2 = dk_ioctl(&sc->dk, dev, cmd, data, flag, l);
+	if (err2 != EPASSTHROUGH)
+		err = err2;
+	break;
         default:
-	  err = EINVAL;
-	  break;
+			err = EINVAL;
+			break;
         }
+
+		aprint_normal_dev(sc->dk.sc_dev, "%s:%d: ioctl (0x%08lx, %p, 0x%08x) -> %d [%d]\n", __PRETTY_FUNCTION__, __LINE__, cmd, data, flag, err, err2);
+		
         return(err);
 }
 
 int
-rdfpga_sdcard_open(dev_t dev, int flags, int mode, struct lwp *l)
+rdfpga_sdcard_open(dev_t dev, int flag, int fmt, struct lwp *l)
 {
-	return (0);
+	struct rdfpga_sdcard_softc *sd = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(dev));
+	struct dk_softc *dksc;
+	int error;
+
+	if (sd == NULL) {
+		aprint_error("%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
+		return (ENXIO);
+	}
+	dksc = &sd->dk;
+
+	if (!device_is_active(dksc->sc_dev)) {
+		return (ENODEV);
+	}
+
+	error = dk_open(dksc, dev, flag, fmt, l);
+
+	return error;
 }
 
 int
-rdfpga_sdcard_close(dev_t dev, int flags, int mode, struct lwp *l)
+rdfpga_sdcard_close(dev_t dev, int flag, int fmt, struct lwp *l)
 {
-	return (0);
+	struct rdfpga_sdcard_softc *sd = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(dev));
+	struct dk_softc *dksc;
+
+	if (sd == NULL) {
+		aprint_error("%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
+		return (ENXIO);
+	}
+	
+	dksc = &sd->dk;
+
+	return dk_close(dksc, dev, flag, fmt, l);
 }
 
 int
@@ -194,7 +374,7 @@ rdfpga_sdcard_attach(device_t parent, device_t self, void *aux)
 		
 	sc->sc_bustag = sa->sa_bustag;
 	sc->sc_dmatag = sa->sa_dmatag;
-	sc->sc_dev = self;
+	sc->dk.sc_dev = self;
 
 	if (sbus_bus_map(sc->sc_bustag, sa->sa_slot, sa->sa_offset, sa->sa_size,
 			 BUS_SPACE_MAP_LINEAR, &sc->sc_bhregs) != 0) {
@@ -243,6 +423,25 @@ rdfpga_sdcard_attach(device_t parent, device_t self, void *aux)
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_CTRL, 0);
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_CTRL, 0);
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_CTRL, 0);
+
+	
+	/* disk_init(&sc->dk.sc_dkdev, device_xname(sc->dk.sc_dev), &rdfpga_sdcard_dkdriver); */
+	/* disk_attach(&sc->dk.sc_dkdev); */
+	
+	dk_init(&sc->dk, self, DKTYPE_FLASH);
+	disk_init(&sc->dk.sc_dkdev, device_xname(sc->dk.sc_dev), &rdfpga_sdcard_dkdriver);
+	dk_attach(&sc->dk);
+	disk_attach(&sc->dk.sc_dkdev);
+	rdfpga_sdcard_set_geometry(sc);
+
+	bufq_alloc(&sc->dk.sc_bufq, BUFQ_DISK_DEFAULT_STRAT, BUFQ_SORT_RAWBLOCK); /* needed ? */
+
+	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_blkshift = %d\n", sc->dk.sc_dkdev.dk_blkshift);
+	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_byteshift = %d\n", sc->dk.sc_dkdev.dk_byteshift);
+	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_label = %p\n", sc->dk.sc_dkdev.dk_label);
+	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_cpulabel = %p\n", sc->dk.sc_dkdev.dk_cpulabel);
+
+	
 }
 
 static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const int count) {
@@ -257,7 +456,7 @@ static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const in
   }
 
   if (ctrl) {
-	  aprint_error_dev(sc->sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
+	  aprint_error_dev(sc->dk.sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
     return EBUSY;
   }
   
@@ -269,7 +468,7 @@ static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const in
   }
 
   if (ctrl) {
-	  aprint_error_dev(sc->sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
+	  aprint_error_dev(sc->dk.sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
     return EBUSY;
   }
 
@@ -283,20 +482,20 @@ static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const
   ctr = 0;
   while (((ctrl = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_CTRL)) != 0) &&
 	 (ctr < count)) {
-    /* aprint_error_dev(sc->sc_dev, "ctrl is 0x%08x (%d, old status 0x%08x, current 0x%08x)\n", ctrl, ctr, */
+    /* aprint_error_dev(sc->dk.sc_dev, "ctrl is 0x%08x (%d, old status 0x%08x, current 0x%08x)\n", ctrl, ctr, */
     /* 		     bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS_OLD), */
     /* 		     bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS)); */
     delay(1);
     ctr ++;
   }
   
-  /* aprint_normal_dev(sc->sc_dev, "ctrl is 0x%08x (%d, old status 0x%08x, current 0x%08x)\n", ctrl, ctr, */
+  /* aprint_normal_dev(sc->dk.sc_dev, "ctrl is 0x%08x (%d, old status 0x%08x, current 0x%08x)\n", ctrl, ctr, */
   /* 		    bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS_OLD), */
   /* 		    bus_space_read_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_STATUS)); */
 
 
   if (ctrl) {
-	  aprint_error_dev(sc->sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
+	  aprint_error_dev(sc->dk.sc_dev, "%s:%d:  timed out (%u after %u)\n", __PRETTY_FUNCTION__, __LINE__, ctrl, ctr);
     return EBUSY;
   }
 
@@ -306,19 +505,19 @@ static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const
 static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data) {
   int res = 0;
   u_int32_t ctrl;
-  //aprint_normal_dev(sc->sc_dev, "Reading block %u from sdcard\n", block);
+  /* aprint_normal_dev(sc->dk.sc_dev, "Reading block %u from sdcard\n", block); */
   
   if ((res = rdfpga_sdcard_wait_device_ready(sc, 50000)) != 0)
     return res;
   
   if (bus_dmamem_alloc(sc->sc_dmatag, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, 64, 64, &sc->sc_segs, 1, &sc->sc_rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
-    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
+    aprint_error_dev(sc->dk.sc_dev, "cannot allocate DVMA memory");
     return ENXIO;
   }
   
   void* kvap;
   if (bus_dmamem_map(sc->sc_dmatag, &sc->sc_segs, 1, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, &kvap, BUS_DMA_NOWAIT)) {
-    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
+    aprint_error_dev(sc->dk.sc_dev, "cannot allocate DVMA address");
     bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
     return ENXIO;
   }
@@ -327,14 +526,14 @@ static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int3
   //memcpy(kvap, data, 512);
   
   if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
-		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_READ)) {
-    aprint_error_dev(sc->sc_dev, "cannot load dma map");
+		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+    aprint_error_dev(sc->dk.sc_dev, "cannot load dma map");
     bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
     bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
     return ENXIO;
   }
   
-  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_PREREAD);
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_PREWRITE);
 
   /* set DMA address */
   bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_ADDR, (uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr));
@@ -346,15 +545,15 @@ static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int3
 
   res = rdfpga_sdcard_wait_device_ready(sc, 100000);
 
-  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_POSTREAD);
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_POSTWRITE);
   
   bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
-  /* aprint_normal_dev(sc->sc_dev, "dma: unloaded\n"); */
+  /* aprint_normal_dev(sc->dk.sc_dev, "dma: unloaded\n"); */
 
   memcpy(data, kvap, 512);
   
   bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
-	  /* aprint_normal_dev(sc->sc_dev, "dma: unmapped\n"); */
+	  /* aprint_normal_dev(sc->dk.sc_dev, "dma: unmapped\n"); */
   
   bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
   
@@ -365,17 +564,19 @@ static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int3
 static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data) {
   int res = 0;
   u_int32_t ctrl;
+  /* aprint_normal_dev(sc->dk.sc_dev, "Reading Writing block %u from sdcard\n", block); */
+  
   if ((res = rdfpga_sdcard_wait_device_ready(sc, 50000)) != 0)
     return res;
   
   if (bus_dmamem_alloc(sc->sc_dmatag, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, 64, 64, &sc->sc_segs, 1, &sc->sc_rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
-    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
+    aprint_error_dev(sc->dk.sc_dev, "cannot allocate DVMA memory");
     return ENXIO;
   }
   
   void* kvap;
   if (bus_dmamem_map(sc->sc_dmatag, &sc->sc_segs, 1, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, &kvap, BUS_DMA_NOWAIT)) {
-    aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
+    aprint_error_dev(sc->dk.sc_dev, "cannot allocate DVMA address");
     bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
     return ENXIO;
   }
@@ -383,14 +584,14 @@ static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int
   memcpy(kvap, data, 512);
   
   if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
-		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
-    aprint_error_dev(sc->sc_dev, "cannot load dma map");
+		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_READ)) {
+    aprint_error_dev(sc->dk.sc_dev, "cannot load dma map");
     bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
     bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
     return ENXIO;
   }
   
-  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_PREWRITE);
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_PREREAD);
 
   /* set DMA address */
   bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMA_ADDR, (uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr));
@@ -402,17 +603,118 @@ static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int
 
   res = rdfpga_sdcard_wait_device_ready(sc, 100000);
 
-  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_POSTWRITE);
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_POSTREAD);
   
   bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
-  /* aprint_normal_dev(sc->sc_dev, "dma: unloaded\n"); */
+  /* aprint_normal_dev(sc->dk.sc_dev, "dma: unloaded\n"); */
 
   //memcpy(data, kvap, 512);
   
   bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
-	  /* aprint_normal_dev(sc->sc_dev, "dma: unmapped\n"); */
+	  /* aprint_normal_dev(sc->dk.sc_dev, "dma: unmapped\n"); */
   
   bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
   
   return res;
+}
+
+
+void
+rdfpga_sdcard_strategy(struct buf *bp)
+{	
+	struct rdfpga_sdcard_softc *sc = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(bp->b_dev));
+	if (sc == NULL) {
+		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
+		bp->b_resid = bp->b_bcount;
+		bp->b_error = EINVAL;
+		goto done;
+	}
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount); */
+
+	bp->b_resid = bp->b_bcount;
+
+	if (bp->b_bcount == 0) {
+		goto done;
+	}
+
+	if (bp->b_flags & B_READ) {
+		unsigned char* data = bp->b_data;
+		daddr_t blk = bp->b_rawblkno;
+		
+		while (bp->b_resid >= 512 && !bp->b_error) {
+			if (blk < 62521344) {
+				bp->b_error = rdfpga_sdcard_read_block(sc, blk, data);
+			} else {
+				bp->b_error = EINVAL;
+			}
+			blk ++;
+			data += 512;
+			bp->b_resid -= 512;
+		}
+	} else {
+#if 1
+		bp->b_error = EINVAL;
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount);
+#else
+		unsigned char* data = bp->b_data;
+		daddr_t blk = bp->b_rawblkno;
+		
+		while (bp->b_resid >= 512 && !bp->b_error) {
+			if (blk < 62521344) {
+				bp->b_error = rdfpga_sdcard_write_block(sc, blk, data);
+			} else {
+				bp->b_error = EINVAL;
+			}
+			blk ++;
+			data += 512;
+			bp->b_resid -= 512;
+		}
+#endif
+	}
+	
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_resid = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_resid); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_error = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_error); */
+	
+ done:
+	biodone(bp);
+}
+
+static void	rdfpga_sdcard_set_geometry(struct rdfpga_sdcard_softc *sc) {
+	struct dk_softc *dksc = &sc->dk;
+	struct disk_geom *dg = &dksc->sc_dkdev.dk_geom;
+
+	memset(dg, 0, sizeof(*dg));
+
+	dg->dg_secsize = 512;
+	dg->dg_nsectors = 32; //63;
+	dg->dg_ntracks = 64; //255;
+	dg->dg_ncylinders = 30528; //3892;
+	dg->dg_secpercyl = dg->dg_nsectors * dg->dg_ntracks;
+	dg->dg_secperunit = 62521344; //dg->dg_secpercyl * dg->dg_ncylinders;
+	dg->dg_pcylinders = 30528; //3892;
+	dg->dg_sparespertrack = 0;
+	dg->dg_sparespercyl = 0;
+
+	disk_set_info(dksc->sc_dev, &dksc->sc_dkdev, "rdfpga_sdcard");
+}
+
+
+int
+rdfpga_sdcard_size(dev_t dev) {
+	return 62521344;
+}
+
+static void
+rdfpga_sdcard_minphys(struct buf *bp)
+{
+	if (bp->b_bcount > 16)
+		bp->b_bcount = 16;
 }

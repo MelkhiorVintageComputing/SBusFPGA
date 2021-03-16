@@ -30,7 +30,9 @@
 #define _RDFPGA_SDCARD_H_
 
 struct rdfpga_sdcard_softc {
-	device_t sc_dev;		/* us as a device */
+	struct dk_softc dk;
+	/* device_t sc_dev;		/\* us as a device *\/ */
+	/* struct disk	sc_dk;		/\* generic disk info *\/ */
 	u_int	sc_rev;			/* revision */
 	int	sc_node;		/* PROM node ID */
 	int	sc_burst;		/* DVMA burst size in effect */
