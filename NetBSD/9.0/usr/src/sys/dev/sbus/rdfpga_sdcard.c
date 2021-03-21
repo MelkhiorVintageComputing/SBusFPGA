@@ -98,11 +98,14 @@ const struct cdevsw rdfpga_sdcard_cdevsw = {
 	.d_flag = D_DISK
 };
 
+static void	rdfpga_sdcard_set_geometry(struct rdfpga_sdcard_softc *sc);
 static void rdfpga_sdcard_minphys(struct buf *);
+static int rdfpga_sdcard_diskstart(device_t self, struct buf *bp);
 
 struct dkdriver rdfpga_sdcard_dkdriver = {
 	.d_strategy = rdfpga_sdcard_strategy,
-	.d_minphys = rdfpga_sdcard_minphys
+	.d_minphys = rdfpga_sdcard_minphys,
+	.d_diskstart = rdfpga_sdcard_diskstart								  
 };
 
 extern struct cfdriver rdfpga_sdcard_cd;
@@ -111,8 +114,6 @@ static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const in
 static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const int count);
 static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
 static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
-
-static void	rdfpga_sdcard_set_geometry(struct rdfpga_sdcard_softc *sc);
 
 struct rdfpga_sdcard_rb_32to512 {
   u_int32_t block;
@@ -142,7 +143,7 @@ rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 			return (ENXIO);
 		}
 		
-		aprint_normal_dev(sc->dk.sc_dev, "%s:%d: ioctl (0x%08lx, %p, 0x%08x)\n", __PRETTY_FUNCTION__, __LINE__, cmd, data, flag);
+		aprint_normal_dev(sc->dk.sc_dev, "%s:%d: ioctl (0x%08lx, %p, 0x%08x) part %d\n", __PRETTY_FUNCTION__, __LINE__, cmd, data, flag, DISKPART(dev));
 	
         switch (cmd) {
         case RDFPGA_SDCARD_RS:
@@ -316,6 +317,8 @@ rdfpga_sdcard_open(dev_t dev, int flag, int fmt, struct lwp *l)
 	if (sd == NULL) {
 		aprint_error("%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
+	} else {
+		aprint_normal("%s:%d: open device, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(dev));
 	}
 	dksc = &sd->dk;
 
@@ -621,8 +624,10 @@ static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int
 
 void
 rdfpga_sdcard_strategy(struct buf *bp)
-{	
+{
+#if 0
 	struct rdfpga_sdcard_softc *sc = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(bp->b_dev));
+	int err = 0;
 	if (sc == NULL) {
 		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		bp->b_resid = bp->b_bcount;
@@ -643,12 +648,26 @@ rdfpga_sdcard_strategy(struct buf *bp)
 
 	if (bp->b_flags & B_READ) {
 		unsigned char* data = bp->b_data;
-		daddr_t blk = bp->b_rawblkno;
+		daddr_t blk = bp->b_blkno;
+		struct partition *p = NULL;
+		
+		if (DISKPART(bp->b_dev) != RAW_PART) {
+			if ((err = bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0)) <= 0) {
+				aprint_error("%s:%d: bounds_check_with_label -> %d\n", __PRETTY_FUNCTION__, __LINE__, err);
+				bp->b_resid = bp->b_bcount;
+				goto done;
+			}
+			p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)];
+			blk = bp->b_blkno + p->p_offset;
+		}
 		
 		while (bp->b_resid >= 512 && !bp->b_error) {
 			if (blk < 62521344) {
+				aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld, computed %lld (part %d)\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno, blk, DISKPART(bp->b_dev));
+aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno);
 				bp->b_error = rdfpga_sdcard_read_block(sc, blk, data);
 			} else {
+				aprint_error("%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
 				bp->b_error = EINVAL;
 			}
 			blk ++;
@@ -665,12 +684,22 @@ rdfpga_sdcard_strategy(struct buf *bp)
 	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount);
 #else
 		unsigned char* data = bp->b_data;
-		daddr_t blk = bp->b_rawblkno;
+		daddr_t blk = bp->b_blkno;
+		
+		if (DISKPART(bp->b_dev) != RAW_PART) {
+			if (bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0) <= 0) {
+				bp->b_resid = bp->b_bcount;
+				goto done;
+			}
+			p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)];
+			blk = bp->b_blkno + p->p_offset;
+		}
 		
 		while (bp->b_resid >= 512 && !bp->b_error) {
 			if (blk < 62521344) {
 				bp->b_error = rdfpga_sdcard_write_block(sc, blk, data);
 			} else {
+				aprint_error("%s:%d: blk = %lld write out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
 				bp->b_error = EINVAL;
 			}
 			blk ++;
@@ -685,6 +714,11 @@ rdfpga_sdcard_strategy(struct buf *bp)
 	
  done:
 	biodone(bp);
+#else
+	struct rdfpga_sdcard_softc *sc = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(bp->b_dev));
+	
+	dk_strategy(&sc->dk, bp);
+#endif
 }
 
 static void	rdfpga_sdcard_set_geometry(struct rdfpga_sdcard_softc *sc) {
@@ -717,4 +751,98 @@ rdfpga_sdcard_minphys(struct buf *bp)
 {
 	if (bp->b_bcount > 16)
 		bp->b_bcount = 16;
+}
+
+static int
+rdfpga_sdcard_diskstart(device_t self, struct buf *bp)
+{	
+	struct rdfpga_sdcard_softc *sc = device_private(self);
+	int err = 0;
+	if (sc == NULL) {
+		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
+		err = EINVAL;
+		goto done;
+	}
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: part %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(bp->b_dev)); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount); */
+
+	bp->b_resid = bp->b_bcount;
+
+	if (bp->b_bcount == 0) {
+		goto done;
+	}
+
+	if (bp->b_flags & B_READ) {
+		unsigned char* data = bp->b_data;
+		daddr_t blk = bp->b_rawblkno;
+		/* struct partition *p = NULL; */
+		
+		/* if (DISKPART(bp->b_dev) != RAW_PART) { */
+		/* 	if ((err = bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0)) <= 0) { */
+		/* 		aprint_error("%s:%d: bounds_check_with_label -> %d\n", __PRETTY_FUNCTION__, __LINE__, err); */
+		/* 		bp->b_resid = bp->b_bcount; */
+		/* 		goto done; */
+		/* 	} */
+		/* 	p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)]; */
+		/* 	blk = bp->b_blkno + p->p_offset; */
+		/* } */
+		
+		while (bp->b_resid >= 512 && !err) {
+			if (blk < 62521344) {
+				err = rdfpga_sdcard_read_block(sc, blk, data);
+			} else {
+				aprint_error("%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
+				err = EINVAL;
+			}
+			blk ++;
+			data += 512;
+			bp->b_resid -= 512;
+		}
+	} else {
+#if 1
+		err = EINVAL;
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: part %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(bp->b_dev));
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno);
+	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount);
+#else
+		unsigned char* data = bp->b_data;
+		daddr_t blk = bp->b_rawblkno;
+		/* struct partition *p = NULL; */
+		
+		/* if (DISKPART(bp->b_dev) != RAW_PART) { */
+		/* 	if (bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0) <= 0) { */
+		/* 		bp->b_resid = bp->b_bcount; */
+		/* 		goto done; */
+		/* 	} */
+		/* 	p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)]; */
+		/* 	blk = bp->b_blkno + p->p_offset; */
+		/* } */
+		
+		while (bp->b_resid >= 512 && !err) {
+			if (blk < 62521344) {
+				err = rdfpga_sdcard_write_block(sc, blk, data);
+			} else {
+				aprint_error("%s:%d: blk = %lld write out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
+				err = EINVAL;
+			}
+			blk ++;
+			data += 512;
+			bp->b_resid -= 512;
+		}
+#endif
+	}
+	
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_resid = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_resid); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_error = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_error); */
+	
+ done:
+	biodone(bp);
+	return err;
 }
