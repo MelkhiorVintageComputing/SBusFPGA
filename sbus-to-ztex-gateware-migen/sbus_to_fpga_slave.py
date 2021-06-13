@@ -31,7 +31,7 @@ ROM_ADDR_PFX = C(0x000)[0:12]
 WISHBONE_CSR_ADDR_PFX = C(0x004)[0:12]
 
 def siz_is_word(siz):
-    return (SIZ_WORD == siz) or (SIZ_BURST2 == siz) or (SIZ_BURST4 == siz) or (SIZ_BURST8 == siz) or (SIZ_BURST16 == siz)
+    return (SIZ_WORD == siz) | (SIZ_BURST2 == siz) | (SIZ_BURST4 == siz) | (SIZ_BURST8 == siz) | (SIZ_BURST16 == siz)
 
 def index_with_wrap(counter, limit_m1, value):
     if (limit_m1 == 0):
@@ -46,6 +46,7 @@ def index_with_wrap(counter, limit_m1, value):
         return (value + counter)[0:4]
     return value[0:4]
 
+# FIXME: this doesn't work. Verilog aways use 1
 def siz_to_burst_size_m1(siz):
     if (SIZ_WORD == siz):
         return 0
@@ -58,6 +59,7 @@ def siz_to_burst_size_m1(siz):
     elif (SIZ_BURST16 == siz):
         return 15
     return 1
+
 
 class LedDisplay(Module):
     def __init__(self, pads):
@@ -263,17 +265,22 @@ class SBusFPGASlave(Module):
         )
         slave_fsm.act("Idle",
                       #NextValue(leds, 0x11),
-                      If(((SBUS_3V3_SELs_i == 0) and
-                          (SBUS_3V3_ASs_i == 0) and
-                          (siz_is_word(SBUS_3V3_SIZ_i)) and
-                          (SBUS_3V3_PPRD_i == 1) and
+                      If(((SBUS_3V3_SELs_i == 0) &
+                          (SBUS_3V3_ASs_i == 0) &
+                          (siz_is_word(SBUS_3V3_SIZ_i)) &
+                          (SBUS_3V3_PPRD_i == 1) &
                           (SBUS_3V3_PA_i[0:2] == 0)),
                          NextValue(SBUS_DATA_OE_LED_o, 1),
                          NextValue(SBUS_DATA_OE_LED_2_o, 0),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          NextValue(burst_counter, 0),
-                         NextValue(burst_limit_m1, siz_to_burst_size_m1(SBUS_3V3_SIZ_i)),
+                         Case(SBUS_3V3_SIZ_i, {
+                             SIZ_WORD: NextValue(burst_limit_m1, 0),
+                             SIZ_BURST2: NextValue(burst_limit_m1, 1),
+                             SIZ_BURST4: NextValue(burst_limit_m1, 3),
+                             SIZ_BURST8: NextValue(burst_limit_m1, 7),
+                             SIZ_BURST16: NextValue(burst_limit_m1, 15)}),
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX),
                             NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                             NextValue(SBUS_3V3_ERRs_o, 1),
@@ -291,9 +298,9 @@ class SBusFPGASlave(Module):
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
                          )
-                      ).Elif(((SBUS_3V3_SELs_i == 0) and
-                              (SBUS_3V3_ASs_i == 0) and
-                              (SIZ_BYTE == SBUS_3V3_SIZ_i) and
+                      ).Elif(((SBUS_3V3_SELs_i == 0) &
+                              (SBUS_3V3_ASs_i == 0) &
+                              (SIZ_BYTE == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 1)),
                          NextValue(SBUS_DATA_OE_LED_o, 1),
                          NextValue(SBUS_DATA_OE_LED_2_o, 0),
@@ -310,17 +317,22 @@ class SBusFPGASlave(Module):
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
                          )
-                      ).Elif(((SBUS_3V3_SELs_i == 0) and
-                              (SBUS_3V3_ASs_i == 0) and
-                              (siz_is_word(SBUS_3V3_SIZ_i)) and
-                              (SBUS_3V3_PPRD_i == 0) and
+                      ).Elif(((SBUS_3V3_SELs_i == 0) &
+                              (SBUS_3V3_ASs_i == 0) &
+                              (siz_is_word(SBUS_3V3_SIZ_i)) &
+                              (SBUS_3V3_PPRD_i == 0) &
                               (SBUS_3V3_PA_i[0:2] == 0)),
                          NextValue(SBUS_DATA_OE_LED_o, 0),
                          NextValue(SBUS_DATA_OE_LED_2_o, 1),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          NextValue(burst_counter, 0),
-                         NextValue(burst_limit_m1, siz_to_burst_size_m1(SBUS_3V3_SIZ_i)),
+                         Case(SBUS_3V3_SIZ_i, {
+                             SIZ_WORD: NextValue(burst_limit_m1, 0),
+                             SIZ_BURST2: NextValue(burst_limit_m1, 1),
+                             SIZ_BURST4: NextValue(burst_limit_m1, 3),
+                             SIZ_BURST8: NextValue(burst_limit_m1, 7),
+                             SIZ_BURST16: NextValue(burst_limit_m1, 15)}),
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX),
                             NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                             NextValue(SBUS_3V3_ERRs_o, 1),
