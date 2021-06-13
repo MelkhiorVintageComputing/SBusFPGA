@@ -289,11 +289,11 @@ class SBusFPGASlave(Module):
                          ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX),
                             NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                             NextValue(SBUS_3V3_ERRs_o, 1),
-                            NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                            #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                             NextValue(p_data, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)), # FIXME
                             NextState("Slave_Ack_Read_Reg_Burst")
                          ).Else(
-                             NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
@@ -302,8 +302,8 @@ class SBusFPGASlave(Module):
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_BYTE == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 1)),
-                         NextValue(SBUS_DATA_OE_LED_o, 1),
-                         NextValue(SBUS_DATA_OE_LED_2_o, 0),
+                         NextValue(SBUS_DATA_OE_LED_o, 0),
+                         NextValue(SBUS_DATA_OE_LED_2_o, 1),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX),
@@ -312,7 +312,7 @@ class SBusFPGASlave(Module):
                             NextValue(p_data, prom[SBUS_3V3_PA_i[ADDR_PHYS_LOW+2:ADDR_PFX_LOW]]),
                             NextState("Slave_Ack_Read_Prom_Byte")
                          ).Else(
-                             NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(2)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(2)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
@@ -322,8 +322,8 @@ class SBusFPGASlave(Module):
                               (siz_is_word(SBUS_3V3_SIZ_i)) &
                               (SBUS_3V3_PPRD_i == 0) &
                               (SBUS_3V3_PA_i[0:2] == 0)),
-                         NextValue(SBUS_DATA_OE_LED_o, 0),
-                         NextValue(SBUS_DATA_OE_LED_2_o, 1),
+                         #NextValue(SBUS_DATA_OE_LED_o, 0),
+                         #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          NextValue(burst_counter, 0),
@@ -338,7 +338,7 @@ class SBusFPGASlave(Module):
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             NextState("Slave_Ack_Reg_Write_Burst")
                          ).Else(
-                             NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(3)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(3)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
@@ -363,14 +363,15 @@ class SBusFPGASlave(Module):
         slave_fsm.act("Slave_Ack_Read_Prom_Byte",
                       #NextValue(leds, 0x0c),
                       NextValue(sbus_oe_data, 1),
+                      NextValue(self.led_display.value, sbus_last_pa[0:2]),
                       If((sbus_last_pa[0:2] == 0x0),
-                         NextValue(SBUS_3V3_D_o, Cat(C(0)[0:24], p_data[24:32]))
+                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[24:32]))
                       ).Elif((sbus_last_pa[0:2] == 0x1),
-                         NextValue(SBUS_3V3_D_o, Cat(C(0)[0:24], p_data[16:24]))
+                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[16:24]))
                       ).Elif((sbus_last_pa[0:2] == 0x2),
-                         NextValue(SBUS_3V3_D_o, Cat(C(0)[0:24], p_data[8:16]))
+                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[ 8:16]))
                       ).Elif((sbus_last_pa[0:2] == 0x3),
-                         NextValue(SBUS_3V3_D_o, Cat(C(0)[0:24], p_data[0:8]))
+                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[ 0: 8]))
                       ),
                       NextState("Slave_Do_Read")
         )
