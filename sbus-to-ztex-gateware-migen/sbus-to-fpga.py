@@ -93,10 +93,10 @@ class SBusFPGA(SoCCore):
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
         self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6)
 
-#        self.submodules.leds = LedChaser(
-#            pads         = platform.request_all("user_led"),
-#            sys_clk_freq = sys_clk_freq)
-#        self.add_csr("leds")
+        self.submodules.leds = LedChaser(
+            pads         = platform.request_all("user_led"),
+            sys_clk_freq = sys_clk_freq)
+        self.add_csr("leds")
 
         prom_file = "prom_mini.fc"
         prom_data = soc_core.get_mem_data(prom_file, "big")
@@ -122,7 +122,8 @@ class SBusFPGA(SoCCore):
         self.submodules.sbus_slave = SBusFPGASlave(platform=self.platform,
                                                    prom=prom,
                                                    hold_reset=hold_reset,
-                                                   wishbone=wishbone.Interface(data_width=self.bus.data_width, adr_width=self.bus.address_width))
+                                                   wishbone=wishbone.Interface(data_width=self.bus.data_width, adr_width=self.bus.address_width),
+                                                   chaser=self.leds)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_slave.wishbone)
         

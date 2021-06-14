@@ -27,12 +27,13 @@ ADDR_PHYS_LOW = 0
 ADDR_PFX_HIGH = ADDR_PHYS_HIGH
 ADDR_PFX_LOW = 16 ## 64 KiB per prefix
 ADDR_PFX_LENGTH = 12 #(1 + ADDR_PFX_HIGH - ADDR_PFX_LOW)
-ROM_ADDR_PFX = C(0x000)[0:12]
-WISHBONE_CSR_ADDR_PFX = C(0x004)[0:12]
+ROM_ADDR_PFX = Signal(12, reset = 0)
+WISHBONE_CSR_ADDR_PFX = Signal(12, reset = 4)
 
 def siz_is_word(siz):
     return (SIZ_WORD == siz) | (SIZ_BURST2 == siz) | (SIZ_BURST4 == siz) | (SIZ_BURST8 == siz) | (SIZ_BURST16 == siz)
 
+# FIXME: this doesn't work. Verilog aways use 1
 def index_with_wrap(counter, limit_m1, value):
     if (limit_m1 == 0):
         return value[0:4]
@@ -45,6 +46,10 @@ def index_with_wrap(counter, limit_m1, value):
     elif (limit_m1 == 15):
         return (value + counter)[0:4]
     return value[0:4]
+
+# doesn't compile
+#def index_with_wrap(counter, limit_m1, value):
+#    return Cat((value+counter)[0:limit_m1], value[limit_m1:4])
 
 # FIXME: this doesn't work. Verilog aways use 1
 def siz_to_burst_size_m1(siz):
@@ -59,7 +64,6 @@ def siz_to_burst_size_m1(siz):
     elif (SIZ_BURST16 == siz):
         return 15
     return 1
-
 
 class LedDisplay(Module):
     def __init__(self, pads):
@@ -140,14 +144,15 @@ class LedDisplay(Module):
                     NextValue(time_counter, time_counter - 1)
                 )
         )
-
+        
 class SBusFPGASlave(Module):
-    def __init__(self, platform, prom, hold_reset, wishbone):
+    def __init__(self, platform, prom, hold_reset, wishbone, chaser):
         self.platform = platform
         self.hold_reset = hold_reset
         self.wishbone = wishbone
+        self.chaser = chaser
 
-        self.submodules.led_display = LedDisplay(pads=platform.request_all("user_led"))
+        #self.submodules.led_display = LedDisplay(pads=platform.request_all("user_led"))
         
         #pad_SBUS_3V3_CLK = platform.request("SBUS_3V3_CLK")
         pad_SBUS_3V3_ASs = platform.request("SBUS_3V3_ASs")
@@ -238,8 +243,8 @@ class SBusFPGASlave(Module):
         csr_data_w_we = Signal(reset = 0) # write enable
 
         slave_fsm.act("Reset",
-                      NextValue(SBUS_DATA_OE_LED_o, 0),
-                      NextValue(SBUS_DATA_OE_LED_2_o, 0),
+                      #NextValue(SBUS_DATA_OE_LED_o, 0),
+                      #NextValue(SBUS_DATA_OE_LED_2_o, 0),
                       NextValue(sbus_oe_int1, 0),
                       NextValue(sbus_oe_int7, 0),
                       NextValue(sbus_oe_data, 0),
@@ -251,8 +256,8 @@ class SBusFPGASlave(Module):
                       NextState("Start")
         )
         slave_fsm.act("Start",
-                      NextValue(SBUS_DATA_OE_LED_o, 0),
-                      NextValue(SBUS_DATA_OE_LED_2_o, 0),
+                      #NextValue(SBUS_DATA_OE_LED_o, 0),
+                      #NextValue(SBUS_DATA_OE_LED_2_o, 0),
                       NextValue(sbus_oe_int1, 0),
                       NextValue(sbus_oe_int7, 0),
                       NextValue(sbus_oe_data, 0),
@@ -270,8 +275,8 @@ class SBusFPGASlave(Module):
                           (siz_is_word(SBUS_3V3_SIZ_i)) &
                           (SBUS_3V3_PPRD_i == 1) &
                           (SBUS_3V3_PA_i[0:2] == 0)),
-                         NextValue(SBUS_DATA_OE_LED_o, 1),
-                         NextValue(SBUS_DATA_OE_LED_2_o, 0),
+                         #NextValue(SBUS_DATA_OE_LED_o, 1),
+                         #NextValue(SBUS_DATA_OE_LED_2_o, 0),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          NextValue(burst_counter, 0),
@@ -289,11 +294,11 @@ class SBusFPGASlave(Module):
                          ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX),
                             NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                             NextValue(SBUS_3V3_ERRs_o, 1),
-                            #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
-                            NextValue(p_data, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)), # FIXME
+                            #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, Signal(2, reset = 1), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                            NextValue(p_data, Cat(SBUS_3V3_PA_i, Signal(2, reset = 1), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)), # FIXME
                             NextState("Slave_Ack_Read_Reg_Burst")
                          ).Else(
-                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(1)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, Signal(2, reset = 1), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
@@ -302,8 +307,8 @@ class SBusFPGASlave(Module):
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_BYTE == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 1)),
-                         NextValue(SBUS_DATA_OE_LED_o, 0),
-                         NextValue(SBUS_DATA_OE_LED_2_o, 1),
+                         #NextValue(SBUS_DATA_OE_LED_o, 0),
+                         #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX),
@@ -312,7 +317,7 @@ class SBusFPGASlave(Module):
                             NextValue(p_data, prom[SBUS_3V3_PA_i[ADDR_PHYS_LOW+2:ADDR_PFX_LOW]]),
                             NextState("Slave_Ack_Read_Prom_Byte")
                          ).Else(
-                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(2)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, Signal(2, reset = 2), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
@@ -322,7 +327,7 @@ class SBusFPGASlave(Module):
                               (siz_is_word(SBUS_3V3_SIZ_i)) &
                               (SBUS_3V3_PPRD_i == 0) &
                               (SBUS_3V3_PA_i[0:2] == 0)),
-                         #NextValue(SBUS_DATA_OE_LED_o, 0),
+                         #NextValue(SBUS_DATA_OE_LED_o, 1),
                          #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
@@ -338,7 +343,7 @@ class SBusFPGASlave(Module):
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             NextState("Slave_Ack_Reg_Write_Burst")
                          ).Else(
-                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, C(3)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
+                             #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, Signal(2, reset = 3), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              NextState("Slave_Error")
@@ -352,6 +357,13 @@ class SBusFPGASlave(Module):
                       NextValue(SBUS_3V3_D_o, p_data),
                       #NextValue(burst_index, index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])),
                       NextValue(p_data, prom[Cat(index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW])]),
+                      Case(burst_limit_m1, {
+                          0:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:4], sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW])]),
+                          1:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:1], sbus_last_pa[ADDR_PHYS_LOW+3:ADDR_PFX_LOW])]),
+                          3:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:2], sbus_last_pa[ADDR_PHYS_LOW+4:ADDR_PFX_LOW])]),
+                          7:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:3], sbus_last_pa[ADDR_PHYS_LOW+5:ADDR_PFX_LOW])]),
+                          15: NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:4], sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW])]),
+                          }),
                       If((burst_counter == burst_limit_m1),
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                          NextState("Slave_Do_Read")
@@ -363,7 +375,7 @@ class SBusFPGASlave(Module):
         slave_fsm.act("Slave_Ack_Read_Prom_Byte",
                       #NextValue(leds, 0x0c),
                       NextValue(sbus_oe_data, 1),
-                      NextValue(self.led_display.value, sbus_last_pa[0:2]),
+                      #NextValue(self.led_display.value, sbus_last_pa[0:2]),
                       If((sbus_last_pa[0:2] == 0x0),
                          NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[24:32]))
                       ).Elif((sbus_last_pa[0:2] == 0x1),
@@ -391,7 +403,7 @@ class SBusFPGASlave(Module):
                       #NextValue(leds, 0x03),
                       NextValue(sbus_oe_data, 1),
                       NextValue(SBUS_3V3_D_o, p_data), # FIXME
-                      NextValue(p_data, Cat(C(0)[0:2],index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PHYS_HIGH+1], C(0)[0:2], SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)), # FIXME
+                      NextValue(p_data, Cat(Signal(2, reset = 0),index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PHYS_HIGH+1], Signal(2, reset = 0), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)), # FIXME
                       If((burst_counter == burst_limit_m1),
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                          NextState("Slave_Do_Read")
@@ -402,13 +414,16 @@ class SBusFPGASlave(Module):
         )
         # ##### WRITE #####
         slave_fsm.act("Slave_Ack_Reg_Write_Burst",
+                      #NextValue(SBUS_DATA_OE_LED_o, 1),
+                      #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                       #NextValue(leds, 0x03),
                       #NextValue(burst_index, index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])),
                       NextValue(csr_data_w_data, SBUS_3V3_D_i),
-                      NextValue(csr_data_w_addr, Cat(C(0)[0:2],
-                                                     index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]),
-                                                     sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW],
-                                                     WISHBONE_CSR_ADDR_PFX)),
+                      #NextValue(csr_data_w_addr, Cat(Signal(2, reset = 0),
+                      #                               index_with_wrap(burst_counter, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]),
+                      #                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW],
+                      #                               WISHBONE_CSR_ADDR_PFX)),
+                      NextValue(csr_data_w_addr, 0x00040000),
                       NextValue(csr_data_w_we, 1),
                       If((burst_counter == burst_limit_m1),
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
@@ -419,6 +434,8 @@ class SBusFPGASlave(Module):
                       )
         )
         slave_fsm.act("Slave_Ack_Reg_Write_Final",
+                      #NextValue(SBUS_DATA_OE_LED_o, 1),
+                      #NextValue(SBUS_DATA_OE_LED_2_o, 0),
                       NextValue(sbus_oe_int1, 0),
                       NextValue(sbus_oe_int7, 0),
                       NextValue(sbus_oe_data, 0),
@@ -432,8 +449,8 @@ class SBusFPGASlave(Module):
         # ##### ERROR #####
         slave_fsm.act("Slave_Error",
                       #NextValue(leds, 0xc0),
-                      NextValue(SBUS_DATA_OE_LED_o, 1),
-                      NextValue(SBUS_DATA_OE_LED_2_o, 1),
+                      #NextValue(SBUS_DATA_OE_LED_o, 1),
+                      #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                       NextValue(sbus_oe_int1, 0),
                       NextValue(sbus_oe_int7, 0),
                       NextValue(sbus_oe_data, 0),
@@ -446,8 +463,6 @@ class SBusFPGASlave(Module):
         )
 
         # ##### Iface to WB #####
-
-
         self.submodules.wb_fsm = wb_fsm = FSM(reset_state="Reset")
         wb_fsm.act("Reset",
                    self.wishbone.we.eq(0),
@@ -457,18 +472,21 @@ class SBusFPGASlave(Module):
                    NextState("Idle")
         )
         wb_fsm.act("Idle",
-                   If(csr_data_w_we,
-                      self.wishbone.adr.eq(csr_data_w_addr),
-                      self.wishbone.dat_w.eq(csr_data_w_data),
-                      self.wishbone.we.eq(1),
-                      self.wishbone.cyc.eq(1),
-                      self.wishbone.stb.eq(1),
+                   If(csr_data_w_we == 1,
+                      #NextValue(SBUS_DATA_OE_LED_o, 0),
+                      NextValue(SBUS_DATA_OE_LED_2_o, 1),
                       NextValue(csr_data_w_we, 0),
-                      NextState("Wait")
+                      NextState("Write")
                    )
         )
-        wb_fsm.act("Wait",
-                   If(self.wishbone.ack,
+        wb_fsm.act("Write",
+                   self.wishbone.adr.eq(csr_data_w_addr),
+                   self.wishbone.dat_w.eq(csr_data_w_data),
+                   self.wishbone.we.eq(1),
+                   self.wishbone.cyc.eq(1),
+                   self.wishbone.stb.eq(1),
+                   If(self.wishbone.ack == 1,
+                      NextValue(SBUS_DATA_OE_LED_o, 1),
                       self.wishbone.we.eq(0),
                       self.wishbone.cyc.eq(0),
                       self.wishbone.stb.eq(0),
