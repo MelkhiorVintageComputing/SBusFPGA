@@ -10,8 +10,10 @@ from litex.soc.integration.builder import *
 from litex.soc.cores.clock import *
 from litex.soc.cores.led import LedChaser
 from litex_boards.platforms import ztex213
+from migen.genlib.fifo import *
 
 from sbus_to_fpga_slave import *;
+from sbus_to_fpga_wishbone import *;
 
 _sbus_sbus = [
     ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
@@ -38,39 +40,34 @@ class _CRG(Module):
     def __init__(self, platform, sys_clk_freq):
         self.clock_domains.cd_sys       = ClockDomain()
         self.clock_domains.cd_native    = ClockDomain(reset_less=True)
-        #self.clock_domains.cd_sbus      = ClockDomain()
+        self.clock_domains.cd_sbus      = ClockDomain()
         self.clock_domains.cd_por       = ClockDomain()
 
         # # #
         clk48 = platform.request("clk48")
         self.cd_native.clk = clk48
         clk_sbus = platform.request("SBUS_3V3_CLK")
-        self.cd_sys.clk = clk_sbus
+        self.cd_sbus.clk = clk_sbus
         rst_sbus = platform.request("SBUS_3V3_RSTs")
 
-        #self.submodules.pll = pll = S7MMCM(speedgrade=-1)
-        #pll.register_clkin(clk48, 48e6)
-        #pll.create_clkout(self.cd_sys, sys_clk_freq)
+        self.comb += self.cd_sbus.rst.eq(~rst_sbus)
 
-        #self.comb += self.cd_sbus.clk.eq(clk_sbus)
-        #self.comb += self.cd_sbus.rst.eq(~rst_sbus)
+        self.submodules.pll = pll = S7MMCM(speedgrade=-1)
+        pll.register_clkin(clk48, 48e6)
+        pll.create_clkout(self.cd_sys, sys_clk_freq)
+
+        platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
+        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
+        platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
+        platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         
-        #self.comb += self.cd_sys.clk.eq(clk_sbus)
-        self.comb += self.cd_sys.rst.eq(~rst_sbus)
-
-        #self.comb += self.cd_native.clk.eq(clk48)
-
-        #platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
-        platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
-        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_native.clk)
-        
-        # Power on reset, 20 seconds
-        #por_count = Signal(30, reset=20*48*1000000)
-        #por_done  = Signal()
-        #self.comb += self.cd_por.clk.eq(clk48)
-        #self.comb += por_done.eq(por_count == 0)
-        #self.sync.por += If(~por_done, por_count.eq(por_count - 1))
-        #self.comb += pll.reset.eq(~por_done)
+        # Power on reset, reset propagate from SBus to SYS
+        por_count = Signal(16, reset=2**16-1)
+        por_done  = Signal()
+        self.comb += self.cd_por.clk.eq(clk48)
+        self.comb += por_done.eq(por_count == 0)
+        self.sync.por += If(~por_done, por_count.eq(por_count - 1))
+        self.comb += pll.reset.eq(~por_done | ~rst_sbus)
         
 class SBusFPGA(SoCCore):
     def __init__(self, **kwargs):
@@ -80,7 +77,7 @@ class SBusFPGA(SoCCore):
         kwargs["with_uart"] = True
         kwargs["with_timer"] = False
         
-        self.sys_clk_freq = sys_clk_freq = 25e6 # SBus max
+        self.sys_clk_freq = sys_clk_freq = 100e6
     
         self.platform = platform = ztex213.Platform(variant="ztex2.13a", expansion="sbus")
         self.platform.add_extension(_sbus_sbus)
@@ -91,7 +88,7 @@ class SBusFPGA(SoCCore):
         }
         self.mem_map.update(wb_mem_map)
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
-        self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6)
+        self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         self.submodules.leds = LedChaser(
             pads         = platform.request_all("user_led"),
@@ -113,19 +110,27 @@ class SBusFPGA(SoCCore):
         # this avoids FPGA initialization messing with the cold boot process
         # requires us to reset the SPARCstation afterward so the FPGA board
         # is properly identified
+        # This is in the 'native' ClockDomain that is never reset
         hold_reset_ctr = Signal(30, reset=960000000)
         self.sync.native += If(hold_reset_ctr>0, hold_reset_ctr.eq(hold_reset_ctr - 1))
         hold_reset = Signal(reset=1)
         self.comb += hold_reset.eq(~(hold_reset_ctr == 0))
-        
-        #self.submodules.sbus_slave = ClockDomainsRenamer("sbus")(SBusFPGASlave(platform=self.platform, soc=self, prom=prom, hold_reset=hold_reset))
-        self.submodules.sbus_slave = SBusFPGASlave(platform=self.platform,
-                                                   prom=prom,
-                                                   hold_reset=hold_reset,
-                                                   wishbone=wishbone.Interface(data_width=self.bus.data_width),
-                                                   chaser=self.leds)
 
-        self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_slave.wishbone)
+        
+
+        
+        sbus_to_wishbone_fifo = AsyncFIFOBuffered(width=32+30, depth=8)
+        sbus_to_wishbone_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(sbus_to_wishbone_fifo)
+        self.submodules += sbus_to_wishbone_fifo
+        self.submodules.sbus_to_wishbone = SBusToWishbone(fifo=sbus_to_wishbone_fifo, wishbone=wishbone.Interface(data_width=self.bus.data_width))
+
+        _sbus_slave = SBusFPGASlave(platform=self.platform,
+                                    prom=prom,
+                                    hold_reset=hold_reset,
+                                    write_fifo=sbus_to_wishbone_fifo)
+        self.submodules.sbus_slave = ClockDomainsRenamer("sbus")(_sbus_slave)
+
+        self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_to_wishbone.wishbone)
         
  #       self.soc = Module()
  #       self.soc.mem_regions = self.mem_regions = {}

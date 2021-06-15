@@ -1,8 +1,6 @@
 
 from migen import *
-from migen.genlib.fifo import SyncFIFOBuffered
 from migen.fhdl.specials import Tristate
-from litex.soc.interconnect import wishbone
 
 SIZ_WORD = 0x0
 SIZ_BYTE = 0x1
@@ -33,7 +31,7 @@ WISHBONE_CSR_ADDR_PFX = Signal(12, reset = 4)
 def siz_is_word(siz):
     return (SIZ_WORD == siz) | (SIZ_BURST2 == siz) | (SIZ_BURST4 == siz) | (SIZ_BURST8 == siz) | (SIZ_BURST16 == siz)
 
-# FIXME: this doesn't work. Verilog aways use 1
+# FIXME: this doesn't work. Verilog aways use value[0:4]
 def index_with_wrap(counter, limit_m1, value):
     if (limit_m1 == 0):
         return value[0:4]
@@ -146,11 +144,10 @@ class LedDisplay(Module):
         )
         
 class SBusFPGASlave(Module):
-    def __init__(self, platform, prom, hold_reset, wishbone, chaser):
+    def __init__(self, platform, prom, hold_reset, write_fifo):
         self.platform = platform
         self.hold_reset = hold_reset
-        self.wishbone = wishbone
-        self.chaser = chaser
+        self.write_fifo = write_fifo
 
         #self.submodules.led_display = LedDisplay(pads=platform.request_all("user_led"))
         
@@ -238,9 +235,9 @@ class SBusFPGASlave(Module):
 
         p_data = Signal(32) # prom data to read
 
-        csr_data_w_data = Signal(32) # csr data to write
-        csr_data_w_addr = Signal(32) # address thereof
-        csr_data_w_we = Signal(reset = 0) # write enable
+        #csr_data_w_data = Signal(32) # csr data to write
+        #csr_data_w_addr = Signal(32) # address thereof
+        #csr_data_w_we = Signal(reset = 0) # write enable
 
         slave_fsm.act("Reset",
                       #NextValue(SBUS_DATA_OE_LED_o, 0),
@@ -326,7 +323,8 @@ class SBusFPGASlave(Module):
                               (SBUS_3V3_ASs_i == 0) &
                               (siz_is_word(SBUS_3V3_SIZ_i)) &
                               (SBUS_3V3_PPRD_i == 0) &
-                              (SBUS_3V3_PA_i[0:2] == 0)),
+                              (SBUS_3V3_PA_i[0:2] == 0) &
+                              (self.write_fifo.writable)), # maybe we should check for enough space? not that we'll encounter write burst...
                          #NextValue(SBUS_DATA_OE_LED_o, 1),
                          #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                          NextValue(sbus_oe_master_in, 1),
@@ -418,13 +416,19 @@ class SBusFPGASlave(Module):
                       #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                       #NextValue(leds, 0x03),
                       #NextValue(burst_index, index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])),
-                      NextValue(csr_data_w_data, SBUS_3V3_D_i),
                       #NextValue(csr_data_w_addr, Cat(Signal(2, reset = 0),
                       #                               index_with_wrap(burst_counter, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]),
                       #                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW],
                       #                               WISHBONE_CSR_ADDR_PFX)),
-                      NextValue(csr_data_w_addr, 0x00040000),
-                      NextValue(csr_data_w_we, 1),
+                      #NextValue(csr_data_w_data, SBUS_3V3_D_i),
+                      #NextValue(csr_data_w_addr, 0x00040000),
+                      #NextValue(csr_data_w_we, 1),
+                      self.write_fifo.din.eq(Cat(index_with_wrap(burst_counter, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), # 4 bits, adr FIXME
+                                      sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
+                                      WISHBONE_CSR_ADDR_PFX, # 12 bits, adr
+                                      Signal(4, reset = 0), # 4 bits, adr (could be removed)
+                                      SBUS_3V3_D_i)), # 32 bits, data
+                      self.write_fifo.we.eq(1),
                       If((burst_counter == burst_limit_m1),
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                          NextState("Slave_Ack_Reg_Write_Final")
@@ -460,36 +464,4 @@ class SBusFPGASlave(Module):
                       If((SBUS_3V3_ASs_i == 1),
                          NextState("Idle")
                       )
-        )
-
-        # ##### Iface to WB #####
-        self.submodules.wb_fsm = wb_fsm = FSM(reset_state="Reset")
-        wb_fsm.act("Reset",
-                   self.wishbone.we.eq(0),
-                   self.wishbone.cyc.eq(0),
-                   self.wishbone.stb.eq(0),
-                   NextState("Idle")
-        )
-        wb_fsm.act("Idle",
-                   If(csr_data_w_we == 1,
-                      #NextValue(SBUS_DATA_OE_LED_o, 0),
-                      NextValue(SBUS_DATA_OE_LED_2_o, 1),
-                      NextValue(csr_data_w_we, 0),
-                      NextState("Write")
-                   )
-        )
-        wb_fsm.act("Write",
-                   self.wishbone.adr.eq(csr_data_w_addr[2:32]),
-                   self.wishbone.dat_w.eq(csr_data_w_data),
-                   self.wishbone.we.eq(1),
-                   self.wishbone.cyc.eq(1),
-                   self.wishbone.stb.eq(1),
-                   self.wishbone.sel.eq(2**len(self.wishbone.sel)-1),
-                   If(self.wishbone.ack == 1,
-                      NextValue(SBUS_DATA_OE_LED_o, 1),
-                      self.wishbone.we.eq(0),
-                      self.wishbone.cyc.eq(0),
-                      self.wishbone.stb.eq(0),
-                      NextState("Idle")
-                   )
         )
