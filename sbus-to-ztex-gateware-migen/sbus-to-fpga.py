@@ -119,15 +119,28 @@ class SBusFPGA(SoCCore):
         
 
         
-        sbus_to_wishbone_fifo = AsyncFIFOBuffered(width=32+30, depth=8)
-        sbus_to_wishbone_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(sbus_to_wishbone_fifo)
-        self.submodules += sbus_to_wishbone_fifo
-        self.submodules.sbus_to_wishbone = SBusToWishbone(fifo=sbus_to_wishbone_fifo, wishbone=wishbone.Interface(data_width=self.bus.data_width))
+        sbus_to_wishbone_wr_fifo = AsyncFIFOBuffered(width=32+30, depth=16)
+        sbus_to_wishbone_wr_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(sbus_to_wishbone_wr_fifo)
+        self.submodules += sbus_to_wishbone_wr_fifo
+        
+        sbus_to_wishbone_rd_fifo_addr = AsyncFIFOBuffered(width=30, depth=16)
+        sbus_to_wishbone_rd_fifo_addr = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(sbus_to_wishbone_rd_fifo_addr)
+        self.submodules += sbus_to_wishbone_rd_fifo_addr
+        sbus_to_wishbone_rd_fifo_data = AsyncFIFOBuffered(width=32, depth=16)
+        sbus_to_wishbone_rd_fifo_data = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(sbus_to_wishbone_rd_fifo_data)
+        self.submodules += sbus_to_wishbone_rd_fifo_data
+        
+        self.submodules.sbus_to_wishbone = SBusToWishbone(wr_fifo=sbus_to_wishbone_wr_fifo,
+                                                          rd_fifo_addr=sbus_to_wishbone_rd_fifo_addr,
+                                                          rd_fifo_data=sbus_to_wishbone_rd_fifo_data,
+                                                          wishbone=wishbone.Interface(data_width=self.bus.data_width))
 
         _sbus_slave = SBusFPGASlave(platform=self.platform,
                                     prom=prom,
                                     hold_reset=hold_reset,
-                                    write_fifo=sbus_to_wishbone_fifo)
+                                    wr_fifo=sbus_to_wishbone_wr_fifo,
+                                    rd_fifo_addr=sbus_to_wishbone_rd_fifo_addr,
+                                    rd_fifo_data=sbus_to_wishbone_rd_fifo_data,)
         self.submodules.sbus_slave = ClockDomainsRenamer("sbus")(_sbus_slave)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_to_wishbone.wishbone)

@@ -32,22 +32,21 @@ def siz_is_word(siz):
     return (SIZ_WORD == siz) | (SIZ_BURST2 == siz) | (SIZ_BURST4 == siz) | (SIZ_BURST8 == siz) | (SIZ_BURST16 == siz)
 
 # FIXME: this doesn't work. Verilog aways use value[0:4]
-def index_with_wrap(counter, limit_m1, value):
-    if (limit_m1 == 0):
-        return value[0:4]
-    elif (limit_m1 == 1):
-        return Cat((value + counter)[0:1], value[1:4])
-    elif (limit_m1 == 3):
-        return Cat((value + counter)[0:2], value[2:4])
-    elif (limit_m1 == 7):
-        return Cat((value + counter)[0:3], value[3:4])
-    elif (limit_m1 == 15):
-        return (value + counter)[0:4]
-    return value[0:4]
+#def _index_with_wrap(counter, limit_m1, value):
+#    if (limit_m1 == 0):
+#        return value[0:4]
+#    elif (limit_m1 == 1):
+#        return Cat((value + counter)[0:1], value[1:4])
+#    elif (limit_m1 == 3):
+#        return Cat((value + counter)[0:2], value[2:4])
+#    elif (limit_m1 == 7):
+#        return Cat((value + counter)[0:3], value[3:4])
+#    elif (limit_m1 == 15):
+#        return (value + counter)[0:4]
+#    return value[0:4]
 
-# doesn't compile
-#def index_with_wrap(counter, limit_m1, value):
-#    return Cat((value+counter)[0:limit_m1], value[limit_m1:4])
+def index_with_wrap(counter, limit_m1, value):
+    return ((value+counter) & limit_m1)[0:4] | (value&(~limit_m1))[0:4]
 
 # FIXME: this doesn't work. Verilog aways use 1
 def siz_to_burst_size_m1(siz):
@@ -144,10 +143,12 @@ class LedDisplay(Module):
         )
         
 class SBusFPGASlave(Module):
-    def __init__(self, platform, prom, hold_reset, write_fifo):
+    def __init__(self, platform, prom, hold_reset, wr_fifo, rd_fifo_addr, rd_fifo_data):
         self.platform = platform
         self.hold_reset = hold_reset
-        self.write_fifo = write_fifo
+        self.wr_fifo = wr_fifo
+        self.rd_fifo_addr = rd_fifo_addr
+        self.rd_fifo_data = rd_fifo_data
 
         #self.submodules.led_display = LedDisplay(pads=platform.request_all("user_led"))
         
@@ -231,13 +232,12 @@ class SBusFPGASlave(Module):
         SBUS_3V3_PA_i = Signal(28)
         self.comb += SBUS_3V3_PA_i.eq(pad_SBUS_3V3_PA)
 
+        p_data = Signal(32) # data to read/write
+
+        data_read_addr = Signal(30) # first addr of req. when reading from WB
+        data_read_enable = Signal() # start enqueuing req. to read from WB
+
         self.submodules.slave_fsm = slave_fsm = FSM(reset_state="Reset")
-
-        p_data = Signal(32) # prom data to read
-
-        #csr_data_w_data = Signal(32) # csr data to write
-        #csr_data_w_addr = Signal(32) # address thereof
-        #csr_data_w_we = Signal(reset = 0) # write enable
 
         slave_fsm.act("Reset",
                       #NextValue(SBUS_DATA_OE_LED_o, 0),
@@ -287,13 +287,16 @@ class SBusFPGASlave(Module):
                             NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             NextValue(p_data, prom[SBUS_3V3_PA_i[ADDR_PHYS_LOW+2:ADDR_PFX_LOW]]),
+                            NextValue(SBUS_DATA_OE_LED_o, 1),
                             NextState("Slave_Ack_Read_Prom_Burst")
                          ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX),
-                            NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
+                            NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                             NextValue(SBUS_3V3_ERRs_o, 1),
-                            #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, Signal(2, reset = 1), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
-                            NextValue(p_data, Cat(SBUS_3V3_PA_i, Signal(2, reset = 1), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)), # FIXME
-                            NextState("Slave_Ack_Read_Reg_Burst")
+                            NextValue(p_data, 0xDEADBEEF),
+                            NextValue(data_read_addr, (Cat(SBUS_3V3_PA_i[2:], Signal(4, reset=0)))), # enqueue all the request to the wishbone
+                            NextValue(data_read_enable, 1), # enqueue all the request to the wishbone
+                            NextValue(SBUS_DATA_OE_LED_2_o, 1),
+                            NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Data")
                          ).Else(
                              #NextValue(self.led_display.value, Cat(SBUS_3V3_PA_i, Signal(2, reset = 1), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)),
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
@@ -324,7 +327,7 @@ class SBusFPGASlave(Module):
                               (siz_is_word(SBUS_3V3_SIZ_i)) &
                               (SBUS_3V3_PPRD_i == 0) &
                               (SBUS_3V3_PA_i[0:2] == 0) &
-                              (self.write_fifo.writable)), # maybe we should check for enough space? not that we'll encounter write burst...
+                              (self.wr_fifo.writable)), # maybe we should check for enough space? not that we'll encounter write burst...
                          #NextValue(SBUS_DATA_OE_LED_o, 1),
                          #NextValue(SBUS_DATA_OE_LED_2_o, 1),
                          NextValue(sbus_oe_master_in, 1),
@@ -355,13 +358,6 @@ class SBusFPGASlave(Module):
                       NextValue(SBUS_3V3_D_o, p_data),
                       #NextValue(burst_index, index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])),
                       NextValue(p_data, prom[Cat(index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW])]),
-                      Case(burst_limit_m1, {
-                          0:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:4], sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW])]),
-                          1:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:1], sbus_last_pa[ADDR_PHYS_LOW+3:ADDR_PFX_LOW])]),
-                          3:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:2], sbus_last_pa[ADDR_PHYS_LOW+4:ADDR_PFX_LOW])]),
-                          7:  NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:3], sbus_last_pa[ADDR_PHYS_LOW+5:ADDR_PFX_LOW])]),
-                          15: NextValue(p_data, prom[Cat(((burst_counter+1)+sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6])[0:4], sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW])]),
-                          }),
                       If((burst_counter == burst_limit_m1),
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                          NextState("Slave_Do_Read")
@@ -398,17 +394,30 @@ class SBusFPGASlave(Module):
                       )
         )
         slave_fsm.act("Slave_Ack_Read_Reg_Burst",
-                      #NextValue(leds, 0x03),
                       NextValue(sbus_oe_data, 1),
-                      NextValue(SBUS_3V3_D_o, p_data), # FIXME
-                      NextValue(p_data, Cat(Signal(2, reset = 0),index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PHYS_HIGH+1], Signal(2, reset = 0), SBUS_3V3_PA_i[1:2], SBUS_3V3_PPRD_i)), # FIXME
+                      NextValue(SBUS_3V3_D_o, p_data),
                       If((burst_counter == burst_limit_m1),
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                          NextState("Slave_Do_Read")
                       ).Else(
-                          NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
-                          NextValue(burst_counter, burst_counter + 1)
+                          NextValue(burst_counter, burst_counter + 1),
+                          If(rd_fifo_data.readable,
+                             NextValue(p_data, rd_fifo_data.dout),
+                             rd_fifo_data.re.eq(1),
+                             NextValue(SBUS_3V3_ACKs_o, ACK_WORD)
+                          ).Else(
+                              NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
+                              NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Data")
+                          )
                       )
+        )
+        slave_fsm.act("Slave_Ack_Read_Reg_Burst_Wait_For_Data",
+                      If(rd_fifo_data.readable,
+                         NextValue(p_data, rd_fifo_data.dout),
+                         rd_fifo_data.re.eq(1),
+                         NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
+                         NextState("Slave_Ack_Read_Reg_Burst")
+                      ) 
         )
         # ##### WRITE #####
         slave_fsm.act("Slave_Ack_Reg_Write_Burst",
@@ -423,12 +432,12 @@ class SBusFPGASlave(Module):
                       #NextValue(csr_data_w_data, SBUS_3V3_D_i),
                       #NextValue(csr_data_w_addr, 0x00040000),
                       #NextValue(csr_data_w_we, 1),
-                      self.write_fifo.din.eq(Cat(index_with_wrap(burst_counter, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), # 4 bits, adr FIXME
+                      self.wr_fifo.din.eq(Cat(index_with_wrap(burst_counter, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), # 4 bits, adr FIXME
                                       sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
                                       WISHBONE_CSR_ADDR_PFX, # 12 bits, adr
                                       Signal(4, reset = 0), # 4 bits, adr (could be removed)
                                       SBUS_3V3_D_i)), # 32 bits, data
-                      self.write_fifo.we.eq(1),
+                      self.wr_fifo.we.eq(1),
                       If((burst_counter == burst_limit_m1),
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                          NextState("Slave_Ack_Reg_Write_Final")
@@ -464,4 +473,29 @@ class SBusFPGASlave(Module):
                       If((SBUS_3V3_ASs_i == 1),
                          NextState("Idle")
                       )
+        )
+
+        self.submodules.request_fsm = request_fsm = FSM(reset_state="Reset")
+        request_fsm.act("Reset",
+                        NextState("Idle")
+        )
+        request_fsm.act("Idle",
+                        If(data_read_enable,
+                           NextValue(data_read_enable, 0),
+                           self.rd_fifo_addr.we.eq(1),
+                           self.rd_fifo_addr.din.eq(data_read_addr),
+                           If (burst_limit_m1 != burst_counter, # 0 the first time
+                               NextValue(burst_counter, burst_counter + 1),
+                               NextState("Queue")
+                           )
+                        )
+        )
+        request_fsm.act("Queue",
+                        self.rd_fifo_addr.we.eq(1),
+                        self.rd_fifo_addr.din.eq(Cat(index_with_wrap(burst_counter, burst_limit_m1, data_read_addr[0:4]), data_read_addr[4:])),
+                        If (burst_limit_m1 != burst_counter,
+                            NextValue(burst_counter, burst_counter + 1),
+                        ).Else(
+                            NextState("Idle")
+                        )
         )
