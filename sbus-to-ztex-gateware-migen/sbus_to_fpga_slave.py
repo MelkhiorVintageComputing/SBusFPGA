@@ -468,7 +468,6 @@ class SBusFPGASlave(Module):
                    self.wishbone.we.eq(0),
                    self.wishbone.cyc.eq(0),
                    self.wishbone.stb.eq(0),
-                   self.wishbone.sel.eq(2**len(self.wishbone.sel)-1),
                    NextState("Idle")
         )
         wb_fsm.act("Idle",
@@ -485,6 +484,7 @@ class SBusFPGASlave(Module):
                    self.wishbone.we.eq(1),
                    self.wishbone.cyc.eq(1),
                    self.wishbone.stb.eq(1),
+                   self.wishbone.sel.eq(2**len(self.wishbone.sel)-1),
                    If(self.wishbone.ack == 1,
                       NextValue(SBUS_DATA_OE_LED_o, 1),
                       self.wishbone.we.eq(0),
