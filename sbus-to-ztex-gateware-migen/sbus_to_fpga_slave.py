@@ -480,7 +480,7 @@ class SBusFPGASlave(Module):
                    )
         )
         wb_fsm.act("Write",
-                   self.wishbone.adr.eq(csr_data_w_addr),
+                   self.wishbone.adr.eq(csr_data_w_addr[2:32]),
                    self.wishbone.dat_w.eq(csr_data_w_data),
                    self.wishbone.we.eq(1),
                    self.wishbone.cyc.eq(1),

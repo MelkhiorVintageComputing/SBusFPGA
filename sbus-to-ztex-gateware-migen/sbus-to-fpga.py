@@ -122,7 +122,7 @@ class SBusFPGA(SoCCore):
         self.submodules.sbus_slave = SBusFPGASlave(platform=self.platform,
                                                    prom=prom,
                                                    hold_reset=hold_reset,
-                                                   wishbone=wishbone.Interface(data_width=self.bus.data_width, adr_width=self.bus.address_width),
+                                                   wishbone=wishbone.Interface(data_width=self.bus.data_width),
                                                    chaser=self.leds)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_slave.wishbone)
