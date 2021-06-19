@@ -64,13 +64,12 @@ def siz_to_burst_size_m1(siz):
     return 1
 
 class LedDisplay(Module):
-    def __init__(self): #, pads
-        #n = len(pads)
-        n = 8
+    def __init__(self, pads):
+        n = len(pads)
         self.value = Signal(32, reset = 0x18244281)
         old_value = Signal(32)
         self.display = Signal(8)
-        #self.comb += pads.eq(self.display)
+        self.comb += pads.eq(self.display)
         
         self.submodules.fsm = fsm = FSM(reset_state="Reset")
         time_counter = Signal(32, reset = 0)
@@ -165,6 +164,24 @@ class SBusFPGABus(Module):
         
         #self.comb += SBUS_DATA_OE_LED_o.eq(~rd_fifo_addr.writable)
         #self.comb += SBUS_DATA_OE_LED_2_o.eq(rd_fifo_data.readable)
+
+        #leds = Signal(7, reset=0x00)
+        #self.comb += platform.request("user_led", 0).eq(leds[0])
+        #self.comb += platform.request("user_led", 1).eq(leds[1])
+        #self.comb += platform.request("user_led", 2).eq(leds[2])
+        #self.comb += platform.request("user_led", 3).eq(leds[3])
+        #self.comb += platform.request("user_led", 4).eq(leds[4])
+        #self.comb += platform.request("user_led", 5).eq(leds[5])
+        #self.comb += platform.request("user_led", 6).eq(leds[6])
+        ##self.comb += platform.request("user_led", 7).eq(leds[7])
+        
+        #self.comb += leds[0].eq(self.wr_fifo.writable)
+        #self.comb += leds[1].eq(~self.rd_fifo_data.readable)
+        #self.comb += leds[2].eq(self.rd_fifo_addr.writable)
+        
+        #self.comb += leds[4].eq(~self.master_wr_fifo.readable)
+        #self.comb += leds[5].eq(self.master_rd_fifo_data.writable)
+        #self.comb += leds[6].eq(~self.master_rd_fifo_addr.readable)
         
         #pad_SBUS_3V3_CLK = platform.request("SBUS_3V3_CLK")
         pad_SBUS_3V3_ASs = platform.request("SBUS_3V3_ASs")
@@ -243,7 +260,7 @@ class SBusFPGABus(Module):
 
         master_we = Signal();
 
-#        self.submodules.led_display = LedDisplay()
+        self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
 #        #self.comb += self.led_display.value.eq(Cat(Signal(2, reset=0), master_addr))
 #        self.comb += self.led_display.value.eq(p_data)
 #        old_display = Signal(8)
@@ -517,6 +534,8 @@ class SBusFPGABus(Module):
         )
         # ##### MASTER #####
         slave_fsm.act("Master_Translation",
+                      If(master_addr[22:30] == 0xFC,
+                         NextValue(self.led_display.value, Cat(master_we, Signal(1, reset = 0), master_addr))),
                       If(master_we,
                          NextValue(sbus_oe_data, 1),
                          NextValue(SBUS_3V3_D_o, master_data)
@@ -559,14 +578,18 @@ class SBusFPGABus(Module):
                           ACK_IDLE:
                           [NextState("Master_Read") ## redundant
                           ],
-                          ACK_RERUN: ### dunno how to handle that yet, maybe delay the fifo re(1)?
-                          [NextValue(sbus_oe_data, 0),
+                          ACK_RERUN: ### burst not handled
+                          [self.master_rd_fifo_data.we.eq(1),
+                           NextValue(self.master_rd_fifo_data.din, Cat(0xDEADBEEF, Signal(1, reset = 1))),
+                           NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
                            NextState("Idle")
                           ],
-                          "default": ## ACK_ERRS or other
-                          [NextValue(sbus_oe_data, 0),
+                          "default": ## ACK_ERRS or other ### burst not handled
+                          [self.master_rd_fifo_data.we.eq(1),
+                           NextValue(self.master_rd_fifo_data.din, Cat(0xDEADBEEF, Signal(1, reset = 1))),
+                           NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
                            NextState("Idle")
@@ -575,7 +598,7 @@ class SBusFPGABus(Module):
         )
         slave_fsm.act("Master_Read_Ack",
                       self.master_rd_fifo_data.we.eq(1),
-                      NextValue(self.master_rd_fifo_data.din, SBUS_3V3_D_i),
+                      NextValue(self.master_rd_fifo_data.din, Cat(SBUS_3V3_D_i, Signal(1, reset = 0))),
                       NextValue(burst_counter, burst_counter + 1),
                       If(burst_counter == burst_limit_m1,
                          NextState("Master_Read_Finish")

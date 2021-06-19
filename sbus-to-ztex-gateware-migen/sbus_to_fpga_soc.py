@@ -45,11 +45,11 @@ _usb_io = [
 
 class _CRG(Module):
     def __init__(self, platform, sys_clk_freq):
-        self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus, SoC/Wishbone main clock
-        self.clock_domains.cd_native    = ClockDomain(reset_less=True) # 48MHz native, non-reset'ed (for power-on long delay, never reset)
+        self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
+        self.clock_domains.cd_native    = ClockDomain(reset_less=True) # 48MHz native, non-reset'ed (for power-on long delay, never reset, we don't want the delay after a warm reset)
         self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
-        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
-        self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus, for USB controller
+#        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
+        self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
 
         # # #
         clk48 = platform.request("clk48")
@@ -57,7 +57,6 @@ class _CRG(Module):
         clk_sbus = platform.request("SBUS_3V3_CLK")
         self.cd_sbus.clk = clk_sbus
         rst_sbus = platform.request("SBUS_3V3_RSTs")
-
         self.comb += self.cd_sbus.rst.eq(~rst_sbus)
 
         self.submodules.pll = pll = S7MMCM(speedgrade=-1)
@@ -70,18 +69,19 @@ class _CRG(Module):
         platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         
         # Power on reset, reset propagate from SBus to SYS
-        por_count = Signal(16, reset=2**16-1)
-        por_done  = Signal()
-        self.comb += self.cd_por.clk.eq(clk48)
-        self.comb += por_done.eq(por_count == 0)
-        self.sync.por += If(~por_done, por_count.eq(por_count - 1))
-        self.comb += pll.reset.eq(~por_done | ~rst_sbus)
+#        por_count = Signal(16, reset=2**16-1)
+#        por_done  = Signal()
+#        self.comb += self.cd_por.clk.eq(clk48)
+#        self.comb += por_done.eq(por_count == 0)
+#        self.sync.por += If(~por_done, por_count.eq(por_count - 1))
+#        self.comb += self.cd_por.rst.eq(~rst_sbus)
+#        self.comb += pll.reset.eq(~por_done | ~rst_sbus)
 
         # USB
         self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=-1)
-        self.comb += usb_pll.reset.eq(~por_done | ~rst_sbus)
         usb_pll.register_clkin(clk48, 48e6)
         usb_pll.create_clkout(self.cd_usb, 48e6, margin = 0)
+        self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk)
         
 class SBusFPGA(SoCCore):
@@ -109,7 +109,7 @@ class SBusFPGA(SoCCore):
         self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         self.submodules.leds = LedChaser(
-            pads         = platform.request_all("user_led"),
+            pads         = platform.request("SBUS_DATA_OE_LED_2"), #platform.request("user_led", 7),
             sys_clk_freq = sys_clk_freq)
         self.add_csr("leds")
         
@@ -186,7 +186,7 @@ class SBusFPGA(SoCCore):
         wishbone_to_sbus_rd_fifo_addr = AsyncFIFOBuffered(width=30, depth=4)
         wishbone_to_sbus_rd_fifo_addr = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(wishbone_to_sbus_rd_fifo_addr)
         self.submodules += wishbone_to_sbus_rd_fifo_addr
-        wishbone_to_sbus_rd_fifo_data = AsyncFIFOBuffered(width=32, depth=4)
+        wishbone_to_sbus_rd_fifo_data = AsyncFIFOBuffered(width=32+1, depth=4)
         wishbone_to_sbus_rd_fifo_data = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(wishbone_to_sbus_rd_fifo_data)
         self.submodules += wishbone_to_sbus_rd_fifo_data
 
