@@ -37,8 +37,8 @@ _sbus_sbus = [
 
 _usb_io = [
     ("usb", 0,
-     Subsignal("dp", Pins("E3")), # Serial TX
-     Subsignal("dm", Pins("F3")), # Serial RX
+     Subsignal("dp", Pins("V9")), # Serial TX
+     Subsignal("dm", Pins("U9")), # Serial RX
      IOStandard("LVCMOS33"))
 ]
 # CRG ----------------------------------------------------------------------------------------------
@@ -99,9 +99,10 @@ class SBusFPGA(SoCCore):
         self.platform.add_extension(_usb_io)
         SoCCore.__init__(self, platform=platform, sys_clk_freq=sys_clk_freq, clk_freq=sys_clk_freq, **kwargs)
         wb_mem_map = {
-            "prom":     0x00000000,
-            "csr" :     0x00040000,
-            "usb_host": 0x00080000,
+            "prom":         0x00000000,
+            "csr" :         0x00040000,
+            "usb_host":     0x00080000,
+            "usb_fake_dma": 0x000c0000,
         }
         self.mem_map.update(wb_mem_map)
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
@@ -114,6 +115,24 @@ class SBusFPGA(SoCCore):
         
         self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
         #self.comb += self.cpu.interrupt[16].eq(self.usb_host.interrupt) #fixme: need to deal with interrupts
+        
+        pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
+        SBUS_3V3_INT1s_o = Signal(reset=1)
+        # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
+        self.comb += pad_SBUS_3V3_INT1s.eq(SBUS_3V3_INT1s_o)
+        self.comb += SBUS_3V3_INT1s_o.eq(~self.usb_host.interrupt)
+        
+        
+        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        SBUS_DATA_OE_LED_o = Signal()
+        self.comb += pad_SBUS_DATA_OE_LED.eq(SBUS_DATA_OE_LED_o)
+        #pad_SBUS_DATA_OE_LED_2 = platform.request("SBUS_DATA_OE_LED_2")
+        #SBUS_DATA_OE_LED_2_o = Signal()
+        #self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
+        interrupt_memory = Signal()
+        self.sync += interrupt_memory.eq(interrupt_memory | ~SBUS_3V3_INT1s_o)
+        self.comb += SBUS_DATA_OE_LED_o.eq(interrupt_memory)
+        #self.comb += SBUS_DATA_OE_LED_2_o.eq(~SBUS_3V3_INT1s_o)
 
         prom_file = "prom_migen.fc"
         prom_data = soc_core.get_mem_data(prom_file, "big")
@@ -150,24 +169,50 @@ class SBusFPGA(SoCCore):
         sbus_to_wishbone_rd_fifo_data = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(sbus_to_wishbone_rd_fifo_data)
         self.submodules += sbus_to_wishbone_rd_fifo_data
 
-        # SBus to Wishbone FSM, 'Slave' on the SBus side, 'Master' on the Wishbone side
+        # SBus to Wishbone, 'Slave' on the SBus side, 'Master' on the Wishbone side
         self.submodules.sbus_to_wishbone = SBusToWishbone(platform=self.platform,
                                                           wr_fifo=sbus_to_wishbone_wr_fifo,
                                                           rd_fifo_addr=sbus_to_wishbone_rd_fifo_addr,
                                                           rd_fifo_data=sbus_to_wishbone_rd_fifo_data,
                                                           wishbone=wishbone.Interface(data_width=self.bus.data_width))
 
+
+        # FIFO to send data & address from Wishbone to the SBus
+        wishbone_to_sbus_wr_fifo = AsyncFIFOBuffered(width=32+30, depth=16)
+        wishbone_to_sbus_wr_fifo = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(wishbone_to_sbus_wr_fifo)
+        self.submodules += wishbone_to_sbus_wr_fifo
+
+        # FIFOs to send address / receive data from Wishbone to the SBus
+        wishbone_to_sbus_rd_fifo_addr = AsyncFIFOBuffered(width=30, depth=4)
+        wishbone_to_sbus_rd_fifo_addr = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(wishbone_to_sbus_rd_fifo_addr)
+        self.submodules += wishbone_to_sbus_rd_fifo_addr
+        wishbone_to_sbus_rd_fifo_data = AsyncFIFOBuffered(width=32, depth=4)
+        wishbone_to_sbus_rd_fifo_data = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(wishbone_to_sbus_rd_fifo_data)
+        self.submodules += wishbone_to_sbus_rd_fifo_data
+
+        # Wishbone to SBus, 'Master' on the SBus side, 'Slave' on the Wishbone side
+        self.submodules.wishbone_to_sbus = WishboneToSBus(platform=self.platform,
+                                                          soc=self,
+                                                          wr_fifo=wishbone_to_sbus_wr_fifo,
+                                                          rd_fifo_addr=wishbone_to_sbus_rd_fifo_addr,
+                                                          rd_fifo_data=wishbone_to_sbus_rd_fifo_data,
+                                                          wishbone=wishbone.Interface(data_width=self.bus.data_width))
+
         _sbus_bus = SBusFPGABus(platform=self.platform,
-                                  prom=prom,
-                                  hold_reset=hold_reset,
-                                  wr_fifo=sbus_to_wishbone_wr_fifo,
-                                  rd_fifo_addr=sbus_to_wishbone_rd_fifo_addr,
-                                  rd_fifo_data=sbus_to_wishbone_rd_fifo_data,)
+                                prom=prom,
+                                hold_reset=hold_reset,
+                                wr_fifo=sbus_to_wishbone_wr_fifo,
+                                rd_fifo_addr=sbus_to_wishbone_rd_fifo_addr,
+                                rd_fifo_data=sbus_to_wishbone_rd_fifo_data,
+                                master_wr_fifo=wishbone_to_sbus_wr_fifo,
+                                master_rd_fifo_addr=wishbone_to_sbus_rd_fifo_addr,
+                                master_rd_fifo_data=wishbone_to_sbus_rd_fifo_data)
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_to_wishbone.wishbone)
-        
- #       self.soc = Module()
+        self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_to_sbus.wishbone, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x10000, cached=False))
+
+#       self.soc = Module()
  #       self.soc.mem_regions = self.mem_regions = {}
  #       region = litex.soc.integration.soc.SoCRegion(origin=0x0, size=0x0)
  #       region.length = 0
