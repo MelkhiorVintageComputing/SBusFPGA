@@ -102,7 +102,7 @@ class SBusFPGA(SoCCore):
             "prom":         0x00000000,
             "csr" :         0x00040000,
             "usb_host":     0x00080000,
-            "usb_fake_dma": 0x000c0000,
+            "usb_fake_dma": 0xfc000000,
         }
         self.mem_map.update(wb_mem_map)
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
@@ -210,7 +210,7 @@ class SBusFPGA(SoCCore):
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_to_wishbone.wishbone)
-        self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_to_sbus.wishbone, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x10000, cached=False))
+        self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_to_sbus.wishbone, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
 
 #       self.soc = Module()
  #       self.soc.mem_regions = self.mem_regions = {}

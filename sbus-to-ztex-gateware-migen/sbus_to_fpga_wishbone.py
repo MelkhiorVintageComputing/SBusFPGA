@@ -14,15 +14,13 @@ class SBusToWishbone(Module):
         #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
         #SBUS_DATA_OE_LED_o = Signal()
         #self.comb += pad_SBUS_DATA_OE_LED.eq(SBUS_DATA_OE_LED_o)
-        pad_SBUS_DATA_OE_LED_2 = platform.request("SBUS_DATA_OE_LED_2")
-        SBUS_DATA_OE_LED_2_o = Signal()
-        self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
+        #pad_SBUS_DATA_OE_LED_2 = platform.request("SBUS_DATA_OE_LED_2")
+        #SBUS_DATA_OE_LED_2_o = Signal()
+        #self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
 
         data = Signal(32)
         adr = Signal(30)
         timeout = Signal(7)
-
-        self.real_hcca = Signal(32)
         
         # ##### FSM: read/write from/to WB #####
         self.submodules.fsm = fsm = FSM(reset_state="Reset")
@@ -37,16 +35,7 @@ class SBusToWishbone(Module):
                 If(self.wr_fifo.readable & ~self.wishbone.cyc,
                    self.wr_fifo.re.eq(1),
                    NextValue(adr, self.wr_fifo.dout[0:30]),
-                   ## need to cheat with the USB HCCA registers
-                   If((self.wr_fifo.dout[0:30] == 0x00020006), ## 80018 >> 2 == HCCA register for USB
-                      NextValue(SBUS_DATA_OE_LED_2_o, 1),
-                      NextValue(self.real_hcca, self.wr_fifo.dout[30:62]),
-                      NextValue(data, Cat(self.wr_fifo.dout[30:46], Signal(16, reset=0x000c))) ## 0x000c: are reserved for DMA bridging
-                   ).Elif((self.wr_fifo.dout[0:30] >= 0x00020007) & (self.wr_fifo.dout[0:30] <= 0x0002000c) & (self.wr_fifo.dout[30:62] != 0),
-                      NextValue(data, Cat(self.wr_fifo.dout[30:46], Signal(16, reset=0x000c)))
-                   ).Else(
-                       NextValue(data, self.wr_fifo.dout[30:62])
-                   ),
+                   NextValue(data, self.wr_fifo.dout[30:62]),
                    NextValue(timeout, 127),
                    NextState("Write")
                 ).Elif (rd_fifo_addr.readable & ~self.wishbone.cyc & self.rd_fifo_data.writable,
@@ -85,11 +74,7 @@ class SBusToWishbone(Module):
                 NextValue(timeout, timeout - 1),
                 If(self.wishbone.ack,
                    self.rd_fifo_data.we.eq(1),
-                   If((adr >= 0x00020006) & (adr <= 0x0002000c) & (self.wishbone.dat_r != 0), ## 80018 >> 2 == HCCA register for USB
-                      self.rd_fifo_data.din.eq(Cat(self.wishbone.dat_r[0:16], self.real_hcca[16:32], Signal(reset = 0)))
-                   ).Else(
-                       self.rd_fifo_data.din.eq(Cat(self.wishbone.dat_r, Signal(reset = 0)))
-                   ),
+                   self.rd_fifo_data.din.eq(Cat(self.wishbone.dat_r, Signal(reset = 0))),
                    self.wishbone.we.eq(0),
                    self.wishbone.cyc.eq(0),
                    self.wishbone.stb.eq(0),
@@ -120,8 +105,6 @@ class WishboneToSBus(Module):
 
         data = Signal(32)
         adr = Signal(30)
-
-        self.real_hcca = self.soc.sbus_to_wishbone.real_hcca
         
         # ##### FSM: read/write from/to SBus #####
         self.submodules.fsm = fsm = FSM(reset_state="Reset")
@@ -130,24 +113,23 @@ class WishboneToSBus(Module):
         )
         fsm.act("Idle",
                 If(self.wishbone.stb & self.wishbone.cyc & self.wishbone.we & self.wr_fifo.writable,
-                   If((self.wishbone.adr[14:30] == 0x000c) & (self.real_hcca != 0), ## in our DMA range
+                   If(self.wishbone.adr[24:30] == 0x3f, ## in our DMA range (3f == fc>>2)
                       self.wr_fifo.we.eq(1),
-                      self.wr_fifo.din.eq(Cat(self.wishbone.adr[0:14], self.real_hcca[16:32], self.wishbone.dat_w[30:62]))
+                      self.wr_fifo.din.eq(Cat(self.wishbone.adr[0:30], self.wishbone.dat_w[0:32]))
                    ),
                    NextState("WriteWait")
                 ).Elif(self.wishbone.stb & self.wishbone.cyc & ~self.wishbone.we & self.rd_fifo_addr.writable,
-                       If((self.wishbone.adr[14:30] == 0x000c) & (self.real_hcca != 0), ## in our DMA range
+                       If(self.wishbone.adr[24:30] == 0x3f, ## in our DMA range
                           NextValue(adr, self.wishbone.adr),
                           self.rd_fifo_addr.we.eq(1),
-                          self.rd_fifo_addr.din.eq(Cat(self.wishbone.adr[0:14], self.real_hcca[16:32]))
+                          self.rd_fifo_addr.din.eq(self.wishbone.adr[0:30])
                        ),
                        NextState("ReadWait"),
                 )
         )
         fsm.act("WriteWait",
-                #SBUS_DATA_OE_LED_2_o.eq(1),
-                If((self.wishbone.adr[14:30] == 0x000c) & (self.real_hcca != 0), ## in our DMA range
-                   self.wishbone.ack.eq(1),
+                If(self.wishbone.adr[24:30] == 0x3f, ## in our DMA range
+                   self.wishbone.ack.eq(1)
                 ).Else(
                     self.wishbone.err.eq(1)
                 ),
@@ -156,8 +138,7 @@ class WishboneToSBus(Module):
                 )
         )
         fsm.act("ReadWait",
-                #SBUS_DATA_OE_LED_2_o.eq(1),
-                If((adr[14:30] == 0x000c) & (self.real_hcca != 0), ## in our DMA range
+                If(adr[24:30] == 0x3f, ## in our DMA range
                    If(self.rd_fifo_data.readable,
                       self.wishbone.ack.eq(1),
                       self.rd_fifo_data.re.eq(1),
@@ -173,7 +154,6 @@ class WishboneToSBus(Module):
                 )
         )
         fsm.act("ReadWait2",
-                #SBUS_DATA_OE_LED_2_o.eq(1),
                 self.wishbone.ack.eq(1),
                 self.wishbone.dat_r.eq(data),
                 If(~self.wishbone.stb,
