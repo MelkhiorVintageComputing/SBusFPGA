@@ -213,9 +213,9 @@ class SBusFPGABus(Module):
         burst_limit_m1 = Signal(4)
 
         #SBUS_3V3_CLK = Signal()
-        SBUS_3V3_ASs_i = Signal()
+        SBUS_3V3_ASs_i = Signal(reset=1)
         self.comb += SBUS_3V3_ASs_i.eq(pad_SBUS_3V3_ASs)
-        SBUS_3V3_BGs_i = Signal()
+        SBUS_3V3_BGs_i = Signal(reset=1)
         self.comb += SBUS_3V3_BGs_i.eq(pad_SBUS_3V3_BGs)
         SBUS_3V3_BRs_o = Signal(reset=1)
         #self.specials += Tristate(pad_SBUS_3V3_BRs, SBUS_3V3_BRs_o, sbus_oe_master_br, None)
@@ -224,7 +224,7 @@ class SBusFPGABus(Module):
         SBUS_3V3_ERRs_o = Signal()
         self.specials += Tristate(pad_SBUS_3V3_ERRs, SBUS_3V3_ERRs_o, sbus_oe_master_in, SBUS_3V3_ERRs_i)
         #SBUS_3V3_RSTs = Signal()
-        SBUS_3V3_SELs_i = Signal()
+        SBUS_3V3_SELs_i = Signal(reset=1)
         self.comb += SBUS_3V3_SELs_i.eq(pad_SBUS_3V3_SELs)
         #SBUS_3V3_INT1s_o = Signal(reset=1)
         #self.specials += Tristate(pad_SBUS_3V3_INT1s, SBUS_3V3_INT1s_o, sbus_oe_int1, None)
@@ -265,14 +265,36 @@ class SBusFPGABus(Module):
         
         #self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
         
-        self.comb += platform.request("user_led", 0).eq(self.wishbone_slave.cyc)
-        self.comb += platform.request("user_led", 1).eq(self.wishbone_slave.stb)
-        self.comb += platform.request("user_led", 2).eq(self.wishbone_slave.we)
-        self.comb += platform.request("user_led", 3).eq(self.wishbone_slave.ack)
-        self.comb += platform.request("user_led", 4).eq(self.wishbone_slave.err)
+        self.sync += platform.request("user_led", 0).eq(self.wishbone_slave.cyc)
+        #self.sync += platform.request("user_led", 1).eq(self.wishbone_slave.stb)
+        #self.sync += platform.request("user_led", 2).eq(self.wishbone_slave.we)
+        #self.sync += platform.request("user_led", 3).eq(self.wishbone_slave.ack)
+        #self.sync += platform.request("user_led", 4).eq(self.wishbone_slave.err)
+        led1 = platform.request("user_led", 1)
+        led2 = platform.request("user_led", 2)
+        led3 = platform.request("user_led", 3)
+        led4 = platform.request("user_led", 4)
         led5 = platform.request("user_led", 5)
-        self.comb += platform.request("user_led", 6).eq(~SBUS_3V3_BGs_i)
-        self.comb += platform.request("user_led", 7).eq(~SBUS_3V3_BRs_o)
+        self.sync += platform.request("user_led", 6).eq(~SBUS_3V3_BRs_o)
+        self.sync += platform.request("user_led", 7).eq(~SBUS_3V3_BGs_i)
+
+        #cycle_counter = Signal(8, reset = 0)
+        #self.sync += cycle_counter.eq(cycle_counter + 1)
+        #cycle_busmaster = Signal(8, reset = 0)
+        #self.sync += If(cycle_counter != 0,
+        #                cycle_busmaster.eq(cycle_busmaster + ~SBUS_3V3_BGs_i)).Else(
+        #                    cycle_busmaster.eq(0))
+        #self.sync += If(cycle_counter == 0,
+        #                platform.request("user_led", 0).eq(cycle_busmaster[4]),
+        #                platform.request("user_led", 1).eq(cycle_busmaster[5]),
+        #                platform.request("user_led", 2).eq(cycle_busmaster[6]),
+        #                platform.request("user_led", 3).eq(cycle_busmaster[7]))
+
+        self.master_read_buffer_data = Array(Signal(32) for a in range(4))
+        self.master_read_buffer_addr = Signal(28)
+        self.master_read_buffer_done = Array(Signal() for a in range(4))
+        self.master_read_buffer_read = Array(Signal() for a in range(4))
+        self.master_read_buffer_start = Signal()
 
         self.submodules.slave_fsm = slave_fsm = FSM(reset_state="Reset")
 
@@ -405,36 +427,51 @@ class SBusFPGABus(Module):
                              self.wishbone_slave.stb &
                              ~self.wishbone_slave.ack &
                              ~self.wishbone_slave.err &
-                             (sbus_master_throttle == 0),
+                             self.wishbone_slave.we &
+                             (sbus_master_throttle == 0) &
+                             (wishbone_slave_timeout == 0),
                              NextValue(SBUS_3V3_BRs_o, 0)
                       ).Elif(~SBUS_3V3_BGs_i &
                              self.wishbone_slave.cyc &
                              self.wishbone_slave.stb &
                              ~self.wishbone_slave.ack &
-                             ~self.wishbone_slave.err,
+                             ~self.wishbone_slave.err &
+                             self.wishbone_slave.we,
                              NextValue(SBUS_3V3_BRs_o, 1), # relinquish the request
                              NextValue(sbus_oe_data, 1), ## output data (at least for @ during translation)
                              NextValue(sbus_oe_slave_in, 1), ## PPRD, SIZ becomes output
                              NextValue(sbus_oe_master_in, 0), ## ERRs, ACKs are input
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, 0), ## only single word for now
-                             If(self.wishbone_slave.we,
-                                NextValue(master_addr, self.wishbone_slave.adr),
-                                NextValue(master_data, self.wishbone_slave.dat_w),
-                                NextValue(self.wishbone_slave.ack, 1),
-                                NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                                NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
-                                NextValue(SBUS_3V3_PPRD_o, 0),
-                                NextValue(master_we, 1),
-                                #NextValue(self.led_display.value, 0x0000000010 | Cat(Signal(8, reset = 0x00), self.wishbone_slave.adr)),
-                                NextState("Master_Translation")
-                             ).Else(NextValue(master_addr, self.wishbone_slave.adr),
-                                    NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
-                                    NextValue(SBUS_3V3_PPRD_o, 1),
-                                    NextValue(master_we, 0),
-                                    #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0x00), self.wishbone_slave.adr)),
-                                    NextState("Master_Translation")
-                             )
+                             NextValue(master_addr, self.wishbone_slave.adr),
+                             NextValue(master_data, self.wishbone_slave.dat_w),
+                             NextValue(self.wishbone_slave.ack, 1),
+                             NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                             NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                             NextValue(SBUS_3V3_PPRD_o, 0),
+                             NextValue(SBUS_3V3_SIZ_o, SIZ_WORD),
+                             NextValue(master_we, 1),
+                             #NextValue(self.led_display.value, 0x0000000010 | Cat(Signal(8, reset = 0x00), self.wishbone_slave.adr)),
+                             NextState("Master_Translation")
+                      ).Elif(SBUS_3V3_BGs_i &
+                             self.master_read_buffer_start &
+                             (sbus_master_throttle == 0) &
+                             (wishbone_slave_timeout == 0),
+                             NextValue(SBUS_3V3_BRs_o, 0)
+                      ).Elif(~SBUS_3V3_BGs_i &
+                             self.master_read_buffer_start,
+                             NextValue(SBUS_3V3_BRs_o, 1), # relinquish the request
+                             NextValue(sbus_oe_data, 1), ## output data (at least for @ during translation)
+                             NextValue(sbus_oe_slave_in, 1), ## PPRD, SIZ becomes output
+                             NextValue(sbus_oe_master_in, 0), ## ERRs, ACKs are input
+                             NextValue(burst_counter, 0),
+                             NextValue(burst_limit_m1, 3), ## only quadword word for now
+                             NextValue(SBUS_3V3_D_o, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
+                             NextValue(SBUS_3V3_PPRD_o, 1),
+                             NextValue(SBUS_3V3_SIZ_o, SIZ_BURST4),
+                             NextValue(master_we, 0),
+                             #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0x00), self.wishbone_slave.adr)),
+                             NextState("Master_Translation")
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0) &
                               ((SIZ_HWORD == SBUS_3V3_SIZ_i) | (SIZ_BYTE == SBUS_3V3_SIZ_i))),
@@ -607,6 +644,7 @@ class SBusFPGABus(Module):
         )
         # ##### MASTER #####
         slave_fsm.act("Master_Translation",
+                      led1.eq(1),
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x09), self.led_display.value[8:40])),
                       If(master_we,
                          NextValue(sbus_oe_data, 1),
@@ -673,11 +711,11 @@ class SBusFPGABus(Module):
         )
         slave_fsm.act("Master_Read_Ack",
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x0b), self.led_display.value[8:40])),
-                      NextValue(self.wishbone_slave.ack, 1),
-                      NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                      NextValue(self.wishbone_slave.dat_r, SBUS_3V3_D_i),
+                      NextValue(self.master_read_buffer_data[burst_counter[0:2]], SBUS_3V3_D_i),
+                      NextValue(self.master_read_buffer_done[burst_counter[0:2]], 1),
                       NextValue(burst_counter, burst_counter + 1),
                       If(burst_counter == burst_limit_m1,
+                         NextValue(self.master_read_buffer_start, 0),
                          NextState("Master_Read_Finish")
                       ).Else(
                           Case(SBUS_3V3_ACKs_i, {
@@ -813,4 +851,60 @@ class SBusFPGABus(Module):
                         ),
         )
 
-        sbus_master_throttle
+        # ##### Slave read buffering FSM ####
+        last_word_idx = Signal(2)
+        self.submodules.wishbone_slave_buffering_fsm = wishbone_slave_buffering_fsm = FSM(reset_state="Reset")
+        self.sync += led4.eq(self.master_read_buffer_start)
+        wishbone_slave_buffering_fsm.act("Reset",
+                                         led1.eq(0),
+                                         led2.eq(0),
+                                         led3.eq(0),
+                                         NextState("Idle")
+        )
+        wishbone_slave_buffering_fsm.act("Idle",
+                                         If(self.wishbone_slave.cyc &
+                                            self.wishbone_slave.stb &
+                                            ~self.wishbone_slave.ack &
+                                            ~self.wishbone_slave.err &
+                                            ~self.wishbone_slave.we &
+                                            (wishbone_slave_timeout == 0),
+                                            led3.eq(1),
+                                            If((self.master_read_buffer_addr == self.wishbone_slave.adr[2:30]) &
+                                               (self.master_read_buffer_done[self.wishbone_slave.adr[0:2]]) &
+                                               (~self.master_read_buffer_read[self.wishbone_slave.adr[0:2]]),
+                                               ## use cache
+                                               NextValue(self.wishbone_slave.ack, 1),
+                                               NextValue(self.wishbone_slave.dat_r, self.master_read_buffer_data[self.wishbone_slave.adr[0:2]]),
+                                               NextValue(self.master_read_buffer_read[self.wishbone_slave.adr[0:2]], 1),
+                                               NextValue(wishbone_slave_timeout, wishbone_default_timeout)
+                                            ).Elif(~self.master_read_buffer_start,
+                                                   led2.eq(1),
+                                                   NextValue(self.master_read_buffer_addr, self.wishbone_slave.adr[2:30]),
+                                                   NextValue(self.master_read_buffer_done[0], 0),
+                                                   NextValue(self.master_read_buffer_done[1], 0),
+                                                   NextValue(self.master_read_buffer_done[2], 0),
+                                                   NextValue(self.master_read_buffer_done[3], 0),
+                                                   NextValue(self.master_read_buffer_read[0], 0),
+                                                   NextValue(self.master_read_buffer_read[1], 0),
+                                                   NextValue(self.master_read_buffer_read[2], 0),
+                                                   NextValue(self.master_read_buffer_read[3], 0),
+                                                   NextValue(last_word_idx, self.wishbone_slave.adr[0:2]),
+                                                   NextValue(self.master_read_buffer_start, 1),
+                                                   NextState("WaitForData")
+                                            )
+                                         )
+        )
+        wishbone_slave_buffering_fsm.act("WaitForData",
+                                         led2.eq(1),
+                                         If(self.master_read_buffer_done[last_word_idx],
+                                            NextValue(self.wishbone_slave.ack, 1),
+                                            NextValue(self.wishbone_slave.dat_r, self.master_read_buffer_data[last_word_idx]),
+                                            NextValue(self.master_read_buffer_read[last_word_idx], 1),
+                                            NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                                            NextState("Idle")
+                                         ),
+                                         If(self.wishbone_slave.err,
+                                            NextState("Idle")
+                                         )
+        )
+        

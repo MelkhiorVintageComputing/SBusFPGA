@@ -133,10 +133,7 @@ class SBusFPGA(SoCCore):
         #pad_SBUS_DATA_OE_LED_2 = platform.request("SBUS_DATA_OE_LED_2")
         #SBUS_DATA_OE_LED_2_o = Signal()
         #self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
-        interrupt_memory = Signal()
-        self.sync += interrupt_memory.eq(interrupt_memory | self.usb_host.interrupt)
-        self.comb += SBUS_DATA_OE_LED_o.eq(interrupt_memory)
-        #self.comb += SBUS_DATA_OE_LED_2_o.eq(~SBUS_3V3_INT1s_o)
+        self.comb += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_INT1s_o)
 
         prom_file = "prom_migen.fc"
         prom_data = soc_core.get_mem_data(prom_file, "big")
