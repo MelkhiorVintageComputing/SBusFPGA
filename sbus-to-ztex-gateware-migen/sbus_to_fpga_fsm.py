@@ -856,7 +856,6 @@ class SBusFPGABus(Module):
         self.submodules.wishbone_slave_buffering_fsm = wishbone_slave_buffering_fsm = FSM(reset_state="Reset")
         self.sync += led4.eq(self.master_read_buffer_start)
         wishbone_slave_buffering_fsm.act("Reset",
-                                         led1.eq(0),
                                          led2.eq(0),
                                          led3.eq(0),
                                          NextState("Idle")
