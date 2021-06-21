@@ -103,10 +103,11 @@ class SBusFPGA(SoCCore):
         self.platform.add_extension(_usb_io)
         SoCCore.__init__(self, platform=platform, sys_clk_freq=sys_clk_freq, clk_freq=sys_clk_freq, **kwargs)
         wb_mem_map = {
-            "prom":         0x00000000,
-            "csr" :         0x00040000,
-            "usb_host":     0x00080000,
-            "usb_fake_dma": 0xfc000000,
+            "prom":           0x00000000,
+            "csr" :           0x00040000,
+            "usb_host":       0x00080000,
+            "usb_shared_mem": 0x00090000,
+            "usb_fake_dma":   0xfc000000,
         }
         self.mem_map.update(wb_mem_map)
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
@@ -119,6 +120,8 @@ class SBusFPGA(SoCCore):
         
         self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
         #self.comb += self.cpu.interrupt[16].eq(self.usb_host.interrupt) #fixme: need to deal with interrupts
+
+        self.add_ram(name="usb_shared_mem", origin=self.mem_map["usb_shared_mem"], size=2**16)
         
         pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
         SBUS_3V3_INT1s_o = Signal(reset=1)
