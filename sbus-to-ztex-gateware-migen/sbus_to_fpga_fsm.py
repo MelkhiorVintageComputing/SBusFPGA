@@ -256,7 +256,9 @@ class SBusFPGABus(Module):
         master_data = Signal(32) # could be merged with p_data
         master_addr = Signal(30) # could be meged with data_read_addr
 
-        master_we = Signal();
+        master_we = Signal()
+
+        sbus_wishbone_le = Signal()
 
         wishbone_master_timeout = Signal(6)
         wishbone_slave_timeout = Signal(6)
@@ -357,6 +359,7 @@ class SBusFPGABus(Module):
                             NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             NextValue(p_data, prom[SBUS_3V3_PA_i[ADDR_PHYS_LOW+2:ADDR_PFX_LOW]]),
+                            NextValue(sbus_wishbone_le, 0),
                             #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 40))),
                             NextState("Slave_Ack_Read_Prom_Burst")
                          ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
@@ -364,6 +367,7 @@ class SBusFPGABus(Module):
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
+                                NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
@@ -393,12 +397,14 @@ class SBusFPGABus(Module):
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX),
                             NextValue(SBUS_3V3_ACKs_o, ACK_BYTE),
                             NextValue(SBUS_3V3_ERRs_o, 1),
+                            NextValue(sbus_wishbone_le, 0),
                             NextValue(p_data, prom[SBUS_3V3_PA_i[ADDR_PHYS_LOW+2:ADDR_PFX_LOW]]),
                             #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 80))),
                             NextState("Slave_Ack_Read_Prom_Byte")
                          ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
+                                NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
@@ -428,6 +434,7 @@ class SBusFPGABus(Module):
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
+                                NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
@@ -465,6 +472,7 @@ class SBusFPGABus(Module):
                          If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
                              (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == USBOHCI_ADDR_PFX) |
                              (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                            NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                             If(~self.wishbone_master.cyc,
                                 NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
@@ -489,6 +497,7 @@ class SBusFPGABus(Module):
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
+                            NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                             If(~self.wishbone_master.cyc,
                                 NextValue(SBUS_3V3_ACKs_o, ACK_BYTE),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
@@ -513,6 +522,7 @@ class SBusFPGABus(Module):
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
+                            NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                             If(~self.wishbone_master.cyc,
                                 NextValue(SBUS_3V3_ACKs_o, ACK_HWORD),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
@@ -545,6 +555,7 @@ class SBusFPGABus(Module):
                              ~self.wishbone_slave.ack &
                              ~self.wishbone_slave.err &
                              self.wishbone_slave.we,
+                             NextValue(sbus_wishbone_le, 1), # checkme
                              NextValue(SBUS_3V3_BRs_o, 1), # relinquish the request
                              NextValue(sbus_oe_data, 1), ## output data (at least for @ during translation)
                              NextValue(sbus_oe_slave_in, 1), ## PPRD, SIZ becomes output
@@ -552,7 +563,10 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, 0), ## only single word for now
                              NextValue(master_addr, self.wishbone_slave.adr),
-                             NextValue(master_data, self.wishbone_slave.dat_w),
+                             NextValue(master_data, Cat(self.wishbone_slave.dat_w[24:32], ## LE
+                                                        self.wishbone_slave.dat_w[16:24],
+                                                        self.wishbone_slave.dat_w[ 8:16],
+                                                        self.wishbone_slave.dat_w[ 0: 8])),
                              NextValue(self.wishbone_slave.ack, 1),
                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
                              NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
@@ -568,6 +582,7 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_BRs_o, 0)
                       ).Elif(~SBUS_3V3_BGs_i &
                              self.master_read_buffer_start,
+                             NextValue(sbus_wishbone_le, 1), # checkme
                              NextValue(SBUS_3V3_BRs_o, 1), # relinquish the request
                              NextValue(sbus_oe_data, 1), ## output data (at least for @ during translation)
                              NextValue(sbus_oe_slave_in, 1), ## PPRD, SIZ becomes output
@@ -679,7 +694,13 @@ class SBusFPGABus(Module):
         slave_fsm.act("Slave_Ack_Read_Reg_Burst_Wait_For_Data",
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x06), self.led_display.value[8:40])),
                       If(self.wishbone_master.ack,
-                         NextValue(p_data, self.wishbone_master.dat_r),
+                         Case(sbus_wishbone_le, {
+                             0: NextValue(p_data,self.wishbone_master.dat_r),
+                             1: NextValue(p_data, Cat(self.wishbone_master.dat_r[24:32],
+                                                      self.wishbone_master.dat_r[16:24],
+                                                      self.wishbone_master.dat_r[ 8:16],
+                                                      self.wishbone_master.dat_r[ 0: 8]))
+                         }),
                          NextValue(self.wishbone_master.cyc, 0),
                          NextValue(self.wishbone_master.stb, 0),
                          NextValue(wishbone_master_timeout, 0),
@@ -721,9 +742,21 @@ class SBusFPGABus(Module):
         slave_fsm.act("Slave_Ack_Read_Reg_HWord_Wait_For_Data",
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x06), self.led_display.value[8:40])),
                       If(self.wishbone_master.ack,
-                         Case(sbus_last_pa[ADDR_PHYS_LOW+1:ADDR_PHYS_LOW+2], {
-                             0: NextValue(p_data, Cat(Signal(16, reset = 0), self.wishbone_master.dat_r[16:32])),
-                             1: NextValue(p_data, Cat(Signal(16, reset = 0), self.wishbone_master.dat_r[ 0:16])),
+                         Case(sbus_wishbone_le, {
+                             0: Case(sbus_last_pa[ADDR_PHYS_LOW+1:ADDR_PHYS_LOW+2], {
+                                 0: NextValue(p_data, Cat(Signal(16, reset = 0),
+                                                          self.wishbone_master.dat_r[16:32])),
+                                 1: NextValue(p_data, Cat(Signal(16, reset = 0),
+                                                          self.wishbone_master.dat_r[ 0:16])),
+                             }),
+                             1: Case(sbus_last_pa[ADDR_PHYS_LOW+1:ADDR_PHYS_LOW+2], {
+                                 1: NextValue(p_data, Cat(Signal(16, reset = 0),
+                                                          self.wishbone_master.dat_r[24:32],
+                                                          self.wishbone_master.dat_r[16:24])),
+                                 0: NextValue(p_data, Cat(Signal(16, reset = 0),
+                                                          self.wishbone_master.dat_r[ 8:16],
+                                                          self.wishbone_master.dat_r[ 0: 8])),
+                             })
                          }),
                          NextValue(self.wishbone_master.cyc, 0),
                          NextValue(self.wishbone_master.stb, 0),
@@ -766,11 +799,19 @@ class SBusFPGABus(Module):
         slave_fsm.act("Slave_Ack_Read_Reg_Byte_Wait_For_Data",
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x06), self.led_display.value[8:40])),
                       If(self.wishbone_master.ack,
-                         Case(sbus_last_pa[ADDR_PHYS_LOW:ADDR_PHYS_LOW+2], {
-                             0: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[24:32])),
-                             1: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[16:24])),
-                             2: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[ 8:16])),
-                             3: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[ 0: 8])),
+                         Case(sbus_wishbone_le, {
+                             0: Case(sbus_last_pa[ADDR_PHYS_LOW:ADDR_PHYS_LOW+2], {
+                                 0: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[24:32])),
+                                 1: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[16:24])),
+                                 2: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[ 8:16])),
+                                 3: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[ 0: 8])),
+                             }),
+                             1: Case(sbus_last_pa[ADDR_PHYS_LOW:ADDR_PHYS_LOW+2], {
+                                 3: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[24:32])),
+                                 2: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[16:24])),
+                                 1: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[ 8:16])),
+                                 0: NextValue(p_data, Cat(Signal(24, reset = 0), self.wishbone_master.dat_r[ 0: 8])),
+                         })
                          }),
                          NextValue(self.wishbone_master.cyc, 0),
                          NextValue(self.wishbone_master.stb, 0),
@@ -813,7 +854,13 @@ class SBusFPGABus(Module):
                                                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
                                                               sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
                                                               Signal(4, reset = 0))),
-                      NextValue(self.wishbone_master.dat_w, SBUS_3V3_D_i),
+                      Case(sbus_wishbone_le, {
+                          0: NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i)),
+                          1: NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i[24:32],
+                                                                       SBUS_3V3_D_i[16:24],
+                                                                       SBUS_3V3_D_i[ 8:16],
+                                                                       SBUS_3V3_D_i[ 0: 8]))
+                      }),
                       NextValue(self.wishbone_master.we, 1),
                       NextValue(wishbone_master_timeout, wishbone_default_timeout),
                       If((burst_counter == burst_limit_m1),
@@ -847,16 +894,28 @@ class SBusFPGABus(Module):
         slave_fsm.act("Slave_Ack_Reg_Write_HWord",
                       NextValue(self.wishbone_master.cyc, 1),
                       NextValue(self.wishbone_master.stb, 1),
-                      Case(sbus_last_pa[ADDR_PHYS_LOW+1:ADDR_PHYS_LOW+2], {
-                          0: NextValue(self.wishbone_master.sel, 0xc),
-                          1: NextValue(self.wishbone_master.sel, 0x3),
+                      Case(sbus_wishbone_le, {
+                          0: Case(sbus_last_pa[ADDR_PHYS_LOW+1:ADDR_PHYS_LOW+2], {
+                              0: NextValue(self.wishbone_master.sel, 0xc),
+                              1: NextValue(self.wishbone_master.sel, 0x3),
+                          }),
+                          1: Case(sbus_last_pa[ADDR_PHYS_LOW+1:ADDR_PHYS_LOW+2], {
+                              1: NextValue(self.wishbone_master.sel, 0xc),
+                              0: NextValue(self.wishbone_master.sel, 0x3),
+                          }),
                       }),
                       NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6], # 4 bits, adr FIXME
                                                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
                                                               sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
                                                               Signal(4, reset = 0))),
-                      NextValue(self.wishbone_master.dat_w,
-                                Cat(SBUS_3V3_D_i[16:32], SBUS_3V3_D_i[16:32])),
+                      Case(sbus_wishbone_le, {
+                          0: NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i[16:32],
+                                                                       SBUS_3V3_D_i[16:32])),
+                          1: NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i[24:32],
+                                                                       SBUS_3V3_D_i[16:24],
+                                                                       SBUS_3V3_D_i[24:32],
+                                                                       SBUS_3V3_D_i[16:24])),
+                      }),
                       NextValue(self.wishbone_master.we, 1),
                       NextValue(wishbone_master_timeout, wishbone_default_timeout),
                       NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
@@ -875,18 +934,28 @@ class SBusFPGABus(Module):
         slave_fsm.act("Slave_Ack_Reg_Write_Byte",
                       NextValue(self.wishbone_master.cyc, 1),
                       NextValue(self.wishbone_master.stb, 1),
-                      Case(sbus_last_pa[ADDR_PHYS_LOW:ADDR_PHYS_LOW+2], {
-                          0: NextValue(self.wishbone_master.sel, 0x8),
-                          1: NextValue(self.wishbone_master.sel, 0x4),
-                          2: NextValue(self.wishbone_master.sel, 0x2),
-                          3: NextValue(self.wishbone_master.sel, 0x1),
+                      Case(sbus_wishbone_le, {
+                          0: Case(sbus_last_pa[ADDR_PHYS_LOW:ADDR_PHYS_LOW+2], {
+                              0: NextValue(self.wishbone_master.sel, 0x8),
+                              1: NextValue(self.wishbone_master.sel, 0x4),
+                              2: NextValue(self.wishbone_master.sel, 0x2),
+                              3: NextValue(self.wishbone_master.sel, 0x1),
+                          }),
+                          1: Case(sbus_last_pa[ADDR_PHYS_LOW:ADDR_PHYS_LOW+2], {
+                              3: NextValue(self.wishbone_master.sel, 0x8),
+                              2: NextValue(self.wishbone_master.sel, 0x4),
+                              1: NextValue(self.wishbone_master.sel, 0x2),
+                              0: NextValue(self.wishbone_master.sel, 0x1),
+                          }),
                       }),
                       NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6], # 4 bits, adr FIXME
                                                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
                                                               sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
                                                               Signal(4, reset = 0))),
-                      NextValue(self.wishbone_master.dat_w,
-                                Cat(SBUS_3V3_D_i[24:32], SBUS_3V3_D_i[24:32], SBUS_3V3_D_i[24:32], SBUS_3V3_D_i[24:32])),
+                      NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i[24:32], # LE/BE identical
+                                                                SBUS_3V3_D_i[24:32],
+                                                                SBUS_3V3_D_i[24:32],
+                                                                SBUS_3V3_D_i[24:32])),
                       NextValue(self.wishbone_master.we, 1),
                       NextValue(wishbone_master_timeout, wishbone_default_timeout),
                       NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
@@ -1139,7 +1208,10 @@ class SBusFPGABus(Module):
                                                (~self.master_read_buffer_read[self.wishbone_slave.adr[0:2]]),
                                                ## use cache
                                                NextValue(self.wishbone_slave.ack, 1),
-                                               NextValue(self.wishbone_slave.dat_r, self.master_read_buffer_data[self.wishbone_slave.adr[0:2]]),
+                                               NextValue(self.wishbone_slave.dat_r, Cat(self.master_read_buffer_data[self.wishbone_slave.adr[0:2]][24:32], # LE
+                                                                                        self.master_read_buffer_data[self.wishbone_slave.adr[0:2]][16:24],
+                                                                                        self.master_read_buffer_data[self.wishbone_slave.adr[0:2]][ 8:16],
+                                                                                        self.master_read_buffer_data[self.wishbone_slave.adr[0:2]][ 0: 8])),
                                                NextValue(self.master_read_buffer_read[self.wishbone_slave.adr[0:2]], 1),
                                                NextValue(wishbone_slave_timeout, wishbone_default_timeout)
                                             ).Elif(~self.master_read_buffer_start,
@@ -1165,7 +1237,10 @@ class SBusFPGABus(Module):
                                          #led2.eq(1),
                                          If(self.master_read_buffer_done[last_word_idx],
                                             NextValue(self.wishbone_slave.ack, 1),
-                                            NextValue(self.wishbone_slave.dat_r, self.master_read_buffer_data[last_word_idx]),
+                                            NextValue(self.wishbone_slave.dat_r, Cat(self.master_read_buffer_data[last_word_idx][24:32], # LE
+                                                                                     self.master_read_buffer_data[last_word_idx][16:24],
+                                                                                     self.master_read_buffer_data[last_word_idx][ 8:16],
+                                                                                     self.master_read_buffer_data[last_word_idx][ 0: 8])),
                                             NextValue(self.master_read_buffer_read[last_word_idx], 1),
                                             NextValue(wishbone_slave_timeout, wishbone_default_timeout),
                                             NextState("Idle")
