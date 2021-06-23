@@ -224,7 +224,7 @@ class SBusFPGA(SoCCore):
         ##self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_to_wishbone.wishbone)
         ##self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_to_sbus.wishbone, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
         self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_bus.wishbone_master)
-        self.bus.add_slave(name="usb_fake_dma", slave=self.sbus_bus.wishbone_slave, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
+        #self.bus.add_slave(name="usb_fake_dma", slave=self.sbus_bus.wishbone_slave, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
 
 #       self.soc = Module()
  #       self.soc.mem_regions = self.mem_regions = {}
