@@ -7,6 +7,7 @@ from litex.build.xilinx.vivado import vivado_build_args, vivado_build_argdict
 from litex.soc.integration.soc import *
 from litex.soc.integration.soc_core import *
 from litex.soc.integration.builder import *
+from litex.soc.interconnect import wishbone
 from litex.soc.cores.clock import *
 from litex.soc.cores.led import LedChaser
 from litex_boards.platforms import ztex213
@@ -45,10 +46,10 @@ _usb_io = [
 
 class _CRG(Module):
     def __init__(self, platform, sys_clk_freq):
-##        self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
-        self.clock_domains.cd_sys       = ClockDomain() #  16.67-25 MHz SBus, reset'ed by SBus, native SBus & SYS clock domain
+        self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
+##        self.clock_domains.cd_sys       = ClockDomain() #  16.67-25 MHz SBus, reset'ed by SBus, native SBus & SYS clock domain
         self.clock_domains.cd_native    = ClockDomain(reset_less=True) # 48MHz native, non-reset'ed (for power-on long delay, never reset, we don't want the delay after a warm reset)
-##        self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
+        self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
 
@@ -56,21 +57,22 @@ class _CRG(Module):
         clk48 = platform.request("clk48")
         self.cd_native.clk = clk48
         clk_sbus = platform.request("SBUS_3V3_CLK")
-        ##self.cd_sbus.clk = clk_sbus
+        self.cd_sbus.clk = clk_sbus
         rst_sbus = platform.request("SBUS_3V3_RSTs")
-        ##self.comb += self.cd_sbus.rst.eq(~rst_sbus)
-        self.cd_sys.clk = clk_sbus
-        self.comb += self.cd_sys.rst.eq(~rst_sbus)
+        self.comb += self.cd_sbus.rst.eq(~rst_sbus)
+        ##self.cd_sys.clk = clk_sbus
+        ##self.comb += self.cd_sys.rst.eq(~rst_sbus)
 
-        ##self.submodules.pll = pll = S7MMCM(speedgrade=-1)
-        ##pll.register_clkin(clk48, 48e6)
-        ##pll.create_clkout(self.cd_sys, sys_clk_freq)
+        self.submodules.pll = pll = S7MMCM(speedgrade=-1)
+        pll.register_clkin(clk48, 48e6)
+        pll.create_clkout(self.cd_sys, sys_clk_freq)
+        self.comb += pll.reset.eq(~rst_sbus) # | ~por_done 
 
-        ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
-        ##platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
-        ##platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
-        ##platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
-        platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
+        platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
+        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
+        platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
+        platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
+        ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
         
         # Power on reset, reset propagate from SBus to SYS
 #        por_count = Signal(16, reset=2**16-1)
@@ -96,7 +98,7 @@ class SBusFPGA(SoCCore):
         kwargs["with_uart"] = False
         kwargs["with_timer"] = False
         
-        self.sys_clk_freq = sys_clk_freq = 25e6 ## 100e6
+        self.sys_clk_freq = sys_clk_freq = 100e6 ## 25e6
     
         self.platform = platform = ztex213.Platform(variant="ztex2.13a", expansion="sbus")
         self.platform.add_extension(_sbus_sbus)
@@ -130,13 +132,13 @@ class SBusFPGA(SoCCore):
         self.comb += SBUS_3V3_INT1s_o.eq(~self.usb_host.interrupt) ##
         
         
-        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        SBUS_DATA_OE_LED_o = Signal()
-        self.comb += pad_SBUS_DATA_OE_LED.eq(SBUS_DATA_OE_LED_o)
+        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        #SBUS_DATA_OE_LED_o = Signal()
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(SBUS_DATA_OE_LED_o)
         #pad_SBUS_DATA_OE_LED_2 = platform.request("SBUS_DATA_OE_LED_2")
         #SBUS_DATA_OE_LED_2_o = Signal()
         #self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
-        self.comb += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_INT1s_o)
+        #self.comb += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_INT1s_o)
 
         prom_file = "prom_migen.fc"
         prom_data = soc_core.get_mem_data(prom_file, "big")
@@ -213,18 +215,32 @@ class SBusFPGA(SoCCore):
         ##                        master_rd_fifo_data=wishbone_to_sbus_rd_fifo_data)
         ##self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
         
-        wishbone_slave = wishbone.Interface(data_width=self.bus.data_width)
-        wishbone_master = wishbone.Interface(data_width=self.bus.data_width)
-        self.submodules.sbus_bus = SBusFPGABus(platform=self.platform,
-                                               prom=prom,
-                                               hold_reset=hold_reset,
-                                               wishbone_slave=wishbone_slave,
-                                               wishbone_master=wishbone_master)
+        #wishbone_slave = wishbone.Interface(data_width=self.bus.data_width)
+        #wishbone_master = wishbone.Interface(data_width=self.bus.data_width)
+
+        #wishbone_slave = wishbone.Interface(data_width=self.bus.data_width)
+        #wishbone_master = wishbone.Interface(data_width=self.bus.data_width)
+
+        wishbone_slave_sbus = wishbone.Interface(data_width=self.bus.data_width)
+        wishbone_master_sys = wishbone.Interface(data_width=self.bus.data_width)
+        self.submodules.wishbone_master_sbus = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_master_sys, cd_master="sbus", cd_slave="sys")
+        self.submodules.wishbone_slave_sys   = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_slave_sbus, cd_master="sys", cd_slave="sbus")
+        
+        _sbus_bus = SBusFPGABus(platform=self.platform,
+                                prom=prom,
+                                hold_reset=hold_reset,
+                                wishbone_slave=wishbone_slave_sbus,
+                                wishbone_master=self.wishbone_master_sbus)
+        #self.submodules.sbus_bus = _sbus_bus
+        self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
 
         ##self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_to_wishbone.wishbone)
         ##self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_to_sbus.wishbone, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
-        self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_bus.wishbone_master)
+        
+        #self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_bus.wishbone_master)
         #self.bus.add_slave(name="usb_fake_dma", slave=self.sbus_bus.wishbone_slave, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
+        self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
+        #self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))    
 
 #       self.soc = Module()
  #       self.soc.mem_regions = self.mem_regions = {}
