@@ -38,4 +38,10 @@ U 5F69F4EF
 F0 "sdcard.sch" 50
 F1 "sdcard.sch" 50
 $EndSheet
+$Sheet
+S 900  2700 1200 550 
+U 60D72F2C
+F0 "USB" 50
+F1 "usb.sch" 50
+$EndSheet
 $EndSCHEMATC
