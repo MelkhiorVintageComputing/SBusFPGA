@@ -17,7 +17,6 @@ from litedram.modules import MT41J128M16
 from litedram.phy import s7ddrphy
 
 from sbus_to_fpga_fsm import *;
-from sbus_to_fpga_wishbone import *;
 
 _sbus_sbus = [
     ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
