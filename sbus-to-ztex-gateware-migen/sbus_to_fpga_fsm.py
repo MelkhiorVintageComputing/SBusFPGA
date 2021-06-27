@@ -282,15 +282,15 @@ class SBusFPGABus(Module):
         
         #self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
         
-        #self.sync += platform.request("user_led", 0).eq(self.wishbone_slave.cyc)
-        #self.sync += platform.request("user_led", 1).eq(self.wishbone_slave.stb)
-        #self.sync += platform.request("user_led", 2).eq(self.wishbone_slave.we)
-        #self.sync += platform.request("user_led", 3).eq(self.wishbone_slave.ack)
+        self.sync += platform.request("user_led", 4).eq(self.wishbone_slave.cyc)
+        #self.sync += platform.request("user_led", 5).eq(self.wishbone_slave.stb)
+        #self.sync += platform.request("user_led", 6).eq(self.wishbone_slave.we)
+        #self.sync += platform.request("user_led", 7).eq(self.wishbone_slave.ack)
         #self.sync += platform.request("user_led", 4).eq(self.wishbone_slave.err)
-        led4 = platform.request("user_led", 4)
-        led5 = platform.request("user_led", 5)
-        led6 = platform.request("user_led", 6)
-        led7 = platform.request("user_led", 7)
+        #led4 = platform.request("user_led", 4)
+        #led5 = platform.request("user_led", 5)
+        #led6 = platform.request("user_led", 6)
+        #led7 = platform.request("user_led", 7)
 
         led0123 = Signal(4)
         self.sync += platform.request("user_led", 0).eq(led0123[0])
@@ -333,6 +333,8 @@ class SBusFPGABus(Module):
         self.master_read_buffer_start = Signal()
 
         self.submodules.slave_fsm = slave_fsm = FSM(reset_state="Reset")
+
+        self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
 
         slave_fsm.act("Reset",
                       #NextValue(self.led_display.value, 0x0000000000),

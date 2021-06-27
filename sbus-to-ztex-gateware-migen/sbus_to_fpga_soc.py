@@ -13,6 +13,9 @@ from litex.soc.cores.led import LedChaser
 from litex_boards.platforms import ztex213
 from migen.genlib.fifo import *
 
+from litedram.modules import MT41J128M16
+from litedram.phy import s7ddrphy
+
 from sbus_to_fpga_fsm import *;
 from sbus_to_fpga_wishbone import *;
 
@@ -47,6 +50,9 @@ _usb_io = [
 class _CRG(Module):
     def __init__(self, platform, sys_clk_freq):
         self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
+        self.clock_domains.cd_sys4x     = ClockDomain(reset_less=True)
+        self.clock_domains.cd_sys4x_dqs = ClockDomain(reset_less=True)
+        self.clock_domains.cd_idelay    = ClockDomain()
 ##        self.clock_domains.cd_sys       = ClockDomain() #  16.67-25 MHz SBus, reset'ed by SBus, native SBus & SYS clock domain
         self.clock_domains.cd_native    = ClockDomain(reset_less=True) # 48MHz native, non-reset'ed (for power-on long delay, never reset, we don't want the delay after a warm reset)
         self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
@@ -66,8 +72,9 @@ class _CRG(Module):
         self.submodules.pll = pll = S7MMCM(speedgrade=-1)
         pll.register_clkin(clk48, 48e6)
         pll.create_clkout(self.cd_sys, sys_clk_freq)
+        pll.create_clkout(self.cd_sys4x,     4*sys_clk_freq)
+        pll.create_clkout(self.cd_sys4x_dqs, 4*sys_clk_freq, phase=90)
         self.comb += pll.reset.eq(~rst_sbus) # | ~por_done 
-
         platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
         platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
@@ -89,6 +96,13 @@ class _CRG(Module):
         usb_pll.create_clkout(self.cd_usb, 48e6, margin = 0)
         self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk)
+
+        self.submodules.pll_idelay = pll_idelay = S7PLL(speedgrade=-1)
+        pll_idelay.register_clkin(clk48, 48e6)
+        pll_idelay.create_clkout(self.cd_idelay,    200e6)
+        self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done 
+
+        self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
         
 class SBusFPGA(SoCCore):
     def __init__(self, **kwargs):
@@ -103,12 +117,18 @@ class SBusFPGA(SoCCore):
         self.platform = platform = ztex213.Platform(variant="ztex2.13a", expansion="sbus")
         self.platform.add_extension(_sbus_sbus)
         self.platform.add_extension(_usb_io)
-        SoCCore.__init__(self, platform=platform, sys_clk_freq=sys_clk_freq, clk_freq=sys_clk_freq, **kwargs)
+        SoCCore.__init__(self,
+                         platform=platform,
+                         sys_clk_freq=sys_clk_freq,
+                         clk_freq=sys_clk_freq,
+                         csr_paging=0x1000, #  default is 0x800
+                         **kwargs)
         wb_mem_map = {
             "prom":           0x00000000,
             "csr" :           0x00040000,
             "usb_host":       0x00080000,
             "usb_shared_mem": 0x00090000,
+            "main_ram":       0x80000000,
             "usb_fake_dma":   0xfc000000,
         }
         self.mem_map.update(wb_mem_map)
@@ -240,7 +260,19 @@ class SBusFPGA(SoCCore):
         #self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_bus.wishbone_master)
         #self.bus.add_slave(name="usb_fake_dma", slave=self.sbus_bus.wishbone_slave, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
-        self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))    
+        self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
+        
+        #self.add_sdcard()
+
+        self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
+                                                   memtype        = "DDR3",
+                                                   nphases        = 4,
+                                                   sys_clk_freq   = sys_clk_freq)
+        self.add_sdram("sdram",
+                       phy           = self.ddrphy,
+                       module        = MT41J128M16(sys_clk_freq, "1:4"),
+                       l2_cache_size = 0
+        )
 
 #       self.soc = Module()
  #       self.soc.mem_regions = self.mem_regions = {}
