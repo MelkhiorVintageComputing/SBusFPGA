@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import csv
 import sys
+import os
 import xml.etree.ElementTree as ET
 
 ### Natural key sorting for orders like : C1, C5, C10, C12 ... (instead of C1, C10, C12, C5...)
@@ -28,6 +29,7 @@ def parse_kicad_xml(input_file):
     components = {}
     parts = {}
     missing = []
+    urls = {}
 
     tree = ET.parse(input_file)
     root = tree.getroot()
@@ -35,13 +37,15 @@ def parse_kicad_xml(input_file):
         name = f.attrib['ref']
         info = {}
         fields = f.find('fields')
-        opl, mpn = None, None
+        opl, mpn, url = None, None, ''
         if fields is not None:
             for x in fields:
                 if x.attrib['name'].upper() == 'SKU':
                     opl = x.text
                 elif x.attrib['name'].upper() == 'MPN':
                     mpn = x.text
+                elif x.attrib['name'].upper() == 'URL':
+                    url = x.text
         if opl:
             components[name] = opl
         elif mpn:
@@ -49,17 +53,18 @@ def parse_kicad_xml(input_file):
         else:
             missing += [name]
             continue
+        urls[components[name]] = url
         if components[name] not in parts:
             parts[components[name]] = []
         parts[components[name]] += [name]
-    return components, missing
+    return components, urls, missing
 
-def write_bom_seeed(output_file_slug, components):
+def write_bom_seeed(output_file_slug, components, urls):
     """Write the BOM according to the Seeed Studio Fusion PCBA template available at:
     https://statics3.seeedstudio.com/assets/file/fusion/bom_template_2016-08-18.csv
 
     ```
-    Part/Designator,Manufacture Part Number/Seeed SKU,Quantity
+    Part/Designator,Manufacture Part Number/Seeed SKU,Quantity,URL
     C1,RHA,1
     "D1,D2",CC0603KRX7R9BB102,2
     ```
@@ -72,7 +77,7 @@ def write_bom_seeed(output_file_slug, components):
             parts[components[c]] = []
         parts[components[c]] += [c]
 
-    field_names = ['Part/Designator', 'Manufacture Part Number/Seeed SKU', 'Quantity']
+    field_names = ['Part/Designator', 'Manufacture Part Number/Seeed SKU', 'Quantity', 'URL']
     with open("{}.csv".format(output_file_slug), 'w') as csvfile:
         bomwriter = csv.DictWriter(csvfile, fieldnames=field_names, delimiter=',',
                     quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -82,15 +87,16 @@ def write_bom_seeed(output_file_slug, components):
             designators = ",".join(pieces)
             bomwriter.writerow({'Part/Designator': designators,
                                 'Manufacture Part Number/Seeed SKU': p,
-                                'Quantity': len(pieces)})
+                                'Quantity': len(pieces),
+                                'URL': urls[p]})
 
 
 if __name__ == "__main__":
     input_file = sys.argv[1]
     output_file = sys.argv[2]
 
-    components, missing = parse_kicad_xml(input_file)
-    write_bom_seeed(output_file, components)
+    components, urls, missing = parse_kicad_xml(input_file)
+    write_bom_seeed(output_file, components, urls)
     if len(missing) > 0:
         print("** Warning **: there were parts with missing SKU/MFP")
         print(missing)
