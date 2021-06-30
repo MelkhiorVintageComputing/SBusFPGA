@@ -4,7 +4,7 @@ EELAYER 26 0
 EELAYER END
 $Descr A2 23386 16535
 encoding utf-8
-Sheet 2 5
+Sheet 2 6
 Title "sbus-to-ztex SBus connection & level shifting"
 Date ""
 Rev ""
@@ -217,16 +217,17 @@ F 3 "https://www.mouser.com/datasheet/2/164/fcn230-3978.pdf" H 18450 3300 50  00
 F 4 "FCN-234P096-G/Y" H 18450 3300 50  0001 C CNN "MPN"
 F 5 "817-FCN-234P096-G/Y " H 18450 3300 50  0001 C CNN "Mouser"
 F 6 "https://www2.mouser.com/ProductDetail/Fujitsu/FCN-234P096-G-Y?qs=uqct%252BzVq%2FBfM88%2F7KmJJ2Q%3D%3D" H 18450 3300 50  0001 C CNN "bom_link"
+F 7 "https://www2.mouser.com/ProductDetail/Fujitsu/FCN-234P096-G-Y?qs=%2Fha2pyFadugZ9WCm2lJ8CZdXc85UARoDXS81raJopvR1w4UDuaXlcQ%3D%3D" H 18450 3300 50  0001 C CNN "URL"
 	1    18450 3300
 	1    0    0    -1  
 $EndComp
-Text GLabel 19000 7750 2    60   Input ~ 0
+Text GLabel 19000 6450 2    60   Input ~ 0
 SBUS_5V_INT[7]*
 Text GLabel 19200 5250 2    60   Input ~ 0
 SBUS_5V_INT[6]*
 Text GLabel 19200 5350 2    60   Input ~ 0
 SBUS_5V_INT[5]*
-Text GLabel 19200 5450 2    60   Input ~ 0
+Text GLabel 19000 7750 2    60   Input ~ 0
 SBUS_5V_INT[4]*
 Text GLabel 19200 5550 2    60   Input ~ 0
 SBUS_5V_INT[3]*
@@ -234,13 +235,13 @@ Text GLabel 19200 5650 2    60   Input ~ 0
 SBUS_5V_INT[2]*
 Text GLabel 19000 7400 2    60   Input ~ 0
 SBUS_5V_INT[1]*
-Text GLabel 18050 7750 0    60   Input ~ 0
+Text GLabel 17850 6250 0    60   Input ~ 0
 SBUS_3V3_INT[7]*
 Text GLabel 18650 5250 0    60   Input ~ 0
 SBUS_3V3_INT[6]*
 Text GLabel 18650 5350 0    60   Input ~ 0
 SBUS_3V3_INT[5]*
-Text GLabel 18650 5450 0    60   Input ~ 0
+Text GLabel 18050 7750 0    60   Input ~ 0
 SBUS_3V3_INT[4]*
 Text GLabel 18650 5550 0    60   Input ~ 0
 SBUS_3V3_INT[3]*
