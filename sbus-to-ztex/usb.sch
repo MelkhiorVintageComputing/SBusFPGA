@@ -24,9 +24,8 @@ F 2 "Connector_USB:USB_Micro-B_Molex-105017-0001" H 5150 2750 50  0001 C CNN
 F 3 "https://www.molex.com/pdm_docs/sd/1050170001_sd.pdf" H 5150 2750 50  0001 C CNN
 F 4 "WM1399CT-ND" H 5000 2800 50  0001 C CNN "Digi-Key_PN"
 F 5 "1050170001" H 5000 2800 50  0001 C CNN "MPN"
-F 6 "https://www.molex.com/pdm_docs/sd/1050170001_sd.pdf" H 5000 2800 50  0001 C CNN "DK_Datasheet_Link"
-F 7 "CONN RCPT USB2.0 MICRO B SMD R/A" H 5000 2800 50  0001 C CNN "Description"
-F 8 "Molex" H 5000 2800 50  0001 C CNN "Manufacturer"
+F 6 "CONN RCPT USB2.0 MICRO B SMD R/A" H 5000 2800 50  0001 C CNN "Description"
+F 7 "Molex" H 5000 2800 50  0001 C CNN "Manufacturer"
 	1    5000 2800
 	-1   0    0    -1  
 $EndComp

@@ -22,7 +22,7 @@ AR Path="/5F676E85" Ref="JAB1"  Part="1"
 AR Path="/5F67E4B9/5F676E85" Ref="JAB1"  Part="1" 
 F 0 "JAB1" H 1825 4375 50  0000 C CNN
 F 1 "ZTEX_AB-ztex_AB" H 1825 4284 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_2x32_P2.54mm_Vertical" H 1800 2650 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio" H 1800 2650 50  0001 C CNN
 F 3 "" H 1800 2650 50  0001 C CNN
 F 4 "10-89-7642" H 1800 2650 50  0001 C CNN "MPN"
 F 5 "https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D" H 1800 2650 50  0001 C CNN "URL"
@@ -345,7 +345,7 @@ AR Path="/5F676F65" Ref="JCD1"  Part="1"
 AR Path="/5F67E4B9/5F676F65" Ref="JCD1"  Part="1" 
 F 0 "JCD1" H 7650 4375 50  0000 C CNN
 F 1 "ZTEX_CD-ztex_CD" H 7650 4284 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_2x32_P2.54mm_Vertical" H 7600 2650 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio" H 7600 2650 50  0001 C CNN
 F 3 "" H 7600 2650 50  0001 C CNN
 F 4 "10-89-7642" H 7600 2650 50  0001 C CNN "MPN"
 F 5 "https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D" H 7600 2650 50  0001 C CNN "URL"
@@ -366,7 +366,7 @@ U 1 1 5F749BE1
 P 3150 7250
 F 0 "J3" H 3200 7767 50  0000 C CNN
 F 1 "Conn_02x07_Odd_Even" H 3200 7676 50  0000 C CNN
-F 2 "Connector_PinHeader_2.00mm:PinHeader_2x07_P2.00mm_Horizontal" H 3150 7250 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_2x07_P2.00mm_Horizontal_For_SeeedStudio" H 3150 7250 50  0001 C CNN
 F 3 "https://www.molex.com/pdm_docs/sd/878331420_sd.pdf" H 3150 7250 50  0001 C CNN
 F 4 "87833-1420" H 3150 7250 50  0001 C CNN "MPN"
 F 5 "A2005WR-N-2X7P-B" H 3150 7250 50  0001 C CNN "MPN-ALT"
