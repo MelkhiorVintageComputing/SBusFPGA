@@ -82,29 +82,6 @@ Text GLabel 1600 1950 0    60   Input ~ 0
 SBUS_3V3_D[11]
 Text GLabel 4100 1850 2    60   Input ~ 0
 SBUS_3V3_D[10]
-Wire Wire Line
-	1600 1650 750  1650
-Wire Wire Line
-	750  1650 750  2750
-Wire Wire Line
-	750  2750 1450 2750
-Connection ~ 1450 2750
-Wire Wire Line
-	7400 2250 6700 2250
-Wire Wire Line
-	6700 2250 6700 2700
-Connection ~ 6700 2850
-Wire Wire Line
-	7400 3250 6700 3250
-Wire Wire Line
-	6700 3250 6700 2850
-Wire Wire Line
-	1600 3550 700  3550
-Wire Wire Line
-	700  3550 700  2750
-Wire Wire Line
-	700  2750 750  2750
-Connection ~ 750  2750
 Text GLabel 4100 2150 2    60   Input ~ 0
 SBUS_3V3_D[16]
 Text GLabel 1600 2250 0    60   Input ~ 0
@@ -145,11 +122,11 @@ Text GLabel 6300 5950 0    60   Input ~ 0
 SBUS_3V3_INT[5]*
 Text GLabel 9900 3050 2    60   Input ~ 0
 SBUS_3V3_INT[4]*
-Text GLabel 6300 6150 0    60   Input ~ 0
-SBUS_3V3_INT[3]*
-Text GLabel 6300 6250 0    60   Input ~ 0
-SBUS_3V3_INT[2]*
 Text GLabel 9900 2550 2    60   Input ~ 0
+SBUS_3V3_INT[3]*
+Text GLabel 1600 1650 0    60   Input ~ 0
+SBUS_3V3_INT[2]*
+Text GLabel 7400 2250 0    60   Input ~ 0
 SBUS_3V3_INT[1]*
 Text GLabel 4100 3350 2    60   Input ~ 0
 SBUS_3V3_PA[00]
@@ -211,7 +188,7 @@ Text GLabel 9900 3950 2    60   Input ~ 0
 SBUS_3V3_PA[24]
 Text GLabel 5550 6450 2    60   Input ~ 0
 SBUS_3V3_DP
-Text GLabel 7400 1950 0    60   Input ~ 0
+Text GLabel 7400 2050 0    60   Input ~ 0
 SBUS_3V3_SIZ[0]
 Text GLabel 9900 2150 2    60   Input ~ 0
 SBUS_3V3_SIZ[1]
@@ -221,7 +198,7 @@ Text GLabel 7400 2150 0    60   Input ~ 0
 SBUS_3V3_BR*
 Text GLabel 7400 2550 0    60   Input ~ 0
 SBUS_3V3_SEL*
-Text GLabel 7400 2050 0    60   Input ~ 0
+Text GLabel 7400 1950 0    60   Input ~ 0
 SBUS_3V3_BG*
 Text GLabel 9900 1950 2    60   Input ~ 0
 SBUS_3V3_AS*
@@ -296,11 +273,11 @@ U 1 1 5F69129B
 P 9250 850
 F 0 "J1" H 9356 1228 50  0000 C CNN
 F 1 "Conn_01x06_Male" H 9356 1137 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Horizontal" H 9250 850 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_1x06_P2.54mm_Horizontal_For_SeeedStudio" H 9250 850 50  0001 C CNN
 F 3 "~" H 9250 850 50  0001 C CNN
-F 4 "22-28-8060" H 9250 850 50  0001 C CNN "MPN"
-F 5 "PZ254R-11-06P" H 9250 850 50  0001 C CNN "MPN-ALT"
-F 6 "https://www2.mouser.com/ProductDetail/Molex/22-28-8060?qs=4XSMV6Twtb2rYD%2F%2F316gfQ==" H 9250 850 50  0001 C CNN "URL"
+F 4 "22-28-8060" H 9250 850 50  0001 C CNN "MPN-ALT"
+F 5 "PZ254R-11-06P" H 9250 850 50  0001 C CNN "MPN"
+F 6 "https://www2.mouser.com/ProductDetail/Molex/22-28-8060?qs=4XSMV6Twtb2rYD%2F%2F316gfQ==" H 9250 850 50  0001 C CNN "URL-ALT"
 	1    9250 850 
 	1    0    0    -1  
 $EndComp
@@ -550,7 +527,6 @@ Wire Wire Line
 Wire Wire Line
 	6250 2700 6700 2700
 Connection ~ 4100 2550
-Connection ~ 6700 2700
 Wire Wire Line
 	6700 2700 6700 2850
 $Comp
@@ -622,4 +598,8 @@ Text GLabel 9900 3150 2    50   Input ~ 0
 PMOD-10
 Text GLabel 7400 1750 0    50   Input ~ 0
 PMOD-11
+Text GLabel 1600 3550 0    60   Input ~ 12
+LED0
+Text GLabel 7400 3250 0    60   Input ~ 12
+LED1
 $EndSCHEMATC

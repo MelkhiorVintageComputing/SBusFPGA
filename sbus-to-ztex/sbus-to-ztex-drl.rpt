@@ -1,5 +1,5 @@
 Drill report for /home/dolbeau/SPARC/SBusFPGA/sbus-to-ztex/sbus-to-ztex.kicad_pcb
-Created on Sun Jun 27 09:12:57 2021
+Created on Thu Jul  1 19:33:08 2021
 
 Copper Layer Stackup:
     =============================================================
@@ -12,13 +12,16 @@ Copper Layer Stackup:
 Drill file 'sbus-to-ztex-PTH.drl' contains
     plated through holes:
     =============================================================
-    T1  0.40mm  0.016"  (106 holes)
+    T1  0.40mm  0.016"  (115 holes)
     T2  0.60mm  0.024"  (2 holes)  (with 2 slots)
-    T3  0.80mm  0.031"  (110 holes)
+    T3  0.80mm  0.031"  (96 holes)
     T4  0.85mm  0.033"  (2 holes)
-    T5  1.00mm  0.039"  (146 holes)
+    T5  0.90mm  0.035"  (14 holes)
+    T6  1.02mm  0.040"  (6 holes)
+    T7  1.14mm  0.045"  (128 holes)
+    T8  1.19mm  0.047"  (12 holes)
 
-    Total plated holes count 366
+    Total plated holes count 375
 
 
 Drill file 'sbus-to-ztex-NPTH.drl' contains

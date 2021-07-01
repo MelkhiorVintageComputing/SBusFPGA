@@ -26,6 +26,7 @@ F 4 "WM1399CT-ND" H 5000 2800 50  0001 C CNN "Digi-Key_PN"
 F 5 "1050170001" H 5000 2800 50  0001 C CNN "MPN"
 F 6 "CONN RCPT USB2.0 MICRO B SMD R/A" H 5000 2800 50  0001 C CNN "Description"
 F 7 "Molex" H 5000 2800 50  0001 C CNN "Manufacturer"
+F 8 "https://eu.mouser.com/ProductDetail/Molex/105017-0001?qs=hlXxxvYE36k7QcsR97GUKA%3D%3D" H 5000 2800 50  0001 C CNN "URL"
 	1    5000 2800
 	-1   0    0    -1  
 $EndComp
@@ -39,6 +40,7 @@ F 2 "Package_TO_SOT_SMD:SOT-23-5" H 6700 3300 50  0001 C CNN
 F 3 "" H 6650 3100 50  0001 C CNN
 F 4 "TPS2065CDBVT-2" H 6700 2800 50  0001 C CNN "MPN"
 F 5 "595-TPS2065CDBVT-2" H 6700 2800 50  0001 C CNN "Mouser No"
+F 6 "https://eu.mouser.com/ProductDetail/Texas-Instruments/TPS2065CDBVT-2?qs=jUogulkOmla%2FprItLs6IKw%3D%3D" H 6700 2800 50  0001 C CNN "URL"
 	1    6700 2800
 	1    0    0    -1  
 $EndComp
