@@ -2,7 +2,7 @@
 <export version="D">
   <design>
     <source>/home/dolbeau/SPARC/SBusFPGA/sbus-to-ztex/sbus-to-ztex.sch</source>
-    <date>Wed Jun 30 10:14:36 2021</date>
+    <date>Wed Jun 30 13:36:24 2021</date>
     <tool>Eeschema 5.0.2+dfsg1-1~bpo9+1</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -163,7 +163,7 @@
     </comp>
     <comp ref="U1">
       <value>SN74CB3T16211DGGR</value>
-      <footprint>Package_SO:TSSOP-56_6.1x14mm_P0.5mm</footprint>
+      <footprint>For_SeeedStudio:TSSOP-56_6.1x14mm_P0.5mm_For_SeeedStudio</footprint>
       <datasheet>https://www.ti.com/lit/ds/symlink/sn74cb3t16211.pdf</datasheet>
       <fields>
         <field name="MPN">SN74CB3T16211DGGR</field>
@@ -190,7 +190,7 @@
     </comp>
     <comp ref="U2">
       <value>SN74CB3T16211DGGR</value>
-      <footprint>Package_SO:TSSOP-56_6.1x14mm_P0.5mm</footprint>
+      <footprint>For_SeeedStudio:TSSOP-56_6.1x14mm_P0.5mm_For_SeeedStudio</footprint>
       <fields>
         <field name="MPN">SN74CB3T16211DGGR</field>
       </fields>
@@ -216,7 +216,7 @@
     </comp>
     <comp ref="U3">
       <value>SN74CB3T16211DGGR</value>
-      <footprint>Package_SO:TSSOP-56_6.1x14mm_P0.5mm</footprint>
+      <footprint>For_SeeedStudio:TSSOP-56_6.1x14mm_P0.5mm_For_SeeedStudio</footprint>
       <fields>
         <field name="MPN">SN74CB3T16211DGGR</field>
       </fields>
@@ -263,7 +263,7 @@
     </comp>
     <comp ref="JAB1">
       <value>ZTEX_AB-ztex_AB</value>
-      <footprint>Connector_PinHeader_2.54mm:PinHeader_2x32_P2.54mm_Vertical</footprint>
+      <footprint>For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio</footprint>
       <fields>
         <field name="MPN">10-89-7642</field>
         <field name="URL">https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D</field>
@@ -316,7 +316,7 @@
     </comp>
     <comp ref="JCD1">
       <value>ZTEX_CD-ztex_CD</value>
-      <footprint>Connector_PinHeader_2.54mm:PinHeader_2x32_P2.54mm_Vertical</footprint>
+      <footprint>For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio</footprint>
       <fields>
         <field name="MPN">10-89-7642</field>
         <field name="URL">https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D</field>
@@ -327,7 +327,7 @@
     </comp>
     <comp ref="J3">
       <value>Conn_02x07_Odd_Even</value>
-      <footprint>Connector_PinHeader_2.00mm:PinHeader_2x07_P2.00mm_Horizontal</footprint>
+      <footprint>For_SeeedStudio:PinHeader_2x07_P2.00mm_Horizontal_For_SeeedStudio</footprint>
       <datasheet>https://www.molex.com/pdm_docs/sd/878331420_sd.pdf</datasheet>
       <fields>
         <field name="MPN">87833-1420</field>
@@ -340,7 +340,7 @@
     </comp>
     <comp ref="J5">
       <value>Conn_02x06_Odd_Even</value>
-      <footprint>Connector_PinSocket_2.54mm:PinSocket_2x06_P2.54mm_Horizontal</footprint>
+      <footprint>For_SeeedStudio:PinSocket_2x06_P2.54mm_Horizontal_For_SeeedStudio</footprint>
       <datasheet>~</datasheet>
       <fields>
         <field name="MPN">A2541HWR-2x6P</field>
@@ -392,7 +392,6 @@
       <footprint>Connector_USB:USB_Micro-B_Molex-105017-0001</footprint>
       <datasheet>https://www.molex.com/pdm_docs/sd/1050170001_sd.pdf</datasheet>
       <fields>
-        <field name="DK_Datasheet_Link">https://www.molex.com/pdm_docs/sd/1050170001_sd.pdf</field>
         <field name="Description">CONN RCPT USB2.0 MICRO B SMD R/A</field>
         <field name="Digi-Key_PN">WM1399CT-ND</field>
         <field name="MPN">1050170001</field>

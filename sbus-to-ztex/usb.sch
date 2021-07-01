@@ -373,4 +373,6 @@ Text GLabel 3550 3450 0    50   Input ~ 0
 USBH0_D-
 Text Label 4700 2050 2    50   ~ 0
 VBus_USB0
+Text Notes 5050 4200 0    50   ~ 0
+From Dolu1990's USB pmod
 $EndSCHEMATC
