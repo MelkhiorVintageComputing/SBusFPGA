@@ -2,7 +2,7 @@
 <export version="D">
   <design>
     <source>/home/dolbeau/SPARC/SBusFPGA/sbus-to-ztex/sbus-to-ztex.sch</source>
-    <date>Thu Jul  1 19:33:49 2021</date>
+    <date>Fri Jul  2 17:39:23 2021</date>
     <tool>Eeschema 5.0.2+dfsg1-1~bpo9+1</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -455,6 +455,24 @@
       <sheetpath names="/blinkey/" tstamps="/5F6B165A/"/>
       <tstamp>60DF1E46</tstamp>
     </comp>
+    <comp ref="J6">
+      <value>Conn_01x03_Male</value>
+      <footprint>Connector_Molex:Molex_KK-254_AE-6410-03A_1x03_P2.54mm_Vertical</footprint>
+      <datasheet>~</datasheet>
+      <libsource lib="Connector" part="Conn_01x03_Male" description="Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <sheetpath names="/blinkey/" tstamps="/5F6B165A/"/>
+      <tstamp>60E1E49E</tstamp>
+    </comp>
+    <comp ref="C6">
+      <value>47uF</value>
+      <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
+      <fields>
+        <field name="MPN">GRM21BR60J476ME15L</field>
+      </fields>
+      <libsource lib="Device" part="C" description="Unpolarized capacitor"/>
+      <sheetpath names="/blinkey/" tstamps="/5F6B165A/"/>
+      <tstamp>60E24715</tstamp>
+    </comp>
     <comp ref="C1">
       <value>47uF</value>
       <footprint>Capacitor_SMD:C_0805_2012Metric</footprint>
@@ -686,6 +704,22 @@
         <pin num="4" name="~" type="openCol"/>
         <pin num="5" name="VCC" type="power_in"/>
         <pin num="6" name="~" type="openCol"/>
+      </pins>
+    </libpart>
+    <libpart lib="Connector" part="Conn_01x03_Male">
+      <description>Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)</description>
+      <docs>~</docs>
+      <footprints>
+        <fp>Connector*:*_1x??_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">Conn_01x03_Male</field>
+      </fields>
+      <pins>
+        <pin num="1" name="Pin_1" type="passive"/>
+        <pin num="2" name="Pin_2" type="passive"/>
+        <pin num="3" name="Pin_3" type="passive"/>
       </pins>
     </libpart>
     <libpart lib="Connector" part="Conn_01x06_Male">
@@ -1289,102 +1323,105 @@
   </libraries>
   <nets>
     <net code="1" name="GND">
-      <node ref="DOE1" pin="1"/>
-      <node ref="C13" pin="2"/>
-      <node ref="U3" pin="49"/>
-      <node ref="J1" pin="1"/>
-      <node ref="C12" pin="2"/>
-      <node ref="U2" pin="49"/>
-      <node ref="U3" pin="19"/>
-      <node ref="SBus1" pin="52"/>
-      <node ref="SBus1" pin="60"/>
-      <node ref="JCD1" pin="33"/>
-      <node ref="JAB1" pin="64"/>
-      <node ref="SBus1" pin="84"/>
-      <node ref="SBus1" pin="68"/>
-      <node ref="SBus1" pin="76"/>
-      <node ref="SBus1" pin="01"/>
-      <node ref="JAB1" pin="3"/>
-      <node ref="JAB1" pin="31"/>
-      <node ref="JAB1" pin="4"/>
-      <node ref="JAB1" pin="32"/>
-      <node ref="U3" pin="38"/>
-      <node ref="U4" pin="5"/>
-      <node ref="U4" pin="12"/>
       <node ref="U4" pin="11"/>
+      <node ref="U4" pin="12"/>
+      <node ref="C1" pin="2"/>
+      <node ref="SBus1" pin="60"/>
       <node ref="U4" pin="7"/>
       <node ref="U4" pin="6"/>
-      <node ref="C1" pin="2"/>
-      <node ref="U3" pin="8"/>
-      <node ref="C4" pin="2"/>
-      <node ref="U_INT2" pin="2"/>
-      <node ref="U_INT2" pin="2"/>
-      <node ref="J3" pin="3"/>
-      <node ref="J3" pin="5"/>
-      <node ref="J3" pin="7"/>
-      <node ref="J3" pin="9"/>
-      <node ref="J3" pin="11"/>
-      <node ref="J3" pin="1"/>
-      <node ref="J3" pin="13"/>
-      <node ref="SBus1" pin="92"/>
-      <node ref="JCD1" pin="63"/>
-      <node ref="JCD1" pin="3"/>
-      <node ref="JCD1" pin="64"/>
-      <node ref="JCD1" pin="4"/>
-      <node ref="JCD1" pin="34"/>
-      <node ref="U1" pin="49"/>
+      <node ref="U4" pin="5"/>
       <node ref="D1" pin="1"/>
-      <node ref="U2" pin="19"/>
+      <node ref="SBus1" pin="76"/>
+      <node ref="SBus1" pin="68"/>
+      <node ref="SBus1" pin="84"/>
       <node ref="R15" pin="2"/>
-      <node ref="R14" pin="1"/>
-      <node ref="U1" pin="8"/>
-      <node ref="C31" pin="2"/>
-      <node ref="J5" pin="3"/>
-      <node ref="D2" pin="1"/>
-      <node ref="U_INT1" pin="2"/>
-      <node ref="C5" pin="2"/>
-      <node ref="J5" pin="4"/>
-      <node ref="C11" pin="2"/>
-      <node ref="J2" pin="G4"/>
-      <node ref="R20" pin="1"/>
-      <node ref="U1" pin="19"/>
-      <node ref="J4" pin="6"/>
-      <node ref="J4" pin="5"/>
-      <node ref="U5" pin="5"/>
-      <node ref="U1" pin="38"/>
-      <node ref="U5" pin="2"/>
-      <node ref="U_INT1" pin="2"/>
-      <node ref="J4" pin="4"/>
+      <node ref="SBus1" pin="52"/>
       <node ref="J2" pin="G3"/>
       <node ref="J2" pin="G2"/>
       <node ref="J2" pin="G1"/>
-      <node ref="C10" pin="2"/>
       <node ref="J2" pin="6"/>
-      <node ref="C2" pin="2"/>
+      <node ref="U1" pin="19"/>
+      <node ref="U_INT1" pin="2"/>
       <node ref="C3" pin="2"/>
+      <node ref="U1" pin="8"/>
+      <node ref="R14" pin="1"/>
+      <node ref="C10" pin="2"/>
+      <node ref="U3" pin="49"/>
+      <node ref="C4" pin="2"/>
+      <node ref="U3" pin="19"/>
+      <node ref="U2" pin="49"/>
+      <node ref="C12" pin="2"/>
+      <node ref="U3" pin="8"/>
+      <node ref="C6" pin="2"/>
+      <node ref="U_INT2" pin="2"/>
+      <node ref="D2" pin="1"/>
+      <node ref="U3" pin="38"/>
+      <node ref="J6" pin="1"/>
+      <node ref="SBus1" pin="01"/>
+      <node ref="J5" pin="4"/>
+      <node ref="J5" pin="3"/>
+      <node ref="C13" pin="2"/>
+      <node ref="J2" pin="G4"/>
+      <node ref="J6" pin="3"/>
+      <node ref="U_INT2" pin="2"/>
+      <node ref="C2" pin="2"/>
+      <node ref="JAB1" pin="4"/>
+      <node ref="JCD1" pin="63"/>
       <node ref="U2" pin="8"/>
-      <node ref="U7" pin="2"/>
+      <node ref="JCD1" pin="3"/>
+      <node ref="JCD1" pin="64"/>
+      <node ref="JAB1" pin="32"/>
+      <node ref="JCD1" pin="4"/>
+      <node ref="JCD1" pin="34"/>
+      <node ref="JAB1" pin="31"/>
+      <node ref="JAB1" pin="3"/>
       <node ref="U2" pin="38"/>
+      <node ref="C5" pin="2"/>
+      <node ref="C11" pin="2"/>
+      <node ref="JAB1" pin="64"/>
+      <node ref="U1" pin="49"/>
+      <node ref="U1" pin="38"/>
+      <node ref="R20" pin="1"/>
+      <node ref="J3" pin="5"/>
+      <node ref="SBus1" pin="92"/>
+      <node ref="J3" pin="13"/>
+      <node ref="J3" pin="3"/>
+      <node ref="J3" pin="7"/>
+      <node ref="J1" pin="1"/>
+      <node ref="J3" pin="11"/>
+      <node ref="J3" pin="1"/>
+      <node ref="U_INT1" pin="2"/>
+      <node ref="C31" pin="2"/>
+      <node ref="J3" pin="9"/>
+      <node ref="DOE1" pin="1"/>
+      <node ref="U2" pin="19"/>
+      <node ref="U5" pin="2"/>
+      <node ref="U5" pin="5"/>
+      <node ref="J4" pin="6"/>
+      <node ref="JCD1" pin="33"/>
+      <node ref="U7" pin="2"/>
+      <node ref="J4" pin="5"/>
+      <node ref="J4" pin="4"/>
     </net>
     <net code="2" name="SBUS_3V3_PA[10]">
-      <node ref="JAB1" pin="56"/>
       <node ref="U1" pin="50"/>
+      <node ref="JAB1" pin="56"/>
     </net>
     <net code="3" name="SBUS_3V3_ACK[0]*">
       <node ref="U1" pin="51"/>
       <node ref="JCD1" pin="39"/>
     </net>
     <net code="4" name="SBUS_3V3_PA[09]">
-      <node ref="JAB1" pin="55"/>
       <node ref="U1" pin="52"/>
+      <node ref="JAB1" pin="55"/>
     </net>
     <net code="5" name="SBUS_3V3_PA[08]">
-      <node ref="U1" pin="53"/>
       <node ref="JAB1" pin="54"/>
+      <node ref="U1" pin="53"/>
     </net>
     <net code="6" name="SBUS_3V3_EER*">
-      <node ref="U1" pin="54"/>
       <node ref="JCD1" pin="25"/>
+      <node ref="U1" pin="54"/>
     </net>
     <net code="7" name="SBUS_3V3_PA[11]">
       <node ref="JAB1" pin="57"/>
@@ -1399,8 +1436,8 @@
       <node ref="U1" pin="29"/>
     </net>
     <net code="10" name="SBUS_3V3_PA[27]">
-      <node ref="JCD1" pin="59"/>
       <node ref="U1" pin="30"/>
+      <node ref="JCD1" pin="59"/>
     </net>
     <net code="11" name="SBUS_3V3_PA[25]">
       <node ref="U1" pin="31"/>
@@ -1411,8 +1448,8 @@
       <node ref="U1" pin="32"/>
     </net>
     <net code="13" name="SBUS_3V3_PA[23]">
-      <node ref="JCD1" pin="55"/>
       <node ref="U1" pin="33"/>
+      <node ref="JCD1" pin="55"/>
     </net>
     <net code="14" name="SBUS_3V3_PA[22]">
       <node ref="JCD1" pin="56"/>
@@ -1431,40 +1468,40 @@
       <node ref="U1" pin="39"/>
     </net>
     <net code="18" name="SBUS_3V3_PA[17]">
-      <node ref="JCD1" pin="49"/>
       <node ref="U1" pin="40"/>
+      <node ref="JCD1" pin="49"/>
     </net>
     <net code="19" name="SBUS_3V3_PA[16]">
       <node ref="JCD1" pin="50"/>
       <node ref="U1" pin="41"/>
     </net>
     <net code="20" name="SBUS_3V3_ACK[2]*">
-      <node ref="JCD1" pin="45"/>
       <node ref="U1" pin="42"/>
+      <node ref="JCD1" pin="45"/>
     </net>
     <net code="21" name="SBUS_3V3_PA[15]">
-      <node ref="JCD1" pin="47"/>
       <node ref="U1" pin="43"/>
+      <node ref="JCD1" pin="47"/>
     </net>
     <net code="22" name="SBUS_3V3_PA[14]">
-      <node ref="JAB1" pin="60"/>
       <node ref="U1" pin="44"/>
+      <node ref="JAB1" pin="60"/>
     </net>
     <net code="23" name="SBUS_3V3_PA[13]">
-      <node ref="JAB1" pin="59"/>
       <node ref="U1" pin="45"/>
+      <node ref="JAB1" pin="59"/>
     </net>
     <net code="24" name="SBUS_3V3_ACK[1]*">
-      <node ref="U1" pin="46"/>
       <node ref="JCD1" pin="41"/>
+      <node ref="U1" pin="46"/>
     </net>
     <net code="25" name="SBUS_3V3_PA[12]">
       <node ref="JAB1" pin="58"/>
       <node ref="U1" pin="47"/>
     </net>
     <net code="26" name="SBUS_3V3_PA[01]">
-      <node ref="U2" pin="35"/>
       <node ref="JAB1" pin="45"/>
+      <node ref="U2" pin="35"/>
     </net>
     <net code="27" name="SBUS_3V3_PA[07]">
       <node ref="U2" pin="29"/>
@@ -1487,8 +1524,8 @@
       <node ref="JAB1" pin="47"/>
     </net>
     <net code="32" name="SBUS_3V3_PA[02]">
-      <node ref="U2" pin="34"/>
       <node ref="JAB1" pin="48"/>
+      <node ref="U2" pin="34"/>
     </net>
     <net code="33" name="SBUS_3V3_PA[00]">
       <node ref="U2" pin="36"/>
@@ -1503,20 +1540,20 @@
       <node ref="U2" pin="39"/>
     </net>
     <net code="36" name="SBUS_3V3_SIZ[1]">
-      <node ref="JCD1" pin="22"/>
       <node ref="U2" pin="40"/>
+      <node ref="JCD1" pin="22"/>
     </net>
     <net code="37" name="SBUS_3V3_SIZ[0]">
-      <node ref="JCD1" pin="19"/>
       <node ref="U2" pin="41"/>
+      <node ref="JCD1" pin="19"/>
     </net>
     <net code="38" name="SBUS_3V3_D[31]">
       <node ref="JAB1" pin="43"/>
       <node ref="U2" pin="42"/>
     </net>
     <net code="39" name="SBUS_3V3_D[30]">
-      <node ref="U2" pin="43"/>
       <node ref="JAB1" pin="42"/>
+      <node ref="U2" pin="43"/>
     </net>
     <net code="40" name="SBUS_3V3_D[29]">
       <node ref="U2" pin="44"/>
@@ -1527,20 +1564,20 @@
       <node ref="JAB1" pin="40"/>
     </net>
     <net code="42" name="SBUS_3V3_D[27]">
-      <node ref="JAB1" pin="39"/>
       <node ref="U2" pin="46"/>
+      <node ref="JAB1" pin="39"/>
     </net>
     <net code="43" name="Net-(U2-Pad1)">
       <node ref="U2" pin="1"/>
     </net>
     <net code="44" name="SBUS_3V3_INT[4]*">
-      <node ref="R31" pin="2"/>
-      <node ref="U_INT1" pin="3"/>
       <node ref="JCD1" pin="40"/>
+      <node ref="U_INT1" pin="3"/>
+      <node ref="R31" pin="2"/>
     </net>
     <net code="45" name="SBUS_3V3_INT[3]*">
-      <node ref="U_INT1" pin="1"/>
       <node ref="R30" pin="2"/>
+      <node ref="U_INT1" pin="1"/>
       <node ref="JCD1" pin="30"/>
     </net>
     <net code="46" name="Net-(U1-Pad1)">
@@ -1551,69 +1588,69 @@
       <node ref="SBus1" pin="89"/>
     </net>
     <net code="48" name="SBUS_5V_PA[20]">
-      <node ref="U1" pin="21"/>
       <node ref="SBus1" pin="42"/>
+      <node ref="U1" pin="21"/>
     </net>
     <net code="49" name="SBUS_5V_PA[21]">
       <node ref="SBus1" pin="90"/>
       <node ref="U1" pin="22"/>
     </net>
     <net code="50" name="SBUS_5V_PA[22]">
-      <node ref="SBus1" pin="43"/>
       <node ref="U1" pin="23"/>
+      <node ref="SBus1" pin="43"/>
     </net>
     <net code="51" name="SBUS_5V_PA[23]">
-      <node ref="U1" pin="24"/>
       <node ref="SBus1" pin="91"/>
+      <node ref="U1" pin="24"/>
     </net>
     <net code="52" name="SBUS_3V3_D[26]">
       <node ref="JAB1" pin="38"/>
       <node ref="U2" pin="47"/>
     </net>
     <net code="53" name="SBUS_3V3_BR*">
-      <node ref="JCD1" pin="21"/>
       <node ref="U4" pin="3"/>
+      <node ref="JCD1" pin="21"/>
     </net>
     <net code="54" name="SBUS_3V3_BG*">
-      <node ref="U4" pin="8"/>
       <node ref="JCD1" pin="17"/>
+      <node ref="U4" pin="8"/>
     </net>
     <net code="55" name="SBUS_OE">
-      <node ref="JCD1" pin="38"/>
-      <node ref="U1" pin="55"/>
-      <node ref="U1" pin="56"/>
-      <node ref="U3" pin="56"/>
       <node ref="U3" pin="55"/>
       <node ref="U4" pin="10"/>
-      <node ref="U2" pin="56"/>
-      <node ref="U4" pin="1"/>
       <node ref="U2" pin="55"/>
+      <node ref="U2" pin="56"/>
+      <node ref="JCD1" pin="38"/>
+      <node ref="U1" pin="56"/>
+      <node ref="U3" pin="56"/>
       <node ref="R13" pin="2"/>
+      <node ref="U1" pin="55"/>
+      <node ref="U4" pin="1"/>
     </net>
     <net code="56" name="SBUS_3V3_INT[1]*">
       <node ref="U_INT2" pin="3"/>
-      <node ref="JCD1" pin="23"/>
       <node ref="R2" pin="2"/>
+      <node ref="JCD1" pin="23"/>
     </net>
     <net code="57" name="SBUS_3V3_INT[2]*">
-      <node ref="U_INT2" pin="1"/>
-      <node ref="R1" pin="2"/>
       <node ref="JAB1" pin="11"/>
+      <node ref="R1" pin="2"/>
+      <node ref="U_INT2" pin="1"/>
     </net>
     <net code="58" name="Net-(U3-Pad1)">
       <node ref="U3" pin="1"/>
     </net>
     <net code="59" name="SBUS_3V3_D[25]">
-      <node ref="U2" pin="48"/>
       <node ref="JAB1" pin="37"/>
+      <node ref="U2" pin="48"/>
     </net>
     <net code="60" name="SBUS_3V3_D[24]">
       <node ref="JAB1" pin="36"/>
       <node ref="U2" pin="50"/>
     </net>
     <net code="61" name="SBUS_3V3_D[23]">
-      <node ref="U2" pin="51"/>
       <node ref="JAB1" pin="35"/>
+      <node ref="U2" pin="51"/>
     </net>
     <net code="62" name="SBUS_3V3_D[22]">
       <node ref="JAB1" pin="28"/>
@@ -1628,8 +1665,8 @@
       <node ref="JAB1" pin="26"/>
     </net>
     <net code="65" name="SBUS_3V3_D[02]">
-      <node ref="JAB1" pin="8"/>
       <node ref="U3" pin="46"/>
+      <node ref="JAB1" pin="8"/>
     </net>
     <net code="66" name="SBUS_3V3_D[03]">
       <node ref="JAB1" pin="7"/>
@@ -1644,20 +1681,20 @@
       <node ref="U3" pin="50"/>
     </net>
     <net code="69" name="SBUS_3V3_CLK">
-      <node ref="JAB1" pin="44"/>
       <node ref="U3" pin="51"/>
+      <node ref="JAB1" pin="44"/>
     </net>
     <net code="70" name="SBUS_3V3_AS*">
       <node ref="U3" pin="52"/>
       <node ref="JCD1" pin="18"/>
     </net>
     <net code="71" name="SBUS_3V3_SEL*">
-      <node ref="U3" pin="53"/>
       <node ref="JCD1" pin="29"/>
+      <node ref="U3" pin="53"/>
     </net>
     <net code="72" name="SBUS_3V3_RST*">
-      <node ref="U3" pin="54"/>
       <node ref="JCD1" pin="27"/>
+      <node ref="U3" pin="54"/>
     </net>
     <net code="73" name="SBUS_3V3_D[05]">
       <node ref="U3" pin="45"/>
@@ -1668,48 +1705,48 @@
       <node ref="JAB1" pin="20"/>
     </net>
     <net code="75" name="SBUS_3V3_D[19]">
-      <node ref="U3" pin="29"/>
       <node ref="JAB1" pin="25"/>
+      <node ref="U3" pin="29"/>
     </net>
     <net code="76" name="SBUS_3V3_D[18]">
       <node ref="JAB1" pin="24"/>
       <node ref="U3" pin="30"/>
     </net>
     <net code="77" name="SBUS_3V3_D[17]">
-      <node ref="JAB1" pin="23"/>
       <node ref="U3" pin="31"/>
+      <node ref="JAB1" pin="23"/>
     </net>
     <net code="78" name="SBUS_3V3_D[16]">
-      <node ref="U3" pin="32"/>
       <node ref="JAB1" pin="22"/>
+      <node ref="U3" pin="32"/>
     </net>
     <net code="79" name="SBUS_3V3_D[15]">
       <node ref="U3" pin="33"/>
       <node ref="JAB1" pin="21"/>
     </net>
     <net code="80" name="SBUS_3V3_D[13]">
-      <node ref="U3" pin="35"/>
       <node ref="JAB1" pin="19"/>
+      <node ref="U3" pin="35"/>
     </net>
     <net code="81" name="SBUS_3V3_D[12]">
       <node ref="JAB1" pin="18"/>
       <node ref="U3" pin="36"/>
     </net>
     <net code="82" name="SBUS_3V3_D[11]">
-      <node ref="U3" pin="37"/>
       <node ref="JAB1" pin="17"/>
+      <node ref="U3" pin="37"/>
     </net>
     <net code="83" name="SBUS_3V3_D[10]">
-      <node ref="JAB1" pin="16"/>
       <node ref="U3" pin="39"/>
+      <node ref="JAB1" pin="16"/>
     </net>
     <net code="84" name="SBUS_3V3_D[09]">
       <node ref="JAB1" pin="15"/>
       <node ref="U3" pin="40"/>
     </net>
     <net code="85" name="SBUS_3V3_D[08]">
-      <node ref="JAB1" pin="14"/>
       <node ref="U3" pin="41"/>
+      <node ref="JAB1" pin="14"/>
     </net>
     <net code="86" name="SBUS_3V3_D[07]">
       <node ref="U3" pin="42"/>
@@ -1724,16 +1761,16 @@
       <node ref="U3" pin="44"/>
     </net>
     <net code="89" name="SBUS_5V_PA[06]">
-      <node ref="SBus1" pin="33"/>
       <node ref="U2" pin="27"/>
+      <node ref="SBus1" pin="33"/>
     </net>
     <net code="90" name="SBUS_5V_D[27]">
-      <node ref="SBus1" pin="22"/>
       <node ref="U2" pin="10"/>
+      <node ref="SBus1" pin="22"/>
     </net>
     <net code="91" name="SBUS_5V_D[29]">
-      <node ref="SBus1" pin="23"/>
       <node ref="U2" pin="12"/>
+      <node ref="SBus1" pin="23"/>
     </net>
     <net code="92" name="SBUS_5V_INT[6]*">
       <node ref="SBus1" pin="24"/>
@@ -1743,12 +1780,12 @@
       <node ref="U2" pin="14"/>
     </net>
     <net code="94" name="SBUS_5V_SIZ[0]">
-      <node ref="U2" pin="15"/>
       <node ref="SBus1" pin="26"/>
+      <node ref="U2" pin="15"/>
     </net>
     <net code="95" name="SBUS_5V_SIZ[2]">
-      <node ref="SBus1" pin="27"/>
       <node ref="U2" pin="18"/>
+      <node ref="SBus1" pin="27"/>
     </net>
     <net code="96" name="SBUS_5V_INT[7]*">
       <node ref="SBus1" pin="28"/>
@@ -1758,16 +1795,16 @@
       <node ref="SBus1" pin="29"/>
     </net>
     <net code="98" name="SBUS_5V_PA[02]">
-      <node ref="U2" pin="23"/>
       <node ref="SBus1" pin="30"/>
+      <node ref="U2" pin="23"/>
     </net>
     <net code="99" name="SBUS_5V_PA[04]">
       <node ref="SBus1" pin="31"/>
       <node ref="U2" pin="25"/>
     </net>
     <net code="100" name="SBUS_5V_EER*">
-      <node ref="U1" pin="2"/>
       <node ref="SBus1" pin="32"/>
+      <node ref="U1" pin="2"/>
     </net>
     <net code="101" name="SBUS_5V_D[25]">
       <node ref="SBus1" pin="21"/>
@@ -1778,68 +1815,68 @@
       <node ref="U1" pin="3"/>
     </net>
     <net code="103" name="SBUS_5V_PA[10]">
-      <node ref="SBus1" pin="35"/>
       <node ref="U1" pin="6"/>
+      <node ref="SBus1" pin="35"/>
     </net>
     <net code="104" name="SBUS_5V_ACK[0]*">
-      <node ref="SBus1" pin="36"/>
       <node ref="U1" pin="5"/>
+      <node ref="SBus1" pin="36"/>
     </net>
     <net code="105" name="SBUS_5V_PA[12]">
       <node ref="SBus1" pin="37"/>
       <node ref="U1" pin="9"/>
     </net>
     <net code="106" name="SBUS_5V_PA[14]">
-      <node ref="U1" pin="12"/>
       <node ref="SBus1" pin="38"/>
+      <node ref="U1" pin="12"/>
     </net>
     <net code="107" name="SBUS_5V_PA[16]">
-      <node ref="U1" pin="15"/>
       <node ref="SBus1" pin="39"/>
+      <node ref="U1" pin="15"/>
     </net>
     <net code="108" name="SBUS_5V_ACK[1]*">
       <node ref="U1" pin="10"/>
       <node ref="SBus1" pin="40"/>
     </net>
     <net code="109" name="SBUS_5V_PA[18]">
-      <node ref="SBus1" pin="41"/>
       <node ref="U1" pin="18"/>
+      <node ref="SBus1" pin="41"/>
     </net>
     <net code="110" name="SBUS_5V_ACK[2]*">
       <node ref="U1" pin="14"/>
       <node ref="SBus1" pin="44"/>
     </net>
     <net code="111" name="SBUS_5V_D[08]">
-      <node ref="SBus1" pin="10"/>
       <node ref="U3" pin="15"/>
+      <node ref="SBus1" pin="10"/>
     </net>
     <net code="112" name="SBUS_5V_BR*">
       <node ref="SBus1" pin="02"/>
       <node ref="U4" pin="2"/>
     </net>
     <net code="113" name="SBUS_5V_SEL*">
-      <node ref="U3" pin="3"/>
       <node ref="SBus1" pin="03"/>
+      <node ref="U3" pin="3"/>
     </net>
     <net code="114" name="SBUS_5V_INT[1]*">
-      <node ref="SBus1" pin="04"/>
       <node ref="U_INT2" pin="4"/>
+      <node ref="SBus1" pin="04"/>
     </net>
     <net code="115" name="SBUS_5V_D[00]">
       <node ref="U3" pin="7"/>
       <node ref="SBus1" pin="05"/>
     </net>
     <net code="116" name="SBUS_5V_D[02]">
-      <node ref="U3" pin="10"/>
       <node ref="SBus1" pin="06"/>
+      <node ref="U3" pin="10"/>
     </net>
     <net code="117" name="SBUS_5V_D[04]">
-      <node ref="U3" pin="12"/>
       <node ref="SBus1" pin="07"/>
+      <node ref="U3" pin="12"/>
     </net>
     <net code="118" name="SBUS_5V_INT[2]*">
-      <node ref="SBus1" pin="08"/>
       <node ref="U_INT2" pin="6"/>
+      <node ref="SBus1" pin="08"/>
     </net>
     <net code="119" name="SBUS_5V_D[06]">
       <node ref="U3" pin="13"/>
@@ -1850,8 +1887,8 @@
       <node ref="SBus1" pin="45"/>
     </net>
     <net code="121" name="SBUS_5V_D[10]">
-      <node ref="SBus1" pin="11"/>
       <node ref="U3" pin="18"/>
+      <node ref="SBus1" pin="11"/>
     </net>
     <net code="122" name="SBUS_5V_INT[3]*">
       <node ref="SBus1" pin="12"/>
@@ -1862,12 +1899,12 @@
       <node ref="U3" pin="21"/>
     </net>
     <net code="124" name="SBUS_5V_D[14]">
-      <node ref="U3" pin="23"/>
       <node ref="SBus1" pin="14"/>
+      <node ref="U3" pin="23"/>
     </net>
     <net code="125" name="SBUS_5V_D[16]">
-      <node ref="U3" pin="25"/>
       <node ref="SBus1" pin="15"/>
+      <node ref="U3" pin="25"/>
     </net>
     <net code="126" name="SBUS_5V_INT[4]*">
       <node ref="U_INT1" pin="4"/>
@@ -1878,8 +1915,8 @@
       <node ref="U3" pin="28"/>
     </net>
     <net code="128" name="SBUS_5V_D[21]">
-      <node ref="SBus1" pin="18"/>
       <node ref="U2" pin="3"/>
+      <node ref="SBus1" pin="18"/>
     </net>
     <net code="129" name="SBUS_5V_D[23]">
       <node ref="SBus1" pin="19"/>
@@ -1893,71 +1930,73 @@
       <node ref="U2" pin="6"/>
     </net>
     <net code="132" name="SBUS_5V_D[26]">
-      <node ref="SBus1" pin="70"/>
       <node ref="U2" pin="9"/>
+      <node ref="SBus1" pin="70"/>
     </net>
     <net code="133" name="SBUS_5V_D[28]">
       <node ref="SBus1" pin="71"/>
       <node ref="U2" pin="11"/>
     </net>
     <net code="134" name="+5V">
-      <node ref="JAB1" pin="2"/>
-      <node ref="SBus1" pin="80"/>
-      <node ref="U7" pin="5"/>
-      <node ref="C5" pin="1"/>
-      <node ref="JAB1" pin="1"/>
       <node ref="SBus1" pin="72"/>
       <node ref="SBus1" pin="88"/>
-      <node ref="SBus1" pin="56"/>
       <node ref="SBus1" pin="64"/>
+      <node ref="C5" pin="1"/>
+      <node ref="SBus1" pin="56"/>
+      <node ref="SBus1" pin="80"/>
+      <node ref="C6" pin="1"/>
+      <node ref="JAB1" pin="1"/>
+      <node ref="JAB1" pin="2"/>
+      <node ref="U7" pin="5"/>
+      <node ref="J6" pin="2"/>
     </net>
     <net code="135" name="SBUS_5V_D[30]">
       <node ref="U2" pin="13"/>
       <node ref="SBus1" pin="73"/>
     </net>
     <net code="136" name="SBUS_5V_SIZ[1]">
-      <node ref="SBus1" pin="74"/>
       <node ref="U2" pin="16"/>
+      <node ref="SBus1" pin="74"/>
     </net>
     <net code="137" name="SBUS_5V_PPRD">
       <node ref="U2" pin="20"/>
       <node ref="SBus1" pin="75"/>
     </net>
     <net code="138" name="SBUS_5V_PA[01]">
-      <node ref="U2" pin="22"/>
       <node ref="SBus1" pin="77"/>
+      <node ref="U2" pin="22"/>
     </net>
     <net code="139" name="SBUS_5V_PA[03]">
       <node ref="U2" pin="24"/>
       <node ref="SBus1" pin="78"/>
     </net>
     <net code="140" name="SBUS_5V_PA[05]">
-      <node ref="SBus1" pin="79"/>
       <node ref="U2" pin="26"/>
+      <node ref="SBus1" pin="79"/>
     </net>
     <net code="141" name="SBUS_5V_PA[07]">
       <node ref="U2" pin="28"/>
       <node ref="SBus1" pin="81"/>
     </net>
     <net code="142" name="SBUS_5V_PA[09]">
-      <node ref="U1" pin="4"/>
       <node ref="SBus1" pin="82"/>
+      <node ref="U1" pin="4"/>
     </net>
     <net code="143" name="SBUS_5V_PA[11]">
-      <node ref="U1" pin="7"/>
       <node ref="SBus1" pin="83"/>
+      <node ref="U1" pin="7"/>
     </net>
     <net code="144" name="SBUS_5V_PA[13]">
       <node ref="SBus1" pin="85"/>
       <node ref="U1" pin="11"/>
     </net>
     <net code="145" name="SBUS_5V_PA[15]">
-      <node ref="SBus1" pin="86"/>
       <node ref="U1" pin="13"/>
+      <node ref="SBus1" pin="86"/>
     </net>
     <net code="146" name="SBUS_5V_PA[17]">
-      <node ref="SBus1" pin="87"/>
       <node ref="U1" pin="16"/>
+      <node ref="SBus1" pin="87"/>
     </net>
     <net code="147" name="SBUS_5V_D[07]">
       <node ref="SBus1" pin="57"/>
@@ -1978,68 +2017,68 @@
       <node ref="SBus1" pin="49"/>
     </net>
     <net code="152" name="SBUS_5V_BG*">
-      <node ref="SBus1" pin="50"/>
       <node ref="U4" pin="9"/>
+      <node ref="SBus1" pin="50"/>
     </net>
     <net code="153" name="SBUS_5V_AS*">
-      <node ref="SBus1" pin="51"/>
       <node ref="U3" pin="4"/>
+      <node ref="SBus1" pin="51"/>
     </net>
     <net code="154" name="SBUS_5V_D[01]">
-      <node ref="SBus1" pin="53"/>
       <node ref="U3" pin="6"/>
+      <node ref="SBus1" pin="53"/>
     </net>
     <net code="155" name="SBUS_5V_D[03]">
-      <node ref="SBus1" pin="54"/>
       <node ref="U3" pin="9"/>
+      <node ref="SBus1" pin="54"/>
     </net>
     <net code="156" name="SBUS_5V_D[05]">
-      <node ref="SBus1" pin="55"/>
       <node ref="U3" pin="11"/>
+      <node ref="SBus1" pin="55"/>
     </net>
     <net code="157" name="SBUS_5V_D[09]">
       <node ref="U3" pin="16"/>
       <node ref="SBus1" pin="58"/>
     </net>
     <net code="158" name="SBUS_5V_D[11]">
-      <node ref="SBus1" pin="59"/>
       <node ref="U3" pin="20"/>
+      <node ref="SBus1" pin="59"/>
     </net>
     <net code="159" name="SBUS_5V_D[13]">
       <node ref="U3" pin="22"/>
       <node ref="SBus1" pin="61"/>
     </net>
     <net code="160" name="SBUS_5V_D[15]">
-      <node ref="SBus1" pin="62"/>
       <node ref="U3" pin="24"/>
+      <node ref="SBus1" pin="62"/>
     </net>
     <net code="161" name="SBUS_5V_D[17]">
       <node ref="SBus1" pin="63"/>
       <node ref="U3" pin="26"/>
     </net>
     <net code="162" name="SBUS_5V_D[18]">
-      <node ref="U3" pin="27"/>
       <node ref="SBus1" pin="65"/>
+      <node ref="U3" pin="27"/>
     </net>
     <net code="163" name="SBUS_5V_D[20]">
       <node ref="U2" pin="2"/>
       <node ref="SBus1" pin="66"/>
     </net>
     <net code="164" name="SBUS_5V_D[22]">
-      <node ref="U2" pin="4"/>
       <node ref="SBus1" pin="67"/>
+      <node ref="U2" pin="4"/>
     </net>
     <net code="166" name="SBUS_5V_PA[25]">
       <node ref="SBus1" pin="93"/>
       <node ref="U1" pin="26"/>
     </net>
     <net code="168" name="SBUS_5V_PA[27]">
-      <node ref="U1" pin="27"/>
       <node ref="SBus1" pin="94"/>
+      <node ref="U1" pin="27"/>
     </net>
     <net code="169" name="SBUS_5V_RST*">
-      <node ref="U3" pin="2"/>
       <node ref="SBus1" pin="95"/>
+      <node ref="U3" pin="2"/>
     </net>
     <net code="170" name="SBUS_5V_+12V">
       <node ref="SBus1" pin="96"/>
@@ -2070,47 +2109,47 @@
       <node ref="JCD1" pin="16"/>
     </net>
     <net code="181" name="SD_D1">
-      <node ref="J2" pin="8"/>
       <node ref="JCD1" pin="14"/>
+      <node ref="J2" pin="8"/>
     </net>
     <net code="182" name="SD_D0">
-      <node ref="J2" pin="7"/>
       <node ref="JCD1" pin="12"/>
+      <node ref="J2" pin="7"/>
     </net>
     <net code="183" name="SD_D3">
       <node ref="J2" pin="2"/>
       <node ref="JCD1" pin="10"/>
     </net>
     <net code="184" name="/B2B/RX">
-      <node ref="J1" pin="4"/>
       <node ref="JCD1" pin="5"/>
+      <node ref="J1" pin="4"/>
     </net>
     <net code="185" name="PMOD-8">
-      <node ref="JCD1" pin="20"/>
       <node ref="J5" pin="8"/>
+      <node ref="JCD1" pin="20"/>
     </net>
     <net code="186" name="Net-(JCD1-Pad2)">
       <node ref="JCD1" pin="2"/>
     </net>
     <net code="187" name="SD_CLK">
-      <node ref="J2" pin="5"/>
       <node ref="JCD1" pin="15"/>
+      <node ref="J2" pin="5"/>
     </net>
     <net code="188" name="PMOD-11">
       <node ref="J5" pin="11"/>
       <node ref="JCD1" pin="13"/>
     </net>
     <net code="189" name="PMOD-12">
-      <node ref="JCD1" pin="11"/>
       <node ref="J5" pin="12"/>
+      <node ref="JCD1" pin="11"/>
     </net>
     <net code="190" name="USBH0_D-">
-      <node ref="JCD1" pin="9"/>
       <node ref="R10" pin="2"/>
+      <node ref="JCD1" pin="9"/>
     </net>
     <net code="191" name="USBH0_D+">
-      <node ref="R9" pin="2"/>
       <node ref="JCD1" pin="7"/>
+      <node ref="R9" pin="2"/>
     </net>
     <net code="192" name="/B2B/JTAG_TDO">
       <node ref="JCD1" pin="61"/>
@@ -2127,28 +2166,28 @@
       <node ref="JCD1" pin="62"/>
     </net>
     <net code="196" name="/B2B/TX">
-      <node ref="JCD1" pin="6"/>
       <node ref="J1" pin="5"/>
+      <node ref="JCD1" pin="6"/>
     </net>
     <net code="197" name="PMOD-5">
-      <node ref="J5" pin="5"/>
       <node ref="JCD1" pin="48"/>
+      <node ref="J5" pin="5"/>
     </net>
     <net code="198" name="PMOD-7">
-      <node ref="J5" pin="7"/>
       <node ref="JCD1" pin="46"/>
+      <node ref="J5" pin="7"/>
     </net>
     <net code="199" name="SD_D2">
-      <node ref="J2" pin="1"/>
       <node ref="JCD1" pin="8"/>
+      <node ref="J2" pin="1"/>
     </net>
     <net code="200" name="PMOD-10">
-      <node ref="JCD1" pin="42"/>
       <node ref="J5" pin="10"/>
+      <node ref="JCD1" pin="42"/>
     </net>
     <net code="201" name="PMOD-6">
-      <node ref="J5" pin="6"/>
       <node ref="JCD1" pin="28"/>
+      <node ref="J5" pin="6"/>
     </net>
     <net code="202" name="SBUS_DATA_OE_LED">
       <node ref="ROE1" pin="1"/>
@@ -2174,8 +2213,8 @@
       <node ref="J1" pin="2"/>
     </net>
     <net code="209" name="/B2B/DATA_OE_LED">
-      <node ref="DOE1" pin="2"/>
       <node ref="ROE1" pin="2"/>
+      <node ref="DOE1" pin="2"/>
     </net>
     <net code="210" name="Net-(J1-Pad6)">
       <node ref="J1" pin="6"/>
@@ -2184,79 +2223,79 @@
       <node ref="JCD1" pin="1"/>
     </net>
     <net code="212" name="Net-(D2-Pad2)">
-      <node ref="D2" pin="2"/>
       <node ref="R4" pin="2"/>
+      <node ref="D2" pin="2"/>
     </net>
     <net code="213" name="Net-(D1-Pad2)">
-      <node ref="R3" pin="2"/>
       <node ref="D1" pin="2"/>
+      <node ref="R3" pin="2"/>
     </net>
     <net code="214" name="Net-(J4-Pad3)">
-      <node ref="U5" pin="4"/>
       <node ref="R9" pin="1"/>
       <node ref="J4" pin="3"/>
       <node ref="R14" pin="2"/>
+      <node ref="U5" pin="4"/>
     </net>
     <net code="215" name="/USB/VBus_USB0">
+      <node ref="FB1" pin="2"/>
       <node ref="C3" pin="1"/>
       <node ref="J4" pin="1"/>
-      <node ref="FB1" pin="2"/>
     </net>
     <net code="216" name="/USB/USB_EN">
-      <node ref="U7" pin="4"/>
       <node ref="R18" pin="1"/>
+      <node ref="U7" pin="4"/>
     </net>
     <net code="217" name="/USB/VBus">
       <node ref="R20" pin="2"/>
-      <node ref="FB1" pin="1"/>
       <node ref="U7" pin="1"/>
+      <node ref="FB1" pin="1"/>
     </net>
     <net code="218" name="+3V3">
-      <node ref="U2" pin="17"/>
-      <node ref="U_INT1" pin="5"/>
-      <node ref="R30" pin="1"/>
-      <node ref="J5" pin="1"/>
+      <node ref="U4" pin="14"/>
       <node ref="R19" pin="2"/>
-      <node ref="R31" pin="1"/>
-      <node ref="R18" pin="2"/>
       <node ref="C11" pin="1"/>
-      <node ref="JAB1" pin="33"/>
+      <node ref="U4" pin="4"/>
+      <node ref="U4" pin="13"/>
+      <node ref="R13" pin="1"/>
+      <node ref="R30" pin="1"/>
+      <node ref="U1" pin="17"/>
+      <node ref="U_INT1" pin="5"/>
+      <node ref="R18" pin="2"/>
+      <node ref="C31" pin="1"/>
+      <node ref="R31" pin="1"/>
+      <node ref="C10" pin="1"/>
+      <node ref="U_INT1" pin="5"/>
+      <node ref="U2" pin="17"/>
+      <node ref="JCD1" pin="36"/>
       <node ref="JAB1" pin="29"/>
+      <node ref="JCD1" pin="32"/>
+      <node ref="JAB1" pin="33"/>
       <node ref="JAB1" pin="34"/>
       <node ref="JAB1" pin="30"/>
       <node ref="JCD1" pin="35"/>
-      <node ref="C13" pin="1"/>
-      <node ref="C12" pin="1"/>
       <node ref="JCD1" pin="31"/>
-      <node ref="U3" pin="17"/>
-      <node ref="R2" pin="1"/>
-      <node ref="R1" pin="1"/>
-      <node ref="J5" pin="2"/>
-      <node ref="C4" pin="1"/>
-      <node ref="JCD1" pin="32"/>
-      <node ref="JCD1" pin="36"/>
-      <node ref="U1" pin="17"/>
-      <node ref="U_INT1" pin="5"/>
-      <node ref="C1" pin="1"/>
-      <node ref="C10" pin="1"/>
       <node ref="J2" pin="4"/>
-      <node ref="U4" pin="4"/>
-      <node ref="C31" pin="1"/>
+      <node ref="C1" pin="1"/>
+      <node ref="J5" pin="1"/>
+      <node ref="C4" pin="1"/>
+      <node ref="J5" pin="2"/>
       <node ref="C2" pin="1"/>
       <node ref="U_INT2" pin="5"/>
       <node ref="U_INT2" pin="5"/>
-      <node ref="R13" pin="1"/>
-      <node ref="U4" pin="14"/>
-      <node ref="U4" pin="13"/>
+      <node ref="R1" pin="1"/>
+      <node ref="C13" pin="1"/>
+      <node ref="C12" pin="1"/>
+      <node ref="R2" pin="1"/>
+      <node ref="U3" pin="17"/>
     </net>
     <net code="219" name="/USB/USB_FLT">
-      <node ref="R19" pin="1"/>
       <node ref="U7" pin="3"/>
+      <node ref="R19" pin="1"/>
     </net>
     <net code="220" name="Net-(J4-Pad2)">
       <node ref="R15" pin="1"/>
-      <node ref="U5" pin="6"/>
       <node ref="J4" pin="2"/>
+      <node ref="U5" pin="6"/>
       <node ref="R10" pin="1"/>
     </net>
     <net code="221" name="Net-(U5-Pad3)">

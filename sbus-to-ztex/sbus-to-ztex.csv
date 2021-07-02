@@ -11,7 +11,7 @@ J3,87833-1420,1,https://www2.mouser.com/ProductDetail/Molex/87833-1420?qs=%2Fha2
 J5,A2541HWR-2x6P,1,https://lcsc.com/product-detail/Pin-Header-Female-Header_Changjiang-Connectors-A2541HWR-2x6P_C239357.html
 "C2,C4,C5,C10,C11,C12,C13,C31",CC0603KRX7R8BB104,8,
 SBus1,FCN-234P096-G/Y,1,https://www2.mouser.com/ProductDetail/Fujitsu/FCN-234P096-G-Y?qs=%2Fha2pyFadugZ9WCm2lJ8CZdXc85UARoDXS81raJopvR1w4UDuaXlcQ%3D%3D
-C1,GRM21BR60J476ME15L,1,
+"C1,C6",GRM21BR60J476ME15L,2,
 C3,GRM31CR60J157ME11L,1,
 "D1,D2,DOE1",LTST-C170KRKT,3,
 FB1,PZ2012U221-2R0TF,1,
