@@ -3098,6 +3098,11 @@
       (scale (xyz 1 1 1))
       (rotate (xyz 0 0 0))
     )
+    (model ${KIPRJMOD}/For_SeeedStudio.3dshapes/Molex_Mirco_USB_105017-0001.wrl
+      (offset (xyz 0 1.5 -0.5))
+      (scale (xyz 1 1 1))
+      (rotate (xyz 0 0 0))
+    )
   )
 
   (module Resistor_SMD:R_0603_1608Metric (layer F.Cu) (tedit 5B301BBD) (tstamp 60D735A1)
