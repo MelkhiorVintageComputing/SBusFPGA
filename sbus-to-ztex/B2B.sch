@@ -278,6 +278,7 @@ F 3 "~" H 9250 850 50  0001 C CNN
 F 4 "22-28-8060" H 9250 850 50  0001 C CNN "MPN-ALT"
 F 5 "PZ254R-11-06P" H 9250 850 50  0001 C CNN "MPN"
 F 6 "https://www2.mouser.com/ProductDetail/Molex/22-28-8060?qs=4XSMV6Twtb2rYD%2F%2F316gfQ==" H 9250 850 50  0001 C CNN "URL-ALT"
+F 7 "https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-06P_C492414.html" H 9250 850 50  0001 C CNN "URL"
 	1    9250 850 
 	1    0    0    -1  
 $EndComp

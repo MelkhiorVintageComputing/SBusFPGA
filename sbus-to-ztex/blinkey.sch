@@ -193,6 +193,11 @@ F 0 "J6" H 4506 5028 50  0000 C CNN
 F 1 "Conn_01x03_Male" H 4506 4937 50  0000 C CNN
 F 2 "Connector_Molex:Molex_KK-254_AE-6410-03A_1x03_P2.54mm_Vertical" H 4400 4750 50  0001 C CNN
 F 3 "~" H 4400 4750 50  0001 C CNN
+F 4 "22-27-2031" H 4400 4750 50  0001 C CNN "MPN-ALT"
+F 5 "Molex" H 4400 4750 50  0001 C CNN "Manufacturer-ALT"
+F 6 "https://www.mouser.fr/ProductDetail/Molex/22-27-2031?qs=%2Fha2pyFadugXOaGYK9vaczm7nZ04txhJn3OGcnGWT3U=" H 4400 4750 50  0001 C CNN "URL-ALT"
+F 7 "640456-3" H 4400 4750 50  0001 C CNN "MPN"
+F 8 "TE Connectivity" H 4400 4750 50  0001 C CNN "Manufacturer"
 	1    4400 4750
 	1    0    0    -1  
 $EndComp

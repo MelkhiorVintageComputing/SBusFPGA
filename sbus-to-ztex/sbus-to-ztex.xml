@@ -2,7 +2,7 @@
 <export version="D">
   <design>
     <source>/home/dolbeau/SPARC/SBusFPGA/sbus-to-ztex/sbus-to-ztex.sch</source>
-    <date>Fri Jul  2 17:39:23 2021</date>
+    <date>Sat Jul  3 10:18:06 2021</date>
     <tool>Eeschema 5.0.2+dfsg1-1~bpo9+1</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>
@@ -355,6 +355,7 @@
       <fields>
         <field name="MPN">PZ254R-11-06P</field>
         <field name="MPN-ALT">22-28-8060</field>
+        <field name="URL">https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-06P_C492414.html</field>
         <field name="URL-ALT">https://www2.mouser.com/ProductDetail/Molex/22-28-8060?qs=4XSMV6Twtb2rYD%2F%2F316gfQ==</field>
       </fields>
       <libsource lib="Connector" part="Conn_01x06_Male" description="Generic connector, single row, 01x06, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
@@ -459,6 +460,13 @@
       <value>Conn_01x03_Male</value>
       <footprint>Connector_Molex:Molex_KK-254_AE-6410-03A_1x03_P2.54mm_Vertical</footprint>
       <datasheet>~</datasheet>
+      <fields>
+        <field name="MPN">640456-3</field>
+        <field name="MPN-ALT">22-27-2031</field>
+        <field name="Manufacturer">TE Connectivity</field>
+        <field name="Manufacturer-ALT">Molex</field>
+        <field name="URL-ALT">https://www.mouser.fr/ProductDetail/Molex/22-27-2031?qs=%2Fha2pyFadugXOaGYK9vaczm7nZ04txhJn3OGcnGWT3U=</field>
+      </fields>
       <libsource lib="Connector" part="Conn_01x03_Male" description="Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
       <sheetpath names="/blinkey/" tstamps="/5F6B165A/"/>
       <tstamp>60E1E49E</tstamp>
