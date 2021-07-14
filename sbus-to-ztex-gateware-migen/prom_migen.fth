@@ -43,7 +43,7 @@ new-device
 \ Absolute minimal stuff; name & registers def.
 " generic-ohci" device-name
 
-my-address h# 80000 + my-space h# 1000 reg
+my-address sbusfpga_regionaddr_usb_host_ctrl + my-space h# 1000 reg
 \ we don't support ET or anything non-32bits
 h# 7c xdrint " slave-burst-sizes" attribute
 h# 7c xdrint " burst-sizes" attribute
@@ -58,7 +58,7 @@ my-space   constant my-sbus-space
 : map-in ( adr space size -- virt ) " map-in" $call-parent ;
 : map-out ( virt size -- ) " map-out" $call-parent ;
 
-: map-in-regs ( -- ) my-sbus-address h# 80000 + my-sbus-space h# 1000 map-in is regs-virt ;
+: map-in-regs ( -- ) my-sbus-address sbusfpga_regionaddr_usb_host_ctrl + my-sbus-space h# 1000 map-in is regs-virt ;
 : map-out-regs ( -- ) regs-virt h# 1000 map-out ;
 
 : my-reset! ( -- )
