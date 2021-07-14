@@ -10,7 +10,7 @@ from litex.soc.integration.builder import *
 from litex.soc.interconnect import wishbone
 from litex.soc.cores.clock import *
 from litex.soc.cores.led import LedChaser
-from litex_boards.platforms import ztex213
+import ztex213_sbus
 from migen.genlib.fifo import *
 
 from litedram.modules import MT41J128M16
@@ -20,32 +20,6 @@ from sbus_to_fpga_fsm import *;
 
 import sbus_to_fpga_export;
 
-_sbus_sbus = [
-    ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
-    ("SBUS_3V3_ASs",       0, Pins("T4"),  IOStandard("lvttl")),
-    ("SBUS_3V3_BGs",       0, Pins("T6"),  IOStandard("lvttl")),
-    ("SBUS_3V3_BRs",       0, Pins("R6"),  IOStandard("lvttl")),
-    ("SBUS_3V3_ERRs",      0, Pins("V2"),  IOStandard("lvttl")),
-    ("SBUS_DATA_OE_LED",   0, Pins("U1"),  IOStandard("lvttl")),
-    ("SBUS_DATA_OE_LED_2", 0, Pins("T3"),  IOStandard("lvttl")),
-    ("SBUS_3V3_RSTs",      0, Pins("U2"),  IOStandard("lvttl")),
-    ("SBUS_3V3_SELs",      0, Pins("K6"),  IOStandard("lvttl")),
-    ("SBUS_3V3_INT1s",     0, Pins("R3"),  IOStandard("lvttl")),
-    ("SBUS_3V3_INT7s",     0, Pins("N5"),  IOStandard("lvttl")),
-    ("SBUS_3V3_PPRD",      0, Pins("N6"),  IOStandard("lvttl")),
-    ("SBUS_OE",            0, Pins("P5"),  IOStandard("lvttl")),
-    ("SBUS_3V3_ACKs",      0, Pins("M6 L6 N4"),  IOStandard("lvttl")),
-    ("SBUS_3V3_SIZ",       0, Pins("R7 U3 V1"),  IOStandard("lvttl")),
-    ("SBUS_3V3_D",         0, Pins("J18 K16 J17 K15 K13 J15 J13 J14 H14 H17 G14 G17 G16 G18 H16 F18 F16 E18 F15 D18 E17 G13 D17 F13 F14 E16 E15 C17 C16 A18 B18 C15"),  IOStandard("lvttl")),
-    ("SBUS_3V3_PA",        0, Pins("B16 B17 D14 C14 D12 A16 A15 B14 B13 B12 C12 A14 A13 B11 A11  M4  R2  M3  P2  M2  N2  K5  N1  L4  M1  L3  L1  K3"),  IOStandard("lvttl")),
-]
-
-_usb_io = [
-    ("usb", 0,
-     Subsignal("dp", Pins("V9")), # Serial TX
-     Subsignal("dm", Pins("U9")), # Serial RX
-     IOStandard("LVCMOS33"))
-]
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(Module):
@@ -115,9 +89,9 @@ class SBusFPGA(SoCCore):
         
         self.sys_clk_freq = sys_clk_freq = 100e6 ## 25e6
     
-        self.platform = platform = ztex213.Platform(variant="ztex2.13a", expansion="sbus")
-        self.platform.add_extension(_sbus_sbus)
-        self.platform.add_extension(_usb_io)
+        self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a")
+        
+        self.platform.add_extension(ztex213_sbus._usb_io)
         SoCCore.__init__(self,
                          platform=platform,
                          sys_clk_freq=sys_clk_freq,
@@ -131,6 +105,8 @@ class SBusFPGA(SoCCore):
         # the physical address here are used as offset in the SBus
         # reserved area of 256 MiB
         # Anything at 0x10000000 is therefore unreachable directly
+        # The position of the 'usb_fake_dma' is so it overlaps
+        # the virtual address space used by NetBSD DMA allocators
         wb_mem_map = {
             "prom":           0x00000000,
             "csr" :           0x00040000,
@@ -151,7 +127,7 @@ class SBusFPGA(SoCCore):
         self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
         #self.comb += self.cpu.interrupt[16].eq(self.usb_host.interrupt) #fixme: need to deal with interrupts
 
-        self.add_ram(name="usb_shared_mem", origin=self.mem_map["usb_shared_mem"], size=2**16)
+        # self.add_ram(name="usb_shared_mem", origin=self.mem_map["usb_shared_mem"], size=2**16)
         
         pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
         SBUS_3V3_INT1s_o = Signal(reset=1)
@@ -170,7 +146,7 @@ class SBusFPGA(SoCCore):
 
         prom_file = "prom_migen.fc"
         prom_data = soc_core.get_mem_data(prom_file, "big")
-        prom = Array(prom_data)
+        # prom = Array(prom_data)
         #print("\n****************************************\n")
         #for i in range(len(prom)):
         #    print(hex(prom[i]))
@@ -197,7 +173,6 @@ class SBusFPGA(SoCCore):
         self.submodules.wishbone_slave_sys   = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_slave_sbus, cd_master="sys", cd_slave="sbus")
         
         _sbus_bus = SBusFPGABus(platform=self.platform,
-                                prom=prom,
                                 hold_reset=hold_reset,
                                 wishbone_slave=wishbone_slave_sbus,
                                 wishbone_master=self.wishbone_master_sbus)
@@ -206,8 +181,6 @@ class SBusFPGA(SoCCore):
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
         self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
-        
-        #self.add_sdcard()
 
         self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
                                                    memtype        = "DDR3",
@@ -218,6 +191,8 @@ class SBusFPGA(SoCCore):
                        module        = MT41J128M16(sys_clk_freq, "1:4"),
                        l2_cache_size = 0
         )
+        
+        self.add_sdcard()
 
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")

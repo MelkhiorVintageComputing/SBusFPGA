@@ -171,7 +171,7 @@ LED_M_READ = 0x20
 LED_M_CACHE = 0x40
         
 class SBusFPGABus(Module):
-    def __init__(self, platform, prom, hold_reset, wishbone_slave, wishbone_master):
+    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master):
         self.platform = platform
         self.hold_reset = hold_reset
 
@@ -379,14 +379,8 @@ class SBusFPGABus(Module):
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             #NextValue(led0123, led0123 | LED_PARITY),
                             NextState("Slave_Error")
-                         ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX),
-                            NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
-                            NextValue(SBUS_3V3_ERRs_o, 1),
-                            NextValue(p_data, prom[SBUS_3V3_PA_i[ADDR_PHYS_LOW+2:ADDR_PFX_LOW]]),
-                            NextValue(sbus_wishbone_le, 0),
-                            #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 40))),
-                            NextState("Slave_Ack_Read_Prom_Burst")
-                         ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
+                         ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == USBOHCI_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
@@ -417,16 +411,10 @@ class SBusFPGABus(Module):
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_BYTE == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 1)),
-                         NextValue(sbus_oe_master_in, 1),
-                         NextValue(sbus_last_pa, SBUS_3V3_PA_i),
-                         If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX),
-                            NextValue(SBUS_3V3_ACKs_o, ACK_BYTE),
-                            NextValue(SBUS_3V3_ERRs_o, 1),
-                            NextValue(sbus_wishbone_le, 0),
-                            NextValue(p_data, prom[SBUS_3V3_PA_i[ADDR_PHYS_LOW+2:ADDR_PFX_LOW]]),
-                            #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 80))),
-                            NextState("Slave_Ack_Read_Prom_Byte")
-                         ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
+                             NextValue(sbus_oe_master_in, 1),
+                             NextValue(sbus_last_pa, SBUS_3V3_PA_i),
+                             If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
@@ -444,13 +432,13 @@ class SBusFPGABus(Module):
                                    NextValue(sbus_slave_timeout, sbus_default_timeout),
                                    NextState("Slave_Ack_Read_Reg_Byte_Wait_For_Wishbone")
                                 )
-                         ).Else(
-                             #NextValue(self.led_display.value, 0x0000000040 | 0x0000000001),
-                             NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
-                             NextValue(SBUS_3V3_ERRs_o, 1),
-                             #NextValue(led0123, led0123 | LED_ADDRESS),
-                             NextState("Slave_Error")
-                         )
+                             ).Else(
+                                 #NextValue(self.led_display.value, 0x0000000040 | 0x0000000001),
+                                 NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
+                                 NextValue(SBUS_3V3_ERRs_o, 1),
+                                 #NextValue(led0123, led0123 | LED_ADDRESS),
+                                 NextState("Slave_Error")
+                             )
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_HWORD == SBUS_3V3_SIZ_i) &
@@ -462,7 +450,8 @@ class SBusFPGABus(Module):
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             #NextValue(led0123, led0123 | LED_PARITY),
                             NextState("Slave_Error")
-                         ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
+                         ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
@@ -712,34 +701,6 @@ class SBusFPGABus(Module):
         )
         # ##### SLAVE READ #####
         # ## BURST (1->16 words) ##
-        slave_fsm.act("Slave_Ack_Read_Prom_Burst",
-                      #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x02), self.led_display.value[8:40])),
-                      NextValue(sbus_oe_data, 1),
-                      NextValue(SBUS_3V3_D_o, p_data),
-                      NextValue(p_data, prom[Cat(index_with_wrap((burst_counter+1), burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW])]),
-                      If((burst_counter == burst_limit_m1),
-                         NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
-                         NextState("Slave_Do_Read")
-                      ).Else(
-                          NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
-                          NextValue(burst_counter, burst_counter + 1)
-                      )
-        )
-        slave_fsm.act("Slave_Ack_Read_Prom_Byte",
-                      #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x03), self.led_display.value[8:40])),
-                      NextValue(sbus_oe_data, 1),
-                      If((sbus_last_pa[0:2] == 0x0),
-                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[24:32]))
-                      ).Elif((sbus_last_pa[0:2] == 0x1),
-                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[16:24]))
-                      ).Elif((sbus_last_pa[0:2] == 0x2),
-                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[ 8:16]))
-                      ).Elif((sbus_last_pa[0:2] == 0x3),
-                         NextValue(SBUS_3V3_D_o, Cat(Signal(24), p_data[ 0: 8]))
-                      ),
-                      NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
-                      NextState("Slave_Do_Read")
-        )
         slave_fsm.act("Slave_Do_Read",
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x04), self.led_display.value[8:40])),
                       NextValue(sbus_oe_data, 0),
