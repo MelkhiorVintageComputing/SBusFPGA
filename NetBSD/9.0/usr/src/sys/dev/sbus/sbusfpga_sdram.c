@@ -125,6 +125,8 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	sc->sc_bustag = sa->sa_bustag;
 	sc->sc_dev = self;
 
+	aprint_normal("\n");
+
 	if (sa->sa_nreg < 2) {
 		aprint_error(": Not enough registers spaces\n");
 		return;
@@ -140,7 +142,7 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 		aprint_error(": cannot map DDR PHY registers\n");
 		return;
 	} else {
-		aprint_error(": DDR PHY registers @ %p\n", (void*)sc->sc_bhregs_ddrphy);
+		aprint_normal_dev(self, ": DDR PHY registers @ %p\n", (void*)sc->sc_bhregs_ddrphy);
 	}
 	/* map SDRAM DFII */
 	if (sbus_bus_map(sc->sc_bustag,
@@ -152,7 +154,7 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 		aprint_error(": cannot map SDRAM DFII registers\n");
 		return;
 	} else {
-		aprint_error(": SDRAM DFII registers @ %p\n", (void*)sc->sc_bhregs_sdram);
+		aprint_normal_dev(self, ": SDRAM DFII registers @ %p\n", (void*)sc->sc_bhregs_sdram);
 	}
 
 	sc->sc_bufsiz_ddrphy = sa->sa_reg[0].oa_size;
@@ -175,7 +177,6 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	/* Clamp at parent's burst sizes */
 	sc->sc_burst &= sbusburst;
 
-	aprint_normal("\n");
 	aprint_normal_dev(self, "nid 0x%x, bustag %p, burst 0x%x (parent 0x%0x)\n",
 			  sc->sc_node,
 			  sc->sc_bustag,
@@ -842,7 +843,6 @@ sdram_leveling_center_module (struct sbusfpga_sdram_softc *sc, int module, int s
   while (1) {
     errors = sdram_write_read_check_test_pattern(sc, module, 42);
     errors += sdram_write_read_check_test_pattern(sc, module, 84);
-aprint_normal("[min] delay %d -> errors %d\n", delay, errors);
     working = errors == 0;
     show = show_long;
     if (show)
@@ -861,7 +861,6 @@ aprint_normal("[min] delay %d -> errors %d\n", delay, errors);
   while (1) {
     errors = sdram_write_read_check_test_pattern(sc, module, 42);
     errors += sdram_write_read_check_test_pattern(sc, module, 84);
-aprint_normal("[max] delay %d -> errors %d\n", delay, errors);
     working = errors == 0;
     show = show_long;
     if (show)
@@ -942,7 +941,6 @@ sdram_read_leveling_scan_module (struct sbusfpga_sdram_softc *sc, int module, in
     int _show = show;
     errors = sdram_write_read_check_test_pattern(sc, module, 42);
     errors += sdram_write_read_check_test_pattern(sc, module, 84);
-aprint_normal("[scan] iter %d -> errors %d\n", i, errors);
     working = errors == 0;
     score += (working * max_errors * 32) + (max_errors - errors);
     if (_show) {
