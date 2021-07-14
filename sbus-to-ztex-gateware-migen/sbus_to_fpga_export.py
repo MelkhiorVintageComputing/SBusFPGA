@@ -45,13 +45,13 @@ def _get_rw_functions_c(name, csr_name, reg_base, area_base, nwords, busword, al
     if with_access_functions:
         r += "static inline {} {}_read(struct sbusfpga_sdram_softc *sc) {{\n".format(ctype, reg_name)
         if nwords > 1:
-            r += "\t{} r = bus_space_read_4(sc->sc_bustag, sc>sc_bhregs_{}, {}L);\n".format(ctype, name, hex(reg_base - area_base))
+            r += "\t{} r = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_{}, {}L);\n".format(ctype, name, hex(reg_base - area_base))
             for sub in range(1, nwords):
                 r += "\tr <<= {};\n".format(busword)
-                r += "\tr |= bus_space_read_4(sc->sc_bustag, sc>sc_bhregs_{}, {}L);\n".format(name, hex(reg_base - area_base + sub*stride))
+                r += "\tr |= bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_{}, {}L);\n".format(name, hex(reg_base - area_base + sub*stride))
             r += "\treturn r;\n}\n"
         else:
-            r += "\treturn bus_space_read_4(sc->sc_bustag, sc>sc_bhregs_{}, {}L);\n}}\n".format(name, hex(reg_base - area_base))
+            r += "\treturn bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_{}, {}L);\n}}\n".format(name, hex(reg_base - area_base))
 
         if not read_only:
             r += "static inline void {}_write(struct sbusfpga_sdram_softc *sc, {} v) {{\n".format(reg_name, ctype)
@@ -61,7 +61,7 @@ def _get_rw_functions_c(name, csr_name, reg_base, area_base, nwords, busword, al
                     v_shift = "v >> {}".format(shift)
                 else:
                     v_shift = "v"
-                r += "\tbus_space_write_4(sc->sc_bustag, sc>sc_bhregs_{}, {}L, {});\n".format(name, hex(reg_base - area_base + sub*stride), v_shift)
+                r += "\tbus_space_write_4(sc->sc_bustag, sc->sc_bhregs_{}, {}L, {});\n".format(name, hex(reg_base - area_base + sub*stride), v_shift)
             r += "}\n"
     return r
 
@@ -87,7 +87,6 @@ def get_csr_header(regions, constants, csr_base=None, with_access_functions=True
         r += "\n/* "+name+" */\n"
         r += "#ifndef CSR_"+name.upper()+"_BASE\n"
         r += "#define CSR_"+name.upper()+"_BASE (CSR_BASE + "+hex(origin)+"L)\n"
-        r += "#endif\n"
         if not isinstance(region.obj, Memory):
             for csr in region.obj:
                 nr = (csr.size + region.busword - 1)//region.busword
@@ -108,7 +107,7 @@ def get_csr_header(regions, constants, csr_base=None, with_access_functions=True
                             r += "\treturn ( (oldword >> " + offset + ") & mask );\n}\n"
                             r += "static inline uint32_t " + field_name + "_read(struct sbusfpga_sdram_softc *sc) {\n"
                             r += "\tuint32_t word = " + reg_name + "_read(sc);\n"
-                            r += "\treturn " + field_name + "_extract(word);\n"
+                            r += "\treturn " + field_name + "_extract(sc, word);\n"
                             r += "}\n"
                             if not getattr(csr, "read_only", False):
                                 r += "static inline uint32_t " + field_name + "_replace(struct sbusfpga_sdram_softc *sc, uint32_t oldword, uint32_t plain_value) {\n"
@@ -119,6 +118,7 @@ def get_csr_header(regions, constants, csr_base=None, with_access_functions=True
                                 r += "\tuint32_t newword = " + field_name + "_replace(sc, oldword, plain_value);\n"
                                 r += "\t" + reg_name + "_write(sc, newword);\n"
                                 r += "}\n"
+        r += "#endif // CSR_"+name.upper()+"_BASE\n"
 
     r += "\n#endif\n"
     return r
