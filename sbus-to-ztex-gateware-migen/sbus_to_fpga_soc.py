@@ -18,6 +18,8 @@ from litedram.phy import s7ddrphy
 
 from sbus_to_fpga_fsm import *;
 
+import sbus_to_fpga_export;
+
 _sbus_sbus = [
     ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
     ("SBUS_3V3_ASs",       0, Pins("T4"),  IOStandard("lvttl")),
@@ -98,7 +100,7 @@ class _CRG(Module):
 
         self.submodules.pll_idelay = pll_idelay = S7PLL(speedgrade=-1)
         pll_idelay.register_clkin(clk48, 48e6)
-        pll_idelay.create_clkout(self.cd_idelay,    200e6)
+        pll_idelay.create_clkout(self.cd_idelay, 200e6, margin = 0)
         self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done 
 
         self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
@@ -122,6 +124,13 @@ class SBusFPGA(SoCCore):
                          clk_freq=sys_clk_freq,
                          csr_paging=0x1000, #  default is 0x800
                          **kwargs)
+
+        # This mem-map is also exposed in the FSM (matched prefixes)
+        # and in the PROM (to tell NetBSD where everything is)
+        # Currently it is a straight mapping between the two:
+        # the physical address here are used as offset in the SBus
+        # reserved area of 256 MiB
+        # Anything at 0x10000000 is therefore unreachable directly
         wb_mem_map = {
             "prom":           0x00000000,
             "csr" :           0x00040000,
@@ -180,66 +189,8 @@ class SBusFPGA(SoCCore):
         hold_reset = Signal(reset=1)
         self.comb += hold_reset.eq(~(hold_reset_ctr == 0))
 
-        
-        # FIFO to send data & address from SBus to the Wishbone
-        ##sbus_to_wishbone_wr_fifo = AsyncFIFOBuffered(width=32+30, depth=16)
-        ##sbus_to_wishbone_wr_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(sbus_to_wishbone_wr_fifo)
-        ##self.submodules += sbus_to_wishbone_wr_fifo
-
-        # FIFOs to send address / receive data from SBus to the Wishbone
-        ##sbus_to_wishbone_rd_fifo_addr = AsyncFIFOBuffered(width=30, depth=16)
-        ##sbus_to_wishbone_rd_fifo_addr = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(sbus_to_wishbone_rd_fifo_addr)
-        ##self.submodules += sbus_to_wishbone_rd_fifo_addr
-        ##sbus_to_wishbone_rd_fifo_data = AsyncFIFOBuffered(width=32+1, depth=16)
-        ##sbus_to_wishbone_rd_fifo_data = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(sbus_to_wishbone_rd_fifo_data)
-        ##self.submodules += sbus_to_wishbone_rd_fifo_data
-
-        # SBus to Wishbone, 'Slave' on the SBus side, 'Master' on the Wishbone side
-        ##self.submodules.sbus_to_wishbone = SBusToWishbone(platform=self.platform,
-        ##                                                  wr_fifo=sbus_to_wishbone_wr_fifo,
-        ##                                                  rd_fifo_addr=sbus_to_wishbone_rd_fifo_addr,
-        ##                                                  rd_fifo_data=sbus_to_wishbone_rd_fifo_data,
-        ##                                                  wishbone=wishbone.Interface(data_width=self.bus.data_width))
-
-
-        # FIFO to send data & address from Wishbone to the SBus
-        ##wishbone_to_sbus_wr_fifo = AsyncFIFOBuffered(width=32+30, depth=16)
-        ##wishbone_to_sbus_wr_fifo = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(wishbone_to_sbus_wr_fifo)
-        ##self.submodules += wishbone_to_sbus_wr_fifo
-
-        # FIFOs to send address / receive data from Wishbone to the SBus
-        ##wishbone_to_sbus_rd_fifo_addr = AsyncFIFOBuffered(width=30, depth=4)
-        ##wishbone_to_sbus_rd_fifo_addr = ClockDomainsRenamer({"write": "sys", "read": "sbus"})(wishbone_to_sbus_rd_fifo_addr)
-        ##self.submodules += wishbone_to_sbus_rd_fifo_addr
-        ##wishbone_to_sbus_rd_fifo_data = AsyncFIFOBuffered(width=32+1, depth=4)
-        ##wishbone_to_sbus_rd_fifo_data = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(wishbone_to_sbus_rd_fifo_data)
-        ##self.submodules += wishbone_to_sbus_rd_fifo_data
-
-        # Wishbone to SBus, 'Master' on the SBus side, 'Slave' on the Wishbone side
-        ##self.submodules.wishbone_to_sbus = WishboneToSBus(platform=self.platform,
-        ##                                                  soc=self,
-        ##                                                  wr_fifo=wishbone_to_sbus_wr_fifo,
-        ##                                                  rd_fifo_addr=wishbone_to_sbus_rd_fifo_addr,
-        ##                                                  rd_fifo_data=wishbone_to_sbus_rd_fifo_data,
-        ##                                                  wishbone=wishbone.Interface(data_width=self.bus.data_width))
-
-        ##_sbus_bus = SBusFPGABus(platform=self.platform,
-        ##                        prom=prom,
-        ##                        hold_reset=hold_reset,
-        ##                        wr_fifo=sbus_to_wishbone_wr_fifo,
-        ##                        rd_fifo_addr=sbus_to_wishbone_rd_fifo_addr,
-        ##                        rd_fifo_data=sbus_to_wishbone_rd_fifo_data,
-        ##                        master_wr_fifo=wishbone_to_sbus_wr_fifo,
-        ##                        master_rd_fifo_addr=wishbone_to_sbus_rd_fifo_addr,
-        ##                        master_rd_fifo_data=wishbone_to_sbus_rd_fifo_data)
-        ##self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
-        
-        #wishbone_slave = wishbone.Interface(data_width=self.bus.data_width)
-        #wishbone_master = wishbone.Interface(data_width=self.bus.data_width)
-
-        #wishbone_slave = wishbone.Interface(data_width=self.bus.data_width)
-        #wishbone_master = wishbone.Interface(data_width=self.bus.data_width)
-
+        # Interface SBus to wishbone
+        # we need to cross clock domains
         wishbone_slave_sbus = wishbone.Interface(data_width=self.bus.data_width)
         wishbone_master_sys = wishbone.Interface(data_width=self.bus.data_width)
         self.submodules.wishbone_master_sbus = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_master_sys, cd_master="sbus", cd_slave="sys")
@@ -253,11 +204,6 @@ class SBusFPGA(SoCCore):
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
 
-        ##self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_to_wishbone.wishbone)
-        ##self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_to_sbus.wishbone, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
-        
-        #self.bus.add_master(name="SBusBridgeToWishbone", master=self.sbus_bus.wishbone_master)
-        #self.bus.add_slave(name="usb_fake_dma", slave=self.sbus_bus.wishbone_slave, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
         self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
         
@@ -273,18 +219,6 @@ class SBusFPGA(SoCCore):
                        l2_cache_size = 0
         )
 
-#       self.soc = Module()
- #       self.soc.mem_regions = self.mem_regions = {}
- #       region = litex.soc.integration.soc.SoCRegion(origin=0x0, size=0x0)
- #       region.length = 0
- #       self.mem_regions['csr'] = region
- #       self.soc.constants = self.constants = {}
- #       self.soc.csr_regions = self.csr_regions = {}
- #       self.soc.cpu_type = self.cpu_type = None
-
-#    def do_finalize(self):
-#        self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6)
-
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
@@ -298,5 +232,20 @@ def main():
     builder = Builder(soc, **builder_argdict(args))
     builder.build(**vivado_build_argdict(args), run=args.build)
 
+    # Generate modified CSR registers definitions/access functions to netbsd_csr.h.
+    csr_contents = sbus_to_fpga_export.get_csr_header(
+        regions   = soc.csr_regions,
+        constants = soc.constants,
+        csr_base  = soc.mem_regions['csr'].origin)
+    write_to_file(os.path.join("netbsd_csr.h"), csr_contents)
+
+    # tells the prom where to find what
+    csr_forth_contents = sbus_to_fpga_export.get_csr_forth_header(
+        csr_regions   = soc.csr_regions,
+        mem_regions   = soc.mem_regions,
+        constants = soc.constants,
+        csr_base  = soc.mem_regions['csr'].origin)
+    write_to_file(os.path.join("prom_csr.fth"), csr_forth_contents)
+    
 if __name__ == "__main__":
     main()
