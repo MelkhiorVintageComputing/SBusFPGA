@@ -66,7 +66,7 @@ struct rdfpga_sdcard_softc {
 #define RDFPGA_SDCARD_CTRL_START  0x80000000
 #define RDFPGA_SDCARD_CTRL_READ   0x40000000
 
-/* one page, though we're likely to only use 512 bytes (one block) ATM */
-#define RDFPGA_SDCARD_VAL_DMA_MAX_SZ       (4096)
+/* 16 pages, though we're likely to only use 512 bytes (one block) ATM */
+#define RDFPGA_SDCARD_VAL_DMA_MAX_SZ       (65536)
 
 #endif /* _RDFPGA_SDCARD_H_ */
