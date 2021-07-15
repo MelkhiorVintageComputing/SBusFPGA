@@ -332,6 +332,11 @@ class SBusFPGABus(Module):
         self.master_read_buffer_read = Array(Signal() for a in range(4))
         self.master_read_buffer_start = Signal()
 
+        self.master_write_buffer_data = Array(Signal(32) for a in range(4))
+        self.master_write_buffer_addr = Signal(28)
+        self.master_write_buffer_todo = Array(Signal() for a in range(4))
+        self.master_write_buffer_start = Signal()
+
         self.submodules.slave_fsm = slave_fsm = FSM(reset_state="Reset")
 
         self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
@@ -1285,13 +1290,13 @@ class SBusFPGABus(Module):
         )
 
         # ##### Slave read buffering FSM ####
-        last_word_idx = Signal(2)
-        self.submodules.wishbone_slave_buffering_fsm = wishbone_slave_buffering_fsm = FSM(reset_state="Reset")
+        last_read_word_idx = Signal(2)
+        self.submodules.wishbone_slave_read_buffering_fsm = wishbone_slave_read_buffering_fsm = FSM(reset_state="Reset")
         #self.sync += led4.eq(self.master_read_buffer_start)
-        wishbone_slave_buffering_fsm.act("Reset",
-                                         NextState("Idle")
+        wishbone_slave_read_buffering_fsm.act("Reset",
+                                              NextState("Idle")
         )
-        wishbone_slave_buffering_fsm.act("Idle",
+        wishbone_slave_read_buffering_fsm.act("Idle",
                                          If(self.wishbone_slave.cyc &
                                             self.wishbone_slave.stb &
                                             ~self.wishbone_slave.ack &
@@ -1323,7 +1328,7 @@ class SBusFPGABus(Module):
                                                    NextValue(self.master_read_buffer_read[1], 0),
                                                    NextValue(self.master_read_buffer_read[2], 0),
                                                    NextValue(self.master_read_buffer_read[3], 0),
-                                                   NextValue(last_word_idx, self.wishbone_slave.adr[0:2]),
+                                                   NextValue(last_read_word_idx, self.wishbone_slave.adr[0:2]),
                                                    NextValue(self.master_read_buffer_start, 1),
                                                    NextState("WaitForData")
                                             ).Else(
@@ -1331,16 +1336,16 @@ class SBusFPGABus(Module):
                                             )
                                          )
         )
-        wishbone_slave_buffering_fsm.act("WaitForData",
+        wishbone_slave_read_buffering_fsm.act("WaitForData",
                                          #led2.eq(1),
-                                         If(self.master_read_buffer_done[last_word_idx],
+                                         If(self.master_read_buffer_done[last_read_word_idx],
                                             NextValue(self.wishbone_slave.ack, 1),
-                                            NextValue(self.wishbone_slave.dat_r, Cat(self.master_read_buffer_data[last_word_idx][24:32], # LE
-                                                                                     self.master_read_buffer_data[last_word_idx][16:24],
-                                                                                     self.master_read_buffer_data[last_word_idx][ 8:16],
-                                                                                     self.master_read_buffer_data[last_word_idx][ 0: 8])),
-#                                            NextValue(self.wishbone_slave.dat_r, self.master_read_buffer_data[last_word_idx]),
-                                            NextValue(self.master_read_buffer_read[last_word_idx], 1),
+                                            NextValue(self.wishbone_slave.dat_r, Cat(self.master_read_buffer_data[last_read_word_idx][24:32], # LE
+                                                                                     self.master_read_buffer_data[last_read_word_idx][16:24],
+                                                                                     self.master_read_buffer_data[last_read_word_idx][ 8:16],
+                                                                                     self.master_read_buffer_data[last_read_word_idx][ 0: 8])),
+#                                            NextValue(self.wishbone_slave.dat_r, self.master_read_buffer_data[last_read_word_idx]),
+                                            NextValue(self.master_read_buffer_read[last_read_word_idx], 1),
                                             NextValue(wishbone_slave_timeout, wishbone_default_timeout),
                                             NextState("Idle")
                                          ),
@@ -1349,3 +1354,77 @@ class SBusFPGABus(Module):
                                          )
         )
         
+        
+        #last_write_word_idx = Signal(2)
+        #last_write_timeout = Signal(3)
+        #self.submodules.wishbone_slave_write_buffering_fsm = wishbone_slave_write_buffering_fsm = FSM(reset_state="Reset")
+        #wishbone_slave_write_buffering_fsm.act("Reset",
+        #                                       NextState("Idle")
+        #)
+        #wishbone_slave_write_buffering_fsm.act("Idle",
+        #                                       If(self.wishbone_slave.cyc &
+        #                                          self.wishbone_slave.stb &
+        #                                          ~self.wishbone_slave.ack &
+        #                                          ~self.wishbone_slave.err &
+        #                                          (self.wishbone_slave.sel == 0xf) & # Full Words Only
+        #                                          self.wishbone_slave.we,
+        #                                          NextValue(self.master_write_buffer_addr, self.wishbone_slave.adr[2:30]),
+        #                                          NextValue(self.master_write_buffer_data[self.wishbone_slave.adr[0:2]],
+        #                                                    Cat(self.wishbone_slave.dat_w[24:32], # LE
+        #                                                        self.wishbone_slave.dat_w[16:24],
+        #                                                        self.wishbone_slave.dat_w[ 8:16],
+        #                                                        self.wishbone_slave.dat_w[ 0: 8])),
+        #                                          NextValue(self.master_write_buffer_todo[self.wishbone_slave.adr[0:2]], 1),
+        #                                          NextValue(self.wishbone_slave.ack, 1),
+        #                                          NextValue(last_write_word_idx, self.wishbone_slave.adr[0:2]),
+        #                                          NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+        #                                          If(self.wishbone_slave.adr[0:2] == 0,
+        #                                             NextValue(last_write_timeout, 5), # CHECKME: 5 is arbitrary
+        #                                             NextState("WaitForMoreData"),
+        #                                          ).Else(
+        #                                              NextValue(self.master_write_buffer_start, 1),
+        #                                              NextState("WaitForWrite"),
+        #                                          )
+        #                                       )
+        #)
+        #wishbone_slave_write_buffering_fsm.act("WaitForMoreData",
+        #                                       If(last_write_timeout > 0,
+        #                                          NextValue(last_write_timeout, last_write_timeout - 1),
+        #                                       ),
+        #                                       If(self.wishbone_slave.cyc &
+        #                                          self.wishbone_slave.stb &
+        #                                          ~self.wishbone_slave.ack &
+        #                                          ~self.wishbone_slave.err &
+        #                                          self.wishbone_slave.we,
+        #                                          If(((self.wishbone_slave.adr[2:30] != self.master_write_buffer_addr) |
+        #                                              (self.wishbone_slave.sel != 0xf)),
+        #                                             NextValue(self.master_write_buffer_start, 1),
+        #                                             NextState("WaitForWrite"),
+        #                                          ).Else(
+        #                                              NextValue(self.master_write_buffer_data[self.wishbone_slave.adr[0:2]],
+        #                                                        Cat(self.wishbone_slave.dat_w[24:32], # LE
+        #                                                            self.wishbone_slave.dat_w[16:24],
+        #                                                            self.wishbone_slave.dat_w[ 8:16],
+        #                                                            self.wishbone_slave.dat_w[ 0: 8])),
+        #                                              NextValue(self.master_write_buffer_todo[self.wishbone_slave.adr[0:2]], 1),
+        #                                              NextValue(self.wishbone_slave.ack, 1),
+        #                                              NextValue(last_write_word_idx, self.wishbone_slave.adr[0:2]),
+        #                                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+        #                                              NextValue(last_write_timeout, 5), # CHECKME: 5 is arbitrary
+        #                                          )
+        #                                       ).Elif(self.master_write_buffer_todo[0] &
+        #                                              self.master_write_buffer_todo[1] &
+        #                                              self.master_write_buffer_todo[2] &
+        #                                              self.master_write_buffer_todo[3],
+        #                                              NextValue(self.master_write_buffer_start, 1),
+        #                                              NextState("WaitForWrite"),
+        #                                       ).Elif(last_write_timeout == 0,
+        #                                              NextValue(self.master_write_buffer_start, 1),
+        #                                              NextState("WaitForWrite"),
+        #                                       )
+        #)
+        #wishbone_slave_write_buffering_fsm.act("WaitForWrite",
+        #                                       If(self.master_write_buffer_start == 0,
+        #                                          NextState("Idle"),
+        #                                       )
+        #)
