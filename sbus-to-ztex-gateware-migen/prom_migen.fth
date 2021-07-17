@@ -43,6 +43,7 @@ new-device
 \ Absolute minimal stuff; name & registers def.
 " generic-ohci" device-name
 
+\ USB registers are in the device space, not the CSR space
 my-address sbusfpga_regionaddr_usb_host_ctrl + my-space h# 1000 reg
 \ we don't support ET or anything non-32bits
 h# 7c xdrint " slave-burst-sizes" attribute
@@ -89,11 +90,15 @@ new-device
 
 \ Absolute minimal stuff; name & registers def.
 " RDOL,sdram" device-name
-\ two pages of registers:
+\ three pages of registers:
 my-address sbusfpga_csraddr_ddrphy + my-space xdrphys \ Offset#1
 h# 1000 xdrint xdr+ \ Merge size#1
 my-address sbusfpga_csraddr_sdram + my-space xdrphys xdr+  \ Merge offset#2
 h# 1000 xdrint xdr+  \ Merge size#2
+my-address sbusfpga_csraddr_exchange_with_mem + my-space xdrphys xdr+  \ Merge offset#3
+h# 1000 xdrint xdr+  \ Merge size#3
+\ my-address sbusfpga_regionaddr_main_ram + my-space xdrphys xdr+  \ Merge offset#4
+\ h# 10000 xdrint xdr+  \ Merge size#4
 " reg" attribute
 
 \ we don't support ET or anything non-32bits
@@ -102,7 +107,8 @@ h# 7c xdrint " burst-sizes" attribute
 
 headers
 -1 instance value mregs-ddrphy-virt
--1 instance value mregs-sdramdfii-virt
+-1 instance value mregs-sdram-virt
+-1 instance value mregs-exchange_with_mem-virt
 my-address constant my-sbus-address
 my-space   constant my-sbus-space
 : map-in ( adr space size -- virt ) " map-in" $call-parent ;
@@ -110,11 +116,13 @@ my-space   constant my-sbus-space
 
 : map-in-mregs ( -- )
   my-sbus-address sbusfpga_csraddr_ddrphy + my-sbus-space h# 1000 map-in is mregs-ddrphy-virt
-  my-sbus-address sbusfpga_csraddr_sdram + my-sbus-space h# 1000 map-in is mregs-sdramdfii-virt
+  my-sbus-address sbusfpga_csraddr_sdram + my-sbus-space h# 1000 map-in is mregs-sdram-virt
+  my-sbus-address sbusfpga_csraddr_exchange_with_mem + my-sbus-space h# 1000 map-in is mregs-exchange_with_mem-virt
 ;
 : map-out-mregs ( -- )
   mregs-ddrphy-virt h# 1000 map-out
-  mregs-sdramdfii-virt h# 1000 map-out
+  mregs-sdram-virt h# 1000 map-out
+  mregs-exchange_with_mem-virt h# 1000 map-out
 ;
 
 \ fload sdram_init.fth

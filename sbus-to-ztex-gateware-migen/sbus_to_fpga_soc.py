@@ -17,6 +17,7 @@ from litedram.modules import MT41J128M16
 from litedram.phy import s7ddrphy
 
 from sbus_to_fpga_fsm import *;
+from sbus_to_fpga_blk_dma import *;
 
 import sbus_to_fpga_export;
 
@@ -107,7 +108,7 @@ class SBusFPGA(SoCCore):
         # Anything at 0x10000000 is therefore unreachable directly
         # The position of the 'usb_fake_dma' is so it overlaps
         # the virtual address space used by NetBSD DMA allocators
-        wb_mem_map = {
+        self.wb_mem_map = wb_mem_map = {
             "prom":           0x00000000,
             "csr" :           0x00040000,
             "usb_host":       0x00080000,
@@ -171,16 +172,33 @@ class SBusFPGA(SoCCore):
         wishbone_master_sys = wishbone.Interface(data_width=self.bus.data_width)
         self.submodules.wishbone_master_sbus = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_master_sys, cd_master="sbus", cd_slave="sys")
         self.submodules.wishbone_slave_sys   = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_slave_sbus, cd_master="sys", cd_slave="sbus")
+
+        burst_size=8
+        self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=4))
+        self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=4))
+        self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=16))
+
+        self.submodules.exchange_with_mem = ExchangeWithMem(soc=self,
+                                                            tosbus_fifo=self.tosbus_fifo,
+                                                            fromsbus_fifo=self.fromsbus_fifo,
+                                                            fromsbus_req_fifo=self.fromsbus_req_fifo,
+                                                            burst_size=burst_size)
         
         _sbus_bus = SBusFPGABus(platform=self.platform,
                                 hold_reset=hold_reset,
                                 wishbone_slave=wishbone_slave_sbus,
-                                wishbone_master=self.wishbone_master_sbus)
+                                wishbone_master=self.wishbone_master_sbus,
+                                tosbus_fifo=self.tosbus_fifo,
+                                fromsbus_fifo=self.fromsbus_fifo,
+                                fromsbus_req_fifo=self.fromsbus_req_fifo,
+                                burst_size=burst_size)
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
         self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
+        self.bus.add_master(name="mem_read_master", master=self.exchange_with_mem.wishbone_r_master)
+        self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_master)
 
         self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
                                                    memtype        = "DDR3",
@@ -189,10 +207,10 @@ class SBusFPGA(SoCCore):
         self.add_sdram("sdram",
                        phy           = self.ddrphy,
                        module        = MT41J128M16(sys_clk_freq, "1:4"),
-                       l2_cache_size = 0
+                       l2_cache_size = 0,
         )
         
-        self.add_sdcard()
+        #self.add_sdcard()
 
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")

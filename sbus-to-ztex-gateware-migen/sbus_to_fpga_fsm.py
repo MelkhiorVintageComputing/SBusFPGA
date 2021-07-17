@@ -29,6 +29,7 @@ ROM_ADDR_PFX = Signal(12, reset = 0)
 WISHBONE_CSR_ADDR_PFX = Signal(12, reset = 4)
 USBOHCI_ADDR_PFX = Signal(12, reset = 8)
 SRAM_ADDR_PFX = Signal(12, reset = 9)
+SDRAM_ADDR_PFX = Signal(12, reset = 2048)
 
 wishbone_default_timeout = 120 ## must be > sbus_default_timeout
 sbus_default_timeout = 100 ## must be below 127 as we can wait twice on it inside the 255 cycles
@@ -171,12 +172,23 @@ LED_M_READ = 0x20
 LED_M_CACHE = 0x40
         
 class SBusFPGABus(Module):
-    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master):
+    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, burst_size = 8):
         self.platform = platform
         self.hold_reset = hold_reset
 
         self.wishbone_slave = wishbone_slave
         self.wishbone_master = wishbone_master
+
+        self.tosbus_fifo = tosbus_fifo
+        self.fromsbus_fifo = fromsbus_fifo
+        self.fromsbus_req_fifo = fromsbus_req_fifo
+        
+        data_width = burst_size * 4
+        data_width_bits = burst_size * 32
+        blk_addr_width = 32 - log2_int(data_width) # 27 for burst_size == 8
+
+        fifo_blk_addr = Signal(blk_addr_width)
+        fifo_buffer = Signal(data_width_bits)
         
         pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
         SBUS_DATA_OE_LED_o = Signal()
@@ -266,6 +278,8 @@ class SBusFPGABus(Module):
         data_read_enable = Signal() # start enqueuing req. to read from WB
 
         master_data = Signal(32) # could be merged with p_data
+        master_data_src_tosbus_fifo = Signal()
+        master_data_src_fromsbus_fifo = Signal()
         master_addr = Signal(30) # could be meged with data_read_addr
         master_size = Signal(4)
         master_idx = Signal(2)
@@ -278,7 +292,7 @@ class SBusFPGABus(Module):
         wishbone_slave_timeout = Signal(6)
         sbus_slave_timeout = Signal(6)
 
-        sbus_master_throttle = Signal(4)
+        sbus_master_throttle = Signal(2)
         
         #self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
         
@@ -340,6 +354,9 @@ class SBusFPGABus(Module):
         self.submodules.slave_fsm = slave_fsm = FSM(reset_state="Reset")
 
         self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
+        
+        self.sync += platform.request("user_led", 6).eq(master_data_src_tosbus_fifo)
+        self.sync += platform.request("user_led", 7).eq(master_data_src_fromsbus_fifo)
 
         slave_fsm.act("Reset",
                       #NextValue(self.led_display.value, 0x0000000000),
@@ -387,7 +404,8 @@ class SBusFPGABus(Module):
                          ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == USBOHCI_ADDR_PFX) |
-                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SDRAM_ADDR_PFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
@@ -419,7 +437,8 @@ class SBusFPGABus(Module):
                              NextValue(sbus_oe_master_in, 1),
                              NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                              If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
-                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)|
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SDRAM_ADDR_PFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
@@ -456,7 +475,8 @@ class SBusFPGABus(Module):
                             #NextValue(led0123, led0123 | LED_PARITY),
                             NextState("Slave_Error")
                          ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
-                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)|
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SDRAM_ADDR_PFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
@@ -502,7 +522,8 @@ class SBusFPGABus(Module):
                                 NextState("Slave_Error")
                              ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == USBOHCI_ADDR_PFX) |
-                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SDRAM_ADDR_PFX)),
                                     NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                     If(~self.wishbone_master.cyc,
                                        NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
@@ -528,7 +549,8 @@ class SBusFPGABus(Module):
                               (SBUS_3V3_PPRD_i == 0)),
                          NextValue(sbus_oe_master_in, 1),
                          NextValue(sbus_last_pa, SBUS_3V3_PA_i),
-                         If((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
+                         If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                             (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SDRAM_ADDR_PFX)),
                             NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                             If(~self.wishbone_master.cyc,
                                 NextValue(SBUS_3V3_ACKs_o, ACK_BYTE),
@@ -559,7 +581,8 @@ class SBusFPGABus(Module):
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 #NextValue(led0123, led0123 | LED_PARITY),
                                 NextState("Slave_Error")
-                             ).Elif((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX),
+                             ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SDRAM_ADDR_PFX)),
                                     NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
                                     If(~self.wishbone_master.cyc,
                                        NextValue(SBUS_3V3_ACKs_o, ACK_HWORD),
@@ -688,6 +711,70 @@ class SBusFPGABus(Module):
                              NextValue(master_we, 0),
                              #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0x00), self.wishbone_slave.adr)),
                              #NextValue(self.led_display.value, Cat(Signal(8, reset = LED_M_READ), Signal(2, reset = 0), self.master_read_buffer_addr)), 
+                             NextState("Master_Translation")
+                      ).Elif(SBUS_3V3_BGs_i &
+                             self.tosbus_fifo.readable &
+                             (sbus_master_throttle == 0),
+                             NextValue(SBUS_3V3_BRs_o, 0)
+                      ).Elif(~SBUS_3V3_BGs_i &
+                             self.tosbus_fifo.readable,
+                             NextValue(sbus_wishbone_le, 0), # checkme
+                             NextValue(SBUS_3V3_BRs_o, 1), # relinquish the request
+                             NextValue(sbus_oe_data, 1), ## output data (at least for @ during translation)
+                             NextValue(sbus_oe_slave_in, 1), ## PPRD, SIZ becomes output
+                             NextValue(sbus_oe_master_in, 0), ## ERRs, ACKs are input
+                             NextValue(burst_counter, 0),
+                             NextValue(burst_limit_m1, burst_size - 1),
+                             NextValue(SBUS_3V3_D_o, self.tosbus_fifo.dout[0:32]),
+                             NextValue(master_addr, self.tosbus_fifo.dout[2:32]),
+                             NextValue(master_data, self.tosbus_fifo.dout[32:64]),
+                             NextValue(fifo_buffer, self.tosbus_fifo.dout[32:]),
+                             NextValue(master_data_src_tosbus_fifo, 1),
+                             self.tosbus_fifo.re.eq(1),
+                             Case(burst_size, {
+                                 2 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST2),
+                                      NextValue(master_size, SIZ_BURST2)],
+                                 4 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST4),
+                                      NextValue(master_size, SIZ_BURST4)],
+                                 8 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST8),
+                                      NextValue(master_size, SIZ_BURST8)],
+                                 16 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST16),
+                                       NextValue(master_size, SIZ_BURST16)],
+                             }),
+                             NextValue(SBUS_3V3_PPRD_o, 0),
+                             NextValue(master_we, 1),
+                             NextState("Master_Translation")
+                      ).Elif(SBUS_3V3_BGs_i &
+                             self.fromsbus_req_fifo.readable &
+                             self.fromsbus_fifo.writable &
+                             (sbus_master_throttle == 0),
+                             NextValue(SBUS_3V3_BRs_o, 0)
+                      ).Elif(~SBUS_3V3_BGs_i &
+                             self.fromsbus_req_fifo.readable &
+                             self.fromsbus_fifo.writable,
+                             NextValue(sbus_wishbone_le, 0), # checkme
+                             NextValue(SBUS_3V3_BRs_o, 1), # relinquish the request
+                             NextValue(sbus_oe_data, 1), ## output data (at least for @ during translation)
+                             NextValue(sbus_oe_slave_in, 1), ## PPRD, SIZ becomes output
+                             NextValue(sbus_oe_master_in, 0), ## ERRs, ACKs are input
+                             NextValue(burst_counter, 0),
+                             NextValue(burst_limit_m1, burst_size - 1),
+                             NextValue(SBUS_3V3_D_o, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
+                             NextValue(fifo_blk_addr, self.fromsbus_req_fifo.dout[0:blk_addr_width]),
+                             NextValue(master_data_src_fromsbus_fifo, 1),
+                             self.fromsbus_req_fifo.re.eq(1),
+                             Case(burst_size, {
+                                 2 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST2),
+                                      NextValue(master_size, SIZ_BURST2)],
+                                 4 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST4),
+                                      NextValue(master_size, SIZ_BURST4)],
+                                 8 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST8),
+                                      NextValue(master_size, SIZ_BURST8)],
+                                 16 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST16),
+                                       NextValue(master_size, SIZ_BURST16)],
+                             }),
+                             NextValue(SBUS_3V3_PPRD_o, 1),
+                             NextValue(master_we, 0),
                              NextState("Master_Translation")
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0)),
@@ -1050,6 +1137,10 @@ class SBusFPGABus(Module):
                       If(master_we,
                          NextValue(sbus_oe_data, 1),
                          Case(master_size, {
+                             SIZ_BURST2: NextValue(SBUS_3V3_D_o, master_data),
+                             SIZ_BURST4: NextValue(SBUS_3V3_D_o, master_data),
+                             SIZ_BURST8: NextValue(SBUS_3V3_D_o, master_data),
+                             SIZ_BURST16: NextValue(SBUS_3V3_D_o, master_data),
                              SIZ_WORD: NextValue(SBUS_3V3_D_o, master_data),
                              SIZ_BYTE: Case(master_idx, {
                                  0: NextValue(SBUS_3V3_D_o, Cat(master_data[ 0: 8],
@@ -1075,7 +1166,10 @@ class SBusFPGABus(Module):
                                  2: NextValue(SBUS_3V3_D_o, Cat(master_data[16:32],
                                                                 master_data[16:32],)),
                                  })
-                             })
+                             }),
+                         If(master_data_src_tosbus_fifo,
+                            NextValue(master_data, fifo_buffer[32:64]), # 0:32 is on the bus already
+                         ),
                       ).Else(
                          NextValue(sbus_oe_data, 0)
                       ),
@@ -1096,9 +1190,10 @@ class SBusFPGABus(Module):
                            NextState("Idle")],
                           ACK_IDLE:
                           [If(master_we,
-                              NextState("Master_Write")
+                              NextState("Master_Write"),
                               ## FIXME: in burst mode, should update master_data with the next value
                               ## FIXME: we don't do burst mode yet
+                              ## FIXME: actually now from FIFO is handled above
                           ).Else(
                               NextState("Master_Read")
                           )],
@@ -1140,8 +1235,29 @@ class SBusFPGABus(Module):
         )
         slave_fsm.act("Master_Read_Ack",
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x0b), self.led_display.value[8:40])),
-                      NextValue(self.master_read_buffer_data[burst_counter[0:2]], SBUS_3V3_D_i),
-                      NextValue(self.master_read_buffer_done[burst_counter[0:2]], 1),
+                      If(master_data_src_fromsbus_fifo,
+                         Case(burst_counter, {
+                             0: NextValue(fifo_buffer[0:32], SBUS_3V3_D_i),
+                             1: NextValue(fifo_buffer[32:64], SBUS_3V3_D_i),
+                             2: NextValue(fifo_buffer[64:96], SBUS_3V3_D_i),
+                             3: NextValue(fifo_buffer[96:128], SBUS_3V3_D_i),
+                             4: NextValue(fifo_buffer[128:160], SBUS_3V3_D_i),
+                             5: NextValue(fifo_buffer[160:192], SBUS_3V3_D_i),
+                             6: NextValue(fifo_buffer[192:224], SBUS_3V3_D_i),
+                             7: NextValue(fifo_buffer[224:256], SBUS_3V3_D_i),
+#                             8: NextValue(fifo_buffer[256:288], SBUS_3V3_D_i),
+#                             9: NextValue(fifo_buffer[288:320], SBUS_3V3_D_i),
+#                             10: NextValue(fifo_buffer[320:352], SBUS_3V3_D_i),
+#                             11: NextValue(fifo_buffer[352:384], SBUS_3V3_D_i),
+#                             12: NextValue(fifo_buffer[384:416], SBUS_3V3_D_i),
+#                             13: NextValue(fifo_buffer[416:448], SBUS_3V3_D_i),
+#                             14: NextValue(fifo_buffer[448:480], SBUS_3V3_D_i),
+#                             15: NextValue(fifo_buffer[480:512], SBUS_3V3_D_i),
+                         }),
+                      ).Else(
+                          NextValue(self.master_read_buffer_data[burst_counter[0:2]], SBUS_3V3_D_i),
+                          NextValue(self.master_read_buffer_done[burst_counter[0:2]], 1),
+                      ),
                       NextValue(burst_counter, burst_counter + 1),
                       If(burst_counter == burst_limit_m1,
                          NextValue(self.master_read_buffer_start, 0),
@@ -1167,6 +1283,11 @@ class SBusFPGABus(Module):
         )
         slave_fsm.act("Master_Read_Finish", ## missing the handling of late error
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x0c), self.led_display.value[8:40])),
+                      If(master_data_src_fromsbus_fifo,
+                         fromsbus_fifo.we.eq(1),
+                         fromsbus_fifo.din.eq(Cat(fifo_blk_addr, fifo_buffer)),
+                         NextValue(master_data_src_fromsbus_fifo, 0),
+                      ),
                       NextValue(sbus_oe_data, 0),
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
@@ -1178,9 +1299,33 @@ class SBusFPGABus(Module):
                           ACK_WORD: # FIXME: check againt master_size ?
                           [If(burst_counter == burst_limit_m1,
                               NextState("Master_Write_Final"),
+                              If(master_data_src_tosbus_fifo,
+                                 NextValue(master_data_src_tosbus_fifo, 0),
+                              )
                           ).Else(
-                              NextValue(SBUS_3V3_D_o, master_data), ## FIXME: we're not updating master_data for burst mode yet
+                              NextValue(SBUS_3V3_D_o, master_data),
                               NextValue(burst_counter, burst_counter + 1),
+                              If(master_data_src_tosbus_fifo,
+                                 Case(burst_counter, { #0:32 just ack'd, 32:64 is on the bus now, burst_counter will only increment for the next cycle, so we're two steps ahead
+                                     0: NextValue(master_data, fifo_buffer[64:96]),
+                                     1: NextValue(master_data, fifo_buffer[96:128]),
+                                     2: NextValue(master_data, fifo_buffer[128:160]),
+                                     3: NextValue(master_data, fifo_buffer[160:192]),
+                                     4: NextValue(master_data, fifo_buffer[192:224]),
+                                     5: NextValue(master_data, fifo_buffer[224:256]),
+#                                     6: NextValue(master_data, fifo_buffer[256:288]),
+#                                     7: NextValue(master_data, fifo_buffer[288:320]),
+#                                     8: NextValue(master_data, fifo_buffer[320:352]),
+#                                     9: NextValue(master_data, fifo_buffer[352:384]),
+#                                     10: NextValue(master_data, fifo_buffer[384:416]),
+#                                     11: NextValue(master_data, fifo_buffer[416:448]),
+#                                     12: NextValue(master_data, fifo_buffer[448:480]),
+#                                     13: NextValue(master_data, fifo_buffer[480:512]),
+                                     #14: NextValue(master_data, fifo_buffer[512:544]),
+                                     #15: NextValue(master_data, fifo_buffer[544:576]),
+                                     "default": NextValue(master_data, 0),
+                                 })
+                              ),
                           )],
                           ACK_BYTE: # FIXME: check againt master_size ?
                           [NextState("Master_Write_Final"),
@@ -1210,7 +1355,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_data, 0),
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
-                      NextValue(sbus_master_throttle, 7),
+                      NextValue(sbus_master_throttle, 3),
                       NextState("Idle")
         )
         # ##### FINISHED #####

@@ -37,8 +37,23 @@ struct sbusfpga_sdram_softc {
 	bus_space_tag_t	sc_bustag;	/* bus tag */
 	bus_space_handle_t sc_bhregs_ddrphy;	/* bus handle */
 	bus_space_handle_t sc_bhregs_sdram;	/* bus handle */
+	bus_space_handle_t sc_bhregs_exchange_with_mem;	/* bus handle */
+	bus_space_handle_t sc_bhregs_mmap;	/* bus handle */
 	int	sc_bufsiz_ddrphy;		/* Size of buffer */
 	int	sc_bufsiz_sdram;		/* Size of buffer */
+	int	sc_bufsiz_exchange_with_mem;	/* bus handle */
+	int	sc_bufsiz_mmap;	/* bus handle */
+	/* specific of the DMA engine */
+	u_int dma_blk_size;
+	u_int dma_blk_base;
+	/* DMA kernel structures */
+	bus_dma_tag_t		sc_dmatag;
+	bus_dmamap_t		sc_dmamap;
+	bus_dma_segment_t       sc_segs;
+	int                     sc_rsegs;
+	void *              sc_dma_kva;
 };
+
+#define SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ (4*1024)
 
 #endif /* _SBUSFPGA_SDRAM_H_ */
