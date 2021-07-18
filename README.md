@@ -2,7 +2,7 @@
 
 ## Goal
 
-The goal of this repository is to be able to interface a modern (2020 era) [FPGA](https://en.wikipedia.org/wiki/Field-programmable_gate_array) with a [SBus](https://en.wikipedia.org/wiki/SBus) host. SBus was widely used in SPARCstation and compatibles system in the first halt of the 90s. It was progressively displaced by PCI from the mid-90s onward, and is thoroughly obsolete.
+The goal of this repository is to be able to interface a modern (2020 era) [FPGA](https://en.wikipedia.org/wiki/Field-programmable_gate_array) with a [SBus](https://en.wikipedia.org/wiki/SBus) host. SBus was widely used in SPARCstation and compatibles system in the first half of the 90s. It was progressively displaced by PCI from the mid-90s onward, and is thoroughly obsolete.
 
 So unless you're a retrocomputing enthusiast with such a machine, this is useless. To be honest, even if you are such an enthusiast, it's probably not that useful...
 
