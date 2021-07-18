@@ -111,7 +111,7 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 int
 sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 {
-	struct sbusfpga_sdram_softc *sc = device_lookup_private(&sbusfpga_sdram_cd, minor(dev));
+	struct sbusfpga_sdram_softc *sc = device_lookup_private(&sbusfpga_sdram_cd, DISKUNIT(dev));
 	int err = 0, err2 = 0;
 
 	if (sc == NULL) {
@@ -338,8 +338,40 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	dk_attach(&sc->dk);
 	disk_attach(&sc->dk.sc_dkdev);
 	sbusfpga_sdram_set_geometry(sc);
-
+	
 	bufq_alloc(&sc->dk.sc_bufq, BUFQ_DISK_DEFAULT_STRAT, BUFQ_SORT_RAWBLOCK); /* needed ? */
+	{
+		struct disklabel *lp = sc->dk.sc_dkdev.dk_label;
+		struct cpu_disklabel *clp = sc->dk.sc_dkdev.dk_cpulabel;
+		memset(lp, 0, sizeof(struct disklabel));
+		memset(clp, 0, sizeof(struct cpu_disklabel));
+		
+		lp->d_type = DKTYPE_FLASH;
+		lp->d_secsize = 512;
+		lp->d_nsectors = 4;
+		lp->d_ntracks = 2;
+		lp->d_ncylinders = 65536;
+		lp->d_secpercyl = lp->d_ntracks * lp->d_nsectors;
+		lp->d_secperunit = lp->d_secpercyl * lp->d_ncylinders;
+		lp->d_rpm = 3600;
+		
+		strncpy(lp->d_typename, "sdramdisk", sizeof(lp->d_typename));
+		strncpy(lp->d_packname, "fictitious", sizeof(lp->d_packname));
+		lp->d_interleave = 0;
+		
+		lp->d_partitions[0].p_offset = lp->d_secpercyl * lp->d_secsize;
+		lp->d_partitions[0].p_size = lp->d_secpercyl * (lp->d_ncylinders - 1);
+		lp->d_partitions[0].p_fstype = FS_SWAP;
+		
+		lp->d_partitions[RAW_PART].p_offset = 0;
+		lp->d_partitions[RAW_PART].p_size = lp->d_secpercyl * lp->d_ncylinders;
+		lp->d_partitions[RAW_PART].p_fstype = FS_UNUSED;
+		lp->d_npartitions = RAW_PART + 1;
+		
+		lp->d_magic = DISKMAGIC;
+		lp->d_magic2 = DISKMAGIC;
+		lp->d_checksum = dkcksum(lp);
+	}
 
 	/*
 	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_blkshift = %d\n", sc->dk.sc_dkdev.dk_blkshift);
@@ -364,12 +396,12 @@ static void	sbusfpga_sdram_set_geometry(struct sbusfpga_sdram_softc *sc) {
 	memset(dg, 0, sizeof(*dg));
 
 	dg->dg_secsize = 512;
-	dg->dg_nsectors = 32;
-	dg->dg_ntracks = 32;
-	dg->dg_ncylinders = 512;
+	dg->dg_nsectors = 2;
+	dg->dg_ntracks = 4;
+	dg->dg_ncylinders = 65536;
 	dg->dg_secpercyl = dg->dg_nsectors * dg->dg_ntracks;
-	dg->dg_secperunit = 524288; //dg->dg_secpercyl * dg->dg_ncylinders;
-	dg->dg_pcylinders = 512;
+	dg->dg_secperunit = dg->dg_secpercyl * dg->dg_ncylinders;
+	dg->dg_pcylinders = 65536;
 	dg->dg_sparespertrack = 0;
 	dg->dg_sparespercyl = 0;
 
@@ -400,12 +432,12 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 		err = EINVAL;
 		goto done;
 	}
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: part %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(bp->b_dev));
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount);
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: part %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(bp->b_dev)); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno); */
+	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount); */
 
 	bp->b_resid = bp->b_bcount;
 
@@ -760,12 +792,12 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 	exchange_with_mem_dma_addr_write(sc, sc->sc_dmamap->dm_segs[0].ds_addr);
 	exchange_with_mem_blk_cnt_write(sc, 0x00000000 | (blkcnt * 512 / sc->dma_blk_size) );
 
-	delay(500);
+	delay(100);
 
 	count = 0;
-	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 10)) {
+	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 50)) {
 		count ++;
-		delay(500);
+		delay(100);
 	}
 
 	if (check) {
@@ -780,10 +812,10 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 	}
 
 	count = 0;
-	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 10)) {
+	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 50)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
 		count ++;
-		delay(500);
+		delay(100);
 	}
   
 	if (check & 0x3) {
@@ -816,12 +848,12 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 	exchange_with_mem_dma_addr_write(sc, sc->sc_dmamap->dm_segs[0].ds_addr);
 	exchange_with_mem_blk_cnt_write(sc, 0x80000000 | (blkcnt * 512 / sc->dma_blk_size) );
 
-	delay(500);
+	delay(100);
 
 	count = 0;
-	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 10)) {
+	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 50)) {
 		count ++;
-		delay(500);
+		delay(100);
 	}
 
 	if (check) {
@@ -836,10 +868,10 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 	}
 
 	count = 0;
-	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 10)) {
+	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 50)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
 		count ++;
-		delay(500);
+		delay(100);
 	}
   
 	if (check & 0x3) {
