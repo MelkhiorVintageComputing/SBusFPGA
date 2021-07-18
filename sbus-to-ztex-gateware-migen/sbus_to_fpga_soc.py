@@ -16,8 +16,10 @@ from migen.genlib.fifo import *
 from litedram.modules import MT41J128M16
 from litedram.phy import s7ddrphy
 
-from sbus_to_fpga_fsm import *;
-from sbus_to_fpga_blk_dma import *;
+from sbus_to_fpga_fsm import *
+from sbus_to_fpga_blk_dma import *
+
+from litedram.frontend.dma import *
 
 import sbus_to_fpga_export;
 
@@ -156,6 +158,15 @@ class SBusFPGA(SoCCore):
         #getattr(self,"prom").mem.init = prom_data
         #getattr(self,"prom").mem.depth = 2**14
 
+        self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
+                                                   memtype        = "DDR3",
+                                                   nphases        = 4,
+                                                   sys_clk_freq   = sys_clk_freq)
+        self.add_sdram("sdram",
+                       phy           = self.ddrphy,
+                       module        = MT41J128M16(sys_clk_freq, "1:4"),
+                       l2_cache_size = 0,
+        )
         # don't enable anything on the SBus side for 20 seconds after power up
         # this avoids FPGA initialization messing with the cold boot process
         # requires us to reset the SPARCstation afterward so the FPGA board
@@ -178,10 +189,20 @@ class SBusFPGA(SoCCore):
         self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=4))
         self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=16))
 
+        self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=burst_size*32),
+                                                            fifo_depth=4,
+                                                            fifo_buffered=True)
+
+        self.submodules.dram_dma_reader = LiteDRAMDMAReader(port=self.sdram.crossbar.get_port(mode="read", data_width=burst_size*32),
+                                                            fifo_depth=4,
+                                                            fifo_buffered=True)
+
         self.submodules.exchange_with_mem = ExchangeWithMem(soc=self,
                                                             tosbus_fifo=self.tosbus_fifo,
                                                             fromsbus_fifo=self.fromsbus_fifo,
                                                             fromsbus_req_fifo=self.fromsbus_req_fifo,
+                                                            dram_dma_writer=self.dram_dma_writer,
+                                                            dram_dma_reader=self.dram_dma_reader,
                                                             burst_size=burst_size)
         
         _sbus_bus = SBusFPGABus(platform=self.platform,
@@ -197,18 +218,8 @@ class SBusFPGA(SoCCore):
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
         self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
-        self.bus.add_master(name="mem_read_master", master=self.exchange_with_mem.wishbone_r_slave)
-        self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_slave)
-
-        self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
-                                                   memtype        = "DDR3",
-                                                   nphases        = 4,
-                                                   sys_clk_freq   = sys_clk_freq)
-        self.add_sdram("sdram",
-                       phy           = self.ddrphy,
-                       module        = MT41J128M16(sys_clk_freq, "1:4"),
-                       l2_cache_size = 0,
-        )
+        #self.bus.add_master(name="mem_read_master", master=self.exchange_with_mem.wishbone_r_slave)
+        #self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_slave)
         
         #self.add_sdcard()
 
