@@ -30,7 +30,8 @@
 #define _SBUSFPGA_SDRAM_H_
 
 struct sbusfpga_sdram_softc {
-	device_t sc_dev;		/* us as a device */
+	struct dk_softc dk;
+	/* device_t sc_dev; */		/* us as a device */ /* in dk */
 	u_int	sc_rev;			/* revision */
 	int	sc_node;		/* PROM node ID */
 	int	sc_burst;		/* DVMA burst size in effect */
