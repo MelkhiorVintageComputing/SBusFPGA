@@ -297,10 +297,10 @@ class SBusFPGABus(Module):
         #self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
         
         self.sync += platform.request("user_led", 4).eq(self.wishbone_slave.cyc)
-        #self.sync += platform.request("user_led", 5).eq(self.wishbone_slave.stb)
-        #self.sync += platform.request("user_led", 6).eq(self.wishbone_slave.we)
-        #self.sync += platform.request("user_led", 7).eq(self.wishbone_slave.ack)
-        #self.sync += platform.request("user_led", 4).eq(self.wishbone_slave.err)
+        self.sync += platform.request("user_led", 5).eq(self.wishbone_slave.stb)
+        self.sync += platform.request("user_led", 6).eq(self.wishbone_slave.we)
+        self.sync += platform.request("user_led", 7).eq(self.wishbone_slave.ack)
+        #self.sync += platform.request("user_led", 0).eq(self.wishbone_slave.err)
         #led4 = platform.request("user_led", 4)
         #led5 = platform.request("user_led", 5)
         #led6 = platform.request("user_led", 6)
@@ -345,21 +345,22 @@ class SBusFPGABus(Module):
         self.master_read_buffer_done = Array(Signal() for a in range(4))
         self.master_read_buffer_read = Array(Signal() for a in range(4))
         self.master_read_buffer_start = Signal()
+        
+        #self.sync += platform.request("user_led", 1).eq(self.master_read_buffer_start)
 
-        self.master_write_buffer_data = Array(Signal(32) for a in range(4))
-        self.master_write_buffer_addr = Signal(28)
-        self.master_write_buffer_todo = Array(Signal() for a in range(4))
-        self.master_write_buffer_start = Signal()
+        #self.master_write_buffer_data = Array(Signal(32) for a in range(4))
+        #self.master_write_buffer_addr = Signal(28)
+        #self.master_write_buffer_todo = Array(Signal() for a in range(4))
+        #self.master_write_buffer_start = Signal()
 
         self.submodules.slave_fsm = slave_fsm = FSM(reset_state="Reset")
 
-        self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
-        self.sync += platform.request("user_led", 0).eq(slave_fsm.ongoing("Master_Translation"))
-        self.sync += platform.request("user_led", 1).eq(slave_fsm.ongoing("Master_Read") |
-                                                        slave_fsm.ongoing("Master_Read_Ack") |
-                                                        slave_fsm.ongoing("Master_Read_Finish") |
-                                                        slave_fsm.ongoing("Master_Write") |
-                                                        slave_fsm.ongoing("Master_Write_Final"))
+        #self.sync += platform.request("user_led", 0).eq(slave_fsm.ongoing("Master_Translation"))
+        #self.sync += platform.request("user_led", 1).eq(slave_fsm.ongoing("Master_Read") |
+        #                                                slave_fsm.ongoing("Master_Read_Ack") |
+        #                                                slave_fsm.ongoing("Master_Read_Finish") |
+        #                                                slave_fsm.ongoing("Master_Write") |
+        #                                                slave_fsm.ongoing("Master_Write_Final"))
         self.sync += platform.request("user_led", 2).eq(slave_fsm.ongoing("Slave_Do_Read") |
                                                         slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst") |
                                                         slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst_Wait_For_Data") |
@@ -378,8 +379,9 @@ class SBusFPGABus(Module):
                                                         slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte") |
                                                         slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte_Wait_For_Wishbone"))
         
-        self.sync += platform.request("user_led", 6).eq(master_data_src_tosbus_fifo)
-        self.sync += platform.request("user_led", 7).eq(master_data_src_fromsbus_fifo)
+        #self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
+        #self.sync += platform.request("user_led", 6).eq(master_data_src_tosbus_fifo)
+        #self.sync += platform.request("user_led", 7).eq(master_data_src_fromsbus_fifo)
 
         slave_fsm.act("Reset",
                       #NextValue(self.led_display.value, 0x0000000000),
@@ -634,7 +636,6 @@ class SBusFPGABus(Module):
                              (wishbone_slave_timeout == 0),
                              ## sel == 0 so nothing to write, don't acquire the SBus
                              NextValue(self.wishbone_slave.ack, 1),
-                             NextValue(wishbone_slave_timeout, wishbone_default_timeout),
                       ).Elif(SBUS_3V3_BGs_i &
                              self.wishbone_slave.cyc &
                              self.wishbone_slave.stb &
@@ -1283,7 +1284,9 @@ class SBusFPGABus(Module):
                       ),
                       NextValue(burst_counter, burst_counter + 1),
                       If(burst_counter == burst_limit_m1,
-                         NextValue(self.master_read_buffer_start, 0),
+                         If(~master_data_src_fromsbus_fifo,
+                            NextValue(self.master_read_buffer_start, 0),
+                         ),
                          NextState("Master_Read_Finish")
                       ).Else(
                           Case(SBUS_3V3_ACKs_i, {
@@ -1460,7 +1463,8 @@ class SBusFPGABus(Module):
         # ##### Slave read buffering FSM ####
         last_read_word_idx = Signal(2)
         self.submodules.wishbone_slave_read_buffering_fsm = wishbone_slave_read_buffering_fsm = FSM(reset_state="Reset")
-        #self.sync += led4.eq(self.master_read_buffer_start)
+        self.sync += platform.request("user_led", 0).eq(~wishbone_slave_read_buffering_fsm.ongoing("Idle"))
+        self.sync += platform.request("user_led", 1).eq(self.master_read_buffer_done[last_read_word_idx])
         wishbone_slave_read_buffering_fsm.act("Reset",
                                               NextState("Idle")
         )

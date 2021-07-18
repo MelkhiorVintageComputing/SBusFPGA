@@ -184,6 +184,9 @@ class SBusFPGA(SoCCore):
         self.submodules.wishbone_master_sbus = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_master_sys, cd_master="sbus", cd_slave="sys")
         self.submodules.wishbone_slave_sys   = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_slave_sbus, cd_master="sys", cd_slave="sbus")
 
+        # SPARCstation 20 slave interface to the main memory are limited to 32-bytes burst (32-bits wide, 8 word long)
+        # burst_size=16 should work on Ultra systems, but then they probably should go for 64-bits ET as well...
+        # Older systems are probably limited to burst_size=4, (it should always be available)
         burst_size=8
         self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=4))
         self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=4))
