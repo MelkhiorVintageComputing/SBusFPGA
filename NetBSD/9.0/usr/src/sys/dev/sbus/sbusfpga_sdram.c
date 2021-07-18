@@ -350,7 +350,7 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 		lp->d_secsize = 512;
 		lp->d_nsectors = 4;
 		lp->d_ntracks = 2;
-		lp->d_ncylinders = 65536;
+		lp->d_ncylinders = sc->dma_real_mem_size / (lp->d_secsize * lp->d_nsectors * lp->d_ntracks);
 		lp->d_secpercyl = lp->d_ntracks * lp->d_nsectors;
 		lp->d_secperunit = lp->d_secpercyl * lp->d_ncylinders;
 		lp->d_rpm = 3600;
@@ -398,10 +398,10 @@ static void	sbusfpga_sdram_set_geometry(struct sbusfpga_sdram_softc *sc) {
 	dg->dg_secsize = 512;
 	dg->dg_nsectors = 2;
 	dg->dg_ntracks = 4;
-	dg->dg_ncylinders = 65536;
+	dg->dg_ncylinders = sc->dma_real_mem_size / (dg->dg_secsize * dg->dg_nsectors * dg->dg_ntracks);
 	dg->dg_secpercyl = dg->dg_nsectors * dg->dg_ntracks;
 	dg->dg_secperunit = dg->dg_secpercyl * dg->dg_ncylinders;
-	dg->dg_pcylinders = 65536;
+	dg->dg_pcylinders = dg->dg_ncylinders;
 	dg->dg_sparespertrack = 0;
 	dg->dg_sparespercyl = 0;
 
@@ -411,7 +411,8 @@ static void	sbusfpga_sdram_set_geometry(struct sbusfpga_sdram_softc *sc) {
 
 int
 sbusfpga_sdram_size(dev_t dev) {
-	return 524288;
+	struct sbusfpga_sdram_softc *sc = device_lookup_private(&sbusfpga_sdram_cd, DISKUNIT(dev));
+	return sc->dma_real_mem_size / 512;
 }
 
 static void
@@ -466,7 +467,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 			if (blkcnt > (SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ/512))
 				blkcnt = (SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ/512);
 			
-			if (blk+blkcnt <= 524288) {
+			if (blk+blkcnt <= (sc->dma_real_mem_size / 512)) {
 				err = sbusfpga_sdram_read_block(sc, blk, blkcnt, data);
 			} else {
 				aprint_error("%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
@@ -502,7 +503,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 			if (blkcnt > (SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ/512))
 				blkcnt = (SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ/512);
 			
-			if (blk+blkcnt <= 524288) {
+			if (blk+blkcnt <= (sc->dma_real_mem_size / 512)) {
 				err = sbusfpga_sdram_write_block(sc, blk, blkcnt, data);
 			} else {
 				aprint_error("%s:%d: blk = %lld write out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
@@ -543,7 +544,12 @@ int
 dma_init(struct sbusfpga_sdram_softc *sc) {
 	sc->dma_blk_size = exchange_with_mem_blk_size_read(sc);
 	sc->dma_blk_base = exchange_with_mem_blk_base_read(sc);
-	aprint_normal_dev(sc->dk.sc_dev, "DMA: HW -> block size is %d, base address is 0x%08x\n", sc->dma_blk_size, sc->dma_blk_base * sc->dma_blk_size);
+	sc->dma_mem_size = exchange_with_mem_mem_size_read(sc);
+	sc->dma_real_mem_size = sc->dma_mem_size * sc->dma_blk_size;
+	aprint_normal_dev(sc->dk.sc_dev, "DMA: HW -> block size is %d, base address is 0x%08x (%d MiB)\n",
+					  sc->dma_blk_size,
+					  sc->dma_blk_base * sc->dma_blk_size,
+					  sc->dma_real_mem_size / 1048576);
 	
 	/* Allocate a dmamap */
 	if (bus_dmamap_create(sc->sc_dmatag, SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ, 1, SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW, &sc->sc_dmamap) != 0) {

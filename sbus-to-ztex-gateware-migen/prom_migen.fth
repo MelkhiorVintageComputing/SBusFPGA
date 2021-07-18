@@ -41,7 +41,7 @@ finish-device
 new-device
 
 \ Absolute minimal stuff; name & registers def.
-" generic-ohci" device-name
+" DISABLED-generic-ohci" device-name
 
 \ USB registers are in the device space, not the CSR space
 my-address sbusfpga_regionaddr_usb_host_ctrl + my-space h# 1000 reg

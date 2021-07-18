@@ -47,6 +47,8 @@ struct sbusfpga_sdram_softc {
 	/* specific of the DMA engine */
 	u_int dma_blk_size;
 	u_int dma_blk_base;
+	u_int dma_mem_size; /* in blk_size */
+	u_int dma_real_mem_size; /* precomputed in bytes */
 	/* DMA kernel structures */
 	bus_dma_tag_t		sc_dmatag;
 	bus_dmamap_t		sc_dmamap;
@@ -55,6 +57,6 @@ struct sbusfpga_sdram_softc {
 	void *              sc_dma_kva;
 };
 
-#define SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ (4*1024)
+#define SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ (64*1024)
 
 #endif /* _SBUSFPGA_SDRAM_H_ */

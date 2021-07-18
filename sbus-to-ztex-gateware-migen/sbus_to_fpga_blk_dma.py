@@ -53,8 +53,10 @@ class ExchangeWithMem(Module, AutoCSR):
         #self.blk_base = CSRConstant(value=soc.wb_mem_map["main_ram"] >> log2_int(data_width)) # report where the blk starts
         self.blk_size = CSRStatus(32) # report the block size to the SW layer
         self.blk_base = CSRStatus(32) # report where the blk starts
+        self.mem_size = CSRStatus(32) # report how much memory we have
         self.comb += self.blk_size.status.eq(data_width)
         self.comb += self.blk_base.status.eq(soc.wb_mem_map["main_ram"] >> log2_int(data_width))
+        self.comb += self.mem_size.status.eq((256 * 1024 * 1024) >> log2_int(data_width)) # is it already available from mem_regions ?
         
         self.blk_addr =   CSRStorage(32, description = "SDRAM Block address to read/write from Wishbone memory (block of size {})".format(data_width))
         self.dma_addr =   CSRStorage(32, description = "Host Base address where to write/read data (i.e. SPARC Virtual addr)")
@@ -72,8 +74,9 @@ class ExchangeWithMem(Module, AutoCSR):
         self.comb += self.dma_status.status[1:2].eq(~req_w_fsm.ongoing("Idle")) # Write FSM Busy
         self.comb += self.dma_status.status[2:3].eq(self.fromsbus_fifo.readable) # Some data available to write to memory
 
-        self.comb += self.dma_status.status[8:9].eq(req_w_fsm.ongoing("ReqToMemory"))
-        self.comb += self.dma_status.status[9:10].eq(req_w_fsm.ongoing("WaitForAck"))
+        self.comb += self.dma_status.status[8:9].eq(req_r_fsm.ongoing("ReqFromMemory"))
+        self.comb += self.dma_status.status[9:10].eq(req_r_fsm.ongoing("WaitForData"))
+        self.comb += self.dma_status.status[10:11].eq(req_r_fsm.ongoing("QueueReqToMemory"))
         
         #self.comb += self.dma_status.status[16:17].eq(self.wishbone_w_master.cyc) # show the WB iface status (W)
         #self.comb += self.dma_status.status[17:18].eq(self.wishbone_w_master.stb)

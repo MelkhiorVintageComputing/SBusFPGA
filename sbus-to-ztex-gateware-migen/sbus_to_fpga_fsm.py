@@ -306,11 +306,11 @@ class SBusFPGABus(Module):
         #led6 = platform.request("user_led", 6)
         #led7 = platform.request("user_led", 7)
 
-        led0123 = Signal(4)
-        self.sync += platform.request("user_led", 0).eq(led0123[0])
-        self.sync += platform.request("user_led", 1).eq(led0123[1])
-        self.sync += platform.request("user_led", 2).eq(led0123[2])
-        self.sync += platform.request("user_led", 3).eq(led0123[3])
+        #led0123 = Signal(4)
+        #self.sync += platform.request("user_led", 0).eq(led0123[0])
+        #self.sync += platform.request("user_led", 1).eq(led0123[1])
+        #self.sync += platform.request("user_led", 2).eq(led0123[2])
+        #self.sync += platform.request("user_led", 3).eq(led0123[3])
 
         #self.sync += platform.request("user_led", 0).eq(self.wishbone_master.cyc)
         #self.sync += platform.request("user_led", 1).eq(self.wishbone_master.stb)
@@ -354,6 +354,29 @@ class SBusFPGABus(Module):
         self.submodules.slave_fsm = slave_fsm = FSM(reset_state="Reset")
 
         self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
+        self.sync += platform.request("user_led", 0).eq(slave_fsm.ongoing("Master_Translation"))
+        self.sync += platform.request("user_led", 1).eq(slave_fsm.ongoing("Master_Read") |
+                                                        slave_fsm.ongoing("Master_Read_Ack") |
+                                                        slave_fsm.ongoing("Master_Read_Finish") |
+                                                        slave_fsm.ongoing("Master_Write") |
+                                                        slave_fsm.ongoing("Master_Write_Final"))
+        self.sync += platform.request("user_led", 2).eq(slave_fsm.ongoing("Slave_Do_Read") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst_Wait_For_Data") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst_Wait_For_Wishbone") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord_Wait_For_Data") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord_Wait_For_Wishbone") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte_Wait_For_Data") |
+                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte_Wait_For_Wishbone"))
+        self.sync += platform.request("user_led", 3).eq(slave_fsm.ongoing("Slave_Ack_Reg_Write_Burst") |
+                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Final") |
+                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Burst_Wait_For_Wishbone") |
+                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_HWord") |
+                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_HWord_Wait_For_Wishbone") |
+                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte") |
+                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte_Wait_For_Wishbone"))
         
         self.sync += platform.request("user_led", 6).eq(master_data_src_tosbus_fifo)
         self.sync += platform.request("user_led", 7).eq(master_data_src_fromsbus_fifo)
@@ -680,7 +703,7 @@ class SBusFPGABus(Module):
                                             NextValue(burst_limit_m1, 0), ## only single word for now
                                             NextValue(master_size, SIZ_WORD),
                                             NextValue(SBUS_3V3_SIZ_o, SIZ_WORD),
-                                            NextValue(led0123, self.wishbone_slave.sel)
+                                            #NextValue(led0123, self.wishbone_slave.sel)
                                  ]
                              }),
 #                             NextValue(master_data, self.wishbone_slave.dat_w),
