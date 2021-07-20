@@ -55,6 +55,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 
 #include <machine/param.h>
 
+     #include <uvm/uvm_extern.h>
+
 int	sbusfpga_sdram_match(device_t, cfdata_t, void *);
 void	sbusfpga_sdram_attach(device_t, device_t, void *);
 
@@ -446,6 +448,30 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 		goto done;
 	}
 
+	/*
+	{
+		paddr_t pap;
+		pmap_t pk = pmap_kernel();
+		if (pmap_extract(pk, (vaddr_t)bp->b_data, &pap)) {
+			aprint_normal_dev(sc->dk.sc_dev, "KVA %p mapped to PA 0x%08lx\n", bp->b_data, pap);
+			if (bp->b_bcount > 4096) {
+				u_int32_t np = (bp->b_bcount + 4095) / 4096;
+				u_int32_t pn;
+				for (pn = 1 ; pn < np ; pn ++) {
+					paddr_t papn;
+					if (pmap_extract(pk, (vaddr_t)bp->b_data + pn * 4096, &papn)) {
+						if (papn != (pap + pn * 4096))
+							break;
+					} else break;
+				}
+				aprint_normal_dev(sc->dk.sc_dev, "And we have %u out %u consecutive PA pages\n", pn, np);
+ 			}
+		} else {
+			aprint_normal_dev(sc->dk.sc_dev, "KVA %p not mapped\n", bp->b_data);
+		}
+	}
+	*/
+
 	if (bp->b_flags & B_READ) {
 		unsigned char* data = bp->b_data;
 		daddr_t blk = bp->b_rawblkno;
@@ -527,18 +553,31 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 #define CONFIG_CSR_DATA_WIDTH 32
 // define CSR_LEDS_BASE & others to avoid defining the CSRs of HW we don't handle
 #define CSR_LEDS_BASE
+//#define CSR_DDRPHY_BASE
+//#define CSR_SDRAM_BASE
+//#define CSR_EXCHANGE_WITH_MEM_BASE
 #define CSR_SDBLOCK2MEM_BASE
 #define CSR_SDCORE_BASE
 #define CSR_SDIRQ_BASE
 #define CSR_SDMEM2BLOCK_BASE
 #define CSR_SDPHY_BASE
+#define CSR_TRNG_BASE
+
+/* grrr */
+#define sbusfpga_exchange_with_mem_softc sbusfpga_sdram_softc
+#define sbusfpga_ddrphy_softc sbusfpga_sdram_softc
+
 #include "dev/sbus/litex_csr.h"
 #undef CSR_LEDS_BASE
+//#undef CSR_DDRPHY_BASE
+//#undef CSR_SDRAM_BASE
+//#undef CSR_EXCHANGE_WITH_MEM_BASE
 #undef CSR_SDBLOCK2MEM_BASE
 #undef CSR_SDCORE_BASE
 #undef CSR_SDIRQ_BASE
 #undef CSR_SDMEM2BLOCK_BASE
 #undef CSR_SDPHY_BASE
+#undef CSR_TRNG_BASE
 
 int
 dma_init(struct sbusfpga_sdram_softc *sc) {

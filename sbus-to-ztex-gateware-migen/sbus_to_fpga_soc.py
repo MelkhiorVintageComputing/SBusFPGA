@@ -18,6 +18,7 @@ from litedram.phy import s7ddrphy
 
 from sbus_to_fpga_fsm import *
 from sbus_to_fpga_blk_dma import *
+from sbus_to_fpga_trng import *
 
 from litedram.frontend.dma import *
 
@@ -225,6 +226,8 @@ class SBusFPGA(SoCCore):
         #self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_slave)
         
         #self.add_sdcard()
+
+        self.submodules.trng = NeoRV32TrngWrapper(platform=platform)
 
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")

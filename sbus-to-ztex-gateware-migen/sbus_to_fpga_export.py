@@ -43,7 +43,7 @@ def _get_rw_functions_c(name, csr_name, reg_base, area_base, nwords, busword, al
 
     stride = alignment//8;
     if with_access_functions:
-        r += "static inline {} {}_read(struct sbusfpga_sdram_softc *sc) {{\n".format(ctype, reg_name)
+        r += "static inline {} {}_read(struct sbusfpga_{}_softc *sc) {{\n".format(ctype, reg_name, name)
         if nwords > 1:
             r += "\t{} r = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_{}, {}L);\n".format(ctype, name, hex(reg_base - area_base))
             for sub in range(1, nwords):
@@ -54,7 +54,7 @@ def _get_rw_functions_c(name, csr_name, reg_base, area_base, nwords, busword, al
             r += "\treturn bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_{}, {}L);\n}}\n".format(name, hex(reg_base - area_base))
 
         if not read_only:
-            r += "static inline void {}_write(struct sbusfpga_sdram_softc *sc, {} v) {{\n".format(reg_name, ctype)
+            r += "static inline void {}_write(struct sbusfpga_{}_softc *sc, {} v) {{\n".format(reg_name, name, ctype)
             for sub in range(nwords):
                 shift = (nwords-sub-1)*busword
                 if shift:
@@ -102,18 +102,18 @@ def get_csr_header(regions, constants, csr_base=None, with_access_functions=True
                         if with_access_functions and csr.size <= 32: # FIXME: Implement extract/read functions for csr.size > 32-bit.
                             reg_name = name + "_" + csr.name.lower()
                             field_name = reg_name + "_" + field.name.lower()
-                            r += "static inline uint32_t " + field_name + "_extract(struct sbusfpga_sdram_softc *sc, uint32_t oldword) {\n"
+                            r += "static inline uint32_t " + field_name + "_extract(struct sbusfpga_" + name + "_softc *sc, uint32_t oldword) {\n"
                             r += "\tuint32_t mask = ((1 << " + size + ")-1);\n"
                             r += "\treturn ( (oldword >> " + offset + ") & mask );\n}\n"
-                            r += "static inline uint32_t " + field_name + "_read(struct sbusfpga_sdram_softc *sc) {\n"
+                            r += "static inline uint32_t " + field_name + "_read(struct sbusfpga_" + name + "_softc *sc) {\n"
                             r += "\tuint32_t word = " + reg_name + "_read(sc);\n"
                             r += "\treturn " + field_name + "_extract(sc, word);\n"
                             r += "}\n"
                             if not getattr(csr, "read_only", False):
-                                r += "static inline uint32_t " + field_name + "_replace(struct sbusfpga_sdram_softc *sc, uint32_t oldword, uint32_t plain_value) {\n"
+                                r += "static inline uint32_t " + field_name + "_replace(struct sbusfpga_" + name + "_softc *sc, uint32_t oldword, uint32_t plain_value) {\n"
                                 r += "\tuint32_t mask = ((1 << " + size + ")-1);\n"
                                 r += "\treturn (oldword & (~(mask << " + offset + "))) | (mask & plain_value)<< " + offset + " ;\n}\n"
-                                r += "static inline void " + field_name + "_write(struct sbusfpga_sdram_softc *sc, uint32_t plain_value) {\n"
+                                r += "static inline void " + field_name + "_write(struct sbusfpga_" + name + "_softc *sc, uint32_t plain_value) {\n"
                                 r += "\tuint32_t oldword = " + reg_name + "_read(sc);\n"
                                 r += "\tuint32_t newword = " + field_name + "_replace(sc, oldword, plain_value);\n"
                                 r += "\t" + reg_name + "_write(sc, newword);\n"

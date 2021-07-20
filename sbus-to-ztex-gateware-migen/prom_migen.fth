@@ -5,6 +5,7 @@ fload prom_csr.fth
 
 \ fload v2compat.fth
 
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ LEDs
 \ Absolute minimal stuff; name & registers def.
 " RDOL,led" device-name
 my-address sbusfpga_csraddr_leds + my-space h# 4 reg
@@ -38,6 +39,7 @@ my-space   constant my-sbus-space
 \ tokenizer[ 01 emit-byte h# 27 emit-byte h# 01 emit-byte h# 1f emit-byte  ]tokenizer
 \ The OpenFirmware tokenizer does accept the 'clean' syntax
 finish-device
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ USB OHCI
 new-device
 
 \ Absolute minimal stuff; name & registers def.
@@ -86,6 +88,7 @@ my-reset!
 \ tokenizer[ 01 emit-byte h# 27 emit-byte h# 01 emit-byte h# 1f emit-byte  ]tokenizer
 \ The OpenFirmware tokenizer does accept the 'clean' syntax
 finish-device
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ SDRAM
 new-device
 
 \ Absolute minimal stuff; name & registers def.
@@ -128,5 +131,43 @@ my-space   constant my-sbus-space
 \ fload sdram_init.fth
 
 \ init!
+
+
+\ OpenBIOS tokenizer won't accept finish-device without new-device
+\ Cheat by using the tokenizer so we can do OpenBoot 2.x siblings
+\ tokenizer[ 01 emit-byte h# 27 emit-byte h# 01 emit-byte h# 1f emit-byte  ]tokenizer
+\ The OpenFirmware tokenizer does accept the 'clean' syntax
+finish-device
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ TRNG
+new-device
+
+\ Absolute minimal stuff; name & registers def.
+" RDOL,neorv32trng" device-name
+
+my-address sbusfpga_csraddr_trng + my-space h# 8 reg
+\ we don't support ET or HWORD
+h# 7d xdrint " slave-burst-sizes" attribute
+h# 7d xdrint " burst-sizes" attribute
+
+headers
+-1 instance value trng-virt
+my-address constant my-sbus-address
+my-space   constant my-sbus-space
+
+: map-in ( adr space size -- virt ) " map-in" $call-parent ;
+: map-out ( virt size -- ) " map-out" $call-parent ;
+
+: map-in-trng ( -- ) my-sbus-address sbusfpga_csraddr_trng + my-sbus-space h# 8 map-in is trng-virt ;
+: map-out-trng ( -- ) trng-virt h# 8 map-out ;
+
+\ external
+
+: disabletrng! ( -- )
+  map-in-trng
+  1 trng-virt l! ( pattern virt -- )
+  map-out-trng
+;
+
+disabletrng! 
 
 end0
