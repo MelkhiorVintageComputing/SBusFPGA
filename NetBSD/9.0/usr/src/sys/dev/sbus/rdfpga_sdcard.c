@@ -617,8 +617,8 @@ rdfpga_sdcard_size(dev_t dev) {
 static void
 rdfpga_sdcard_minphys(struct buf *bp)
 {
-	if (bp->b_bcount > (RDFPGA_SDCARD_VAL_DMA_MAX_SZ/512))
-		bp->b_bcount = (RDFPGA_SDCARD_VAL_DMA_MAX_SZ/512);
+	if (bp->b_bcount > RDFPGA_SDCARD_VAL_DMA_MAX_SZ)
+		bp->b_bcount = RDFPGA_SDCARD_VAL_DMA_MAX_SZ;
 }
 
 static int
