@@ -65,6 +65,8 @@ CFATTACH_DECL_NEW(sbusfpga_sdram, sizeof(struct sbusfpga_sdram_softc),
 
 dev_type_open(sbusfpga_sdram_open);
 dev_type_close(sbusfpga_sdram_close);
+dev_type_read(sbusfpga_sdram_read);
+dev_type_write(sbusfpga_sdram_write);
 dev_type_ioctl(sbusfpga_sdram_ioctl);
 dev_type_strategy(sbusfpga_sdram_strategy);
 dev_type_size(sbusfpga_sdram_size);
@@ -83,8 +85,8 @@ const struct bdevsw sbusfpga_sdram_bdevsw = {
 const struct cdevsw sbusfpga_sdram_cdevsw = {
 	.d_open = sbusfpga_sdram_open,
 	.d_close = sbusfpga_sdram_close,
-	.d_read = noread,
-	.d_write = nowrite,
+	.d_read = sbusfpga_sdram_read,
+	.d_write = sbusfpga_sdram_write,
 	.d_ioctl = sbusfpga_sdram_ioctl,
 	.d_stop = nostop,
 	.d_tty = notty,
@@ -120,7 +122,8 @@ sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l
 		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
 	}
-	
+
+#if 0
 	switch (cmd) {	
 		/* case VNDIOCCLR: */
 		/* case VNDIOCCLR50: */
@@ -152,6 +155,13 @@ sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l
 		err = EINVAL;
 		break;
 	}
+#else
+	err2 = dk_ioctl(&sc->dk, dev, cmd, data, flag, l);
+	if (err2 != EPASSTHROUGH)
+		err = err2;
+	else
+		err = ENOTTY;
+#endif
 	return(err);
 }
 
@@ -193,6 +203,18 @@ sbusfpga_sdram_close(dev_t dev, int flag, int fmt, struct lwp *l)
 	dksc = &sd->dk;
 
 	return dk_close(dksc, dev, flag, fmt, l);
+}
+
+int
+sbusfpga_sdram_read(dev_t dev, struct uio *uio, int flags)
+{
+	return physio(sbusfpga_sdram_strategy, NULL, dev, B_READ, sbusfpga_sdram_minphys, uio);
+}
+
+int
+sbusfpga_sdram_write(dev_t dev, struct uio *uio, int flags)
+{
+	return physio(sbusfpga_sdram_strategy, NULL, dev, B_WRITE, sbusfpga_sdram_minphys, uio);
 }
 
 int
@@ -342,7 +364,7 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	sbusfpga_sdram_set_geometry(sc);
 	
 	bufq_alloc(&sc->dk.sc_bufq, BUFQ_DISK_DEFAULT_STRAT, BUFQ_SORT_RAWBLOCK); /* needed ? */
-	{
+	if (0) {
 		struct disklabel *lp = sc->dk.sc_dkdev.dk_label;
 		struct cpu_disklabel *clp = sc->dk.sc_dkdev.dk_cpulabel;
 		memset(lp, 0, sizeof(struct disklabel));
@@ -420,8 +442,8 @@ sbusfpga_sdram_size(dev_t dev) {
 static void
 sbusfpga_sdram_minphys(struct buf *bp)
 {
-	if (bp->b_bcount > (SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ/512))
-		bp->b_bcount = (SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ/512);
+	if (bp->b_bcount > SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ)
+		bp->b_bcount = SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ;
 }
 
 
@@ -498,6 +520,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 			} else {
 				aprint_error("%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
 				err = EINVAL;
+				break;
 			}
 			blk += blkcnt;
 			data += 512 * blkcnt;
@@ -534,6 +557,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 			} else {
 				aprint_error("%s:%d: blk = %lld write out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
 				err = EINVAL;
+				break;
 			}
 			blk += blkcnt;
 			data += 512 * blkcnt;
@@ -553,6 +577,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 #define CONFIG_CSR_DATA_WIDTH 32
 // define CSR_LEDS_BASE & others to avoid defining the CSRs of HW we don't handle
 #define CSR_LEDS_BASE
+#define CSR_CURVE25519ENGINE_BASE
 //#define CSR_DDRPHY_BASE
 //#define CSR_SDRAM_BASE
 //#define CSR_EXCHANGE_WITH_MEM_BASE
@@ -569,6 +594,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 
 #include "dev/sbus/litex_csr.h"
 #undef CSR_LEDS_BASE
+#undef CSR_CURVE25519ENGINE_BASE
 //#undef CSR_DDRPHY_BASE
 //#undef CSR_SDRAM_BASE
 //#undef CSR_EXCHANGE_WITH_MEM_BASE
