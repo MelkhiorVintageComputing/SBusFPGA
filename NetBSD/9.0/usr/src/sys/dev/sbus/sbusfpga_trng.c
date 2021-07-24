@@ -109,6 +109,7 @@ sbusfpga_trng_match(device_t parent, cfdata_t cf, void *aux)
 #define CONFIG_CSR_DATA_WIDTH 32
 // define CSR_LEDS_BASE & others to avoid defining the CSRs of HW we don't handle
 #define CSR_LEDS_BASE
+#define CSR_CURVE25519ENGINE_BASE
 #define CSR_DDRPHY_BASE
 #define CSR_EXCHANGE_WITH_MEM_BASE
 #define CSR_SDRAM_BASE
@@ -120,6 +121,7 @@ sbusfpga_trng_match(device_t parent, cfdata_t cf, void *aux)
 //#define CSR_TRNG_BASE
 #include "dev/sbus/litex_csr.h"
 #undef CSR_LEDS_BASE
+#undef CSR_CURVE25519ENGINE_BASE
 #undef CSR_DDRPHY_BASE
 #undef CSR_EXCHANGE_WITH_MEM_BASE
 #undef CSR_SDRAM_BASE
@@ -135,7 +137,7 @@ sbusfpga_trng_getentropy(size_t nbytes, void *cookie) {
   struct sbusfpga_trng_softc *sc = cookie;
   size_t dbytes = 0;
   int failure = 0;
-  while ((nbytes - dbytes) > 0) {
+  while (nbytes > dbytes) {
 	  u_int32_t data = trng_data_read(sc);
 	  if (data) {
 		  rnd_add_data_sync(&sc->sc_rndsource, &data, 4, 32); // 32 is perhaps optimistic
@@ -148,8 +150,10 @@ sbusfpga_trng_getentropy(size_t nbytes, void *cookie) {
 		  }
 		  delay(1);
 	  }
+	  if (((dbytes%32)==0) && (nbytes > dbytes))
+		  delay(1); // let the hardware breathes if the OS needs a lof of bytes
   }
-  aprint_normal_dev(sc->sc_dev, "gathered %zd bytes\n", dbytes);
+  aprint_normal_dev(sc->sc_dev, "gathered %zd bytes [%d]\n", dbytes, failure);
 }
 
 /*

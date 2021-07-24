@@ -26,8 +26,8 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _RDFPGA_TRNG_H_
-#define _RDFPGA_TRNG_H_
+#ifndef _SBUSFPGA_TRNG_H_
+#define _SBUSFPGA_TRNG_H_
 
 struct sbusfpga_trng_softc {
 	device_t sc_dev;		/* us as a device */
@@ -40,4 +40,4 @@ struct sbusfpga_trng_softc {
 	struct krndsource       sc_rndsource;
 };
 
-#endif /* _RDFPGA_TRNG_H_ */
+#endif /* _SBUSFPGA_TRNG_H_ */
