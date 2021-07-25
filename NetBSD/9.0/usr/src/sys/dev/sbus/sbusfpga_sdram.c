@@ -293,6 +293,7 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	} else {
 		aprint_normal_dev(self, "DMA registers @ %p\n", (void*)sc->sc_bhregs_exchange_with_mem);
 	}
+#if 0
 	if (sa->sa_nreg >= 4) {
 		/* if we map some of the memory itself */
 		/* normally disabled, it's a debug feature */
@@ -311,6 +312,9 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	} else {
 		sc->sc_bufsiz_mmap = 0;
 	}
+#else
+	sc->sc_bufsiz_mmap = 0;
+#endif
 	
 	sc->sc_bufsiz_ddrphy = sa->sa_reg[0].oa_size;
 	sc->sc_bufsiz_sdram = sa->sa_reg[1].oa_size;
@@ -651,6 +655,10 @@ dma_init(struct sbusfpga_sdram_softc *sc) {
 	return 1;
 }
 
+/* tuned on my SPARCstation 20 with 25 MHz SBus & 2*SM61 */
+/* asynchronous would be better ... */
+#define DEF_BLK_DELAY 14
+
 static inline unsigned long 
 lfsr (unsigned long  bits, unsigned long  prev);
 int
@@ -671,6 +679,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	}
 	aprint_normal_dev(sc->dk.sc_dev, "First value: 0x%08lx\n", kva_ulong[0]);
 
+#if 0
 	if (sc->sc_bufsiz_mmap > 0) {
 		int idx = blkn * sc->dma_blk_size / sizeof(unsigned long), x;
 		int bound = sc->sc_bufsiz_mmap / sizeof(unsigned long);
@@ -684,6 +693,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 			}
 		}
 	}
+#endif
 
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 4096, BUS_DMASYNC_PREREAD);
 
@@ -697,7 +707,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 4096, BUS_DMASYNC_POSTREAD);
   
-	delay(500);
+	delay(DEF_BLK_DELAY * 8);
 
 	count = 0;
 	while (((blkcnt = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 10)) {
@@ -707,7 +717,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 						  exchange_with_mem_last_blk_read(sc),
 						  exchange_with_mem_wr_tosdram_read(sc));
 		count ++;
-		delay(500);
+		delay(DEF_BLK_DELAY);
 	}
 
 	if (blkcnt) {
@@ -732,7 +742,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	while ((((blkcnt = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 10)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", blkcnt);
 		count ++;
-		delay(500);
+		delay(DEF_BLK_DELAY);
 	}
 
 	if (blkcnt & 0x3) {
@@ -750,6 +760,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 						  exchange_with_mem_blk_rem_read(sc));
 	}
 
+#if 0
 	if (sc->sc_bufsiz_mmap > 0) {
 		int idx = blkn * sc->dma_blk_size / sizeof(unsigned long), x;
 		int bound = sc->sc_bufsiz_mmap / sizeof(unsigned long);
@@ -768,6 +779,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 			}
 		}
 	}
+#endif
 
 	for (int i = 0 ; i < testdatasize/sizeof(unsigned long) ; i++) {
 		kva_ulong[i] = 0x0c0ffee0;
@@ -786,13 +798,13 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 4096, BUS_DMASYNC_POSTWRITE);
 
-	delay(500);
+	delay(DEF_BLK_DELAY * 8);
 
 	count = 0;
 	while (((blkcnt = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 10)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Read-from-Sdram ongoing (%u, status 0x%08x)\n", blkcnt & 0x0000FFFF, exchange_with_mem_dma_status_read(sc));
 		count ++;
-		delay(500);
+		delay(DEF_BLK_DELAY);
 	}
 
 	if (blkcnt) {
@@ -815,7 +827,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	while ((((blkcnt = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 10)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Read-from-Sdram hasn't reached memory yet (status 0x%08x)\n", blkcnt);
 		count ++;
-		delay(500);
+		delay(DEF_BLK_DELAY);
 	}
 	
 	aprint_normal_dev(sc->dk.sc_dev, "First value: 0x%08lx\n", kva_ulong[0]);
@@ -863,12 +875,12 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 	exchange_with_mem_dma_addr_write(sc, sc->sc_dmamap->dm_segs[0].ds_addr);
 	exchange_with_mem_blk_cnt_write(sc, 0x00000000 | (blkcnt * 512 / sc->dma_blk_size) );
 
-	delay(100);
+	delay(DEF_BLK_DELAY * blkcnt);
 
 	count = 0;
-	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 50)) {
+	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < (4*blkcnt))) {
 		count ++;
-		delay(100);
+		delay(DEF_BLK_DELAY);
 	}
 
 	if (check) {
@@ -881,12 +893,17 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 						 exchange_with_mem_wr_tosdram_read(sc));
 		return ENXIO;
 	}
+#if 0
+	else {
+		aprint_normal_dev(sc->dk.sc_dev, "DMA READ finish for %d blk in %d attempts.\n", blkcnt, count);
+	}
+#endif
 
 	count = 0;
-	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 50)) {
+	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < blkcnt)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
 		count ++;
-		delay(100);
+		delay(DEF_BLK_DELAY);
 	}
   
 	if (check & 0x3) {
@@ -919,12 +936,12 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 	exchange_with_mem_dma_addr_write(sc, sc->sc_dmamap->dm_segs[0].ds_addr);
 	exchange_with_mem_blk_cnt_write(sc, 0x80000000 | (blkcnt * 512 / sc->dma_blk_size) );
 
-	delay(100);
+	delay(DEF_BLK_DELAY * blkcnt);
 
 	count = 0;
-	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < 50)) {
+	while (((check = exchange_with_mem_blk_cnt_read(sc)) != 0) && (count < (4*blkcnt))) {
 		count ++;
-		delay(100);
+		delay(DEF_BLK_DELAY);
 	}
 
 	if (check) {
@@ -937,12 +954,17 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 						 exchange_with_mem_wr_tosdram_read(sc));
 		return ENXIO;
 	}
+#if 0
+	else {
+		aprint_normal_dev(sc->dk.sc_dev, "DMA WRITE finish for %d blk in %d attempts.\n", blkcnt, count);
+	}
+#endif
 
 	count = 0;
-	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 50)) {
+	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < blkcnt)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
 		count ++;
-		delay(100);
+		delay(DEF_BLK_DELAY);
 	}
   
 	if (check & 0x3) {
