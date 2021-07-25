@@ -609,6 +609,8 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 #undef CSR_SDPHY_BASE
 #undef CSR_TRNG_BASE
 
+#define DMA_STATUS_CHECK_BITS (0x01F)
+
 int
 dma_init(struct sbusfpga_sdram_softc *sc) {
 	sc->dma_blk_size = exchange_with_mem_blk_size_read(sc);
@@ -666,7 +668,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	unsigned long *kva_ulong = (unsigned long*)sc->sc_dma_kva;
 	unsigned long val;
 	unsigned int blkn = 0; // 113;
-	unsigned int testdatasize = 4096;
+	const unsigned int testdatasize = 4096;
 	unsigned int blkcnt ;
 	int count;
 
@@ -677,7 +679,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 		val = lfsr(32, val);
 		kva_ulong[i] = val;
 	}
-	aprint_normal_dev(sc->dk.sc_dev, "First value: 0x%08lx\n", kva_ulong[0]);
+	aprint_normal_dev(sc->dk.sc_dev, "First / last value: 0x%08lx 0x%08lx\n", kva_ulong[0], kva_ulong[(testdatasize/sizeof(unsigned long))-1]);
 
 #if 0
 	if (sc->sc_bufsiz_mmap > 0) {
@@ -739,13 +741,13 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	}
 
 	count = 0;
-	while ((((blkcnt = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 10)) {
+	while ((((blkcnt = exchange_with_mem_dma_status_read(sc)) & DMA_STATUS_CHECK_BITS) != 0) && (count < 10)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", blkcnt);
 		count ++;
 		delay(DEF_BLK_DELAY);
 	}
 
-	if (blkcnt & 0x3) {
+	if (blkcnt & DMA_STATUS_CHECK_BITS) {
 		aprint_error_dev(sc->dk.sc_dev, "DMA Write-to-Sdram can't reach SDRAM ? (%u, status 0x%08x, 0x%08x, 0x%08x, 0x%08x)\n", blkcnt & 0x0000FFFF,
 						 exchange_with_mem_dma_status_read(sc),
 						 exchange_with_mem_last_blk_read(sc),
@@ -784,7 +786,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	for (int i = 0 ; i < testdatasize/sizeof(unsigned long) ; i++) {
 		kva_ulong[i] = 0x0c0ffee0;
 	}
-	aprint_normal_dev(sc->dk.sc_dev, "First value: 0x%08lx\n", kva_ulong[0]);
+	aprint_normal_dev(sc->dk.sc_dev, "First / last value: 0x%08lx 0x%08lx\n", kva_ulong[0], kva_ulong[(testdatasize/sizeof(unsigned long))-1]);
 
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 4096, BUS_DMASYNC_PREWRITE);
 
@@ -824,15 +826,15 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	}
 
 	count = 0;
-	while ((((blkcnt = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < 10)) {
+	while ((((blkcnt = exchange_with_mem_dma_status_read(sc)) & DMA_STATUS_CHECK_BITS) != 0) && (count < 10)) {
 		aprint_normal_dev(sc->dk.sc_dev, "DMA Read-from-Sdram hasn't reached memory yet (status 0x%08x)\n", blkcnt);
 		count ++;
 		delay(DEF_BLK_DELAY);
 	}
 	
-	aprint_normal_dev(sc->dk.sc_dev, "First value: 0x%08lx\n", kva_ulong[0]);
+	aprint_normal_dev(sc->dk.sc_dev, "First /last value: 0x%08lx 0x%08lx\n", kva_ulong[0], kva_ulong[(testdatasize/sizeof(unsigned long))-1]);
 
-	if (blkcnt & 0x3) {
+	if (blkcnt & DMA_STATUS_CHECK_BITS) {
 		aprint_error_dev(sc->dk.sc_dev, "DMA  Read-from-Sdram can't reach memory ? (%u, status 0x%08x, 0x%08x, 0x%08x, 0x%08x)\n", blkcnt & 0x0000FFFF,
 						 exchange_with_mem_dma_status_read(sc),
 						 exchange_with_mem_last_blk_read(sc),
@@ -900,13 +902,13 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 #endif
 
 	count = 0;
-	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < blkcnt)) {
-		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
+	while ((((check = exchange_with_mem_dma_status_read(sc)) & DMA_STATUS_CHECK_BITS) != 0) && (count < blkcnt)) {
+		//aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
 		count ++;
 		delay(DEF_BLK_DELAY);
 	}
   
-	if (check & 0x3) {
+	if (check & DMA_STATUS_CHECK_BITS) {
 		aprint_error_dev(sc->dk.sc_dev, "DMA can't reach memory/SDRAM ? (%u, status 0x%08x, 0x%08x, 0x%08x, 0x%08x)\n",
 						 check & 0x0000FFFF,
 						 exchange_with_mem_dma_status_read(sc),
@@ -961,13 +963,13 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 #endif
 
 	count = 0;
-	while ((((check = exchange_with_mem_dma_status_read(sc)) & 0x3) != 0) && (count < blkcnt)) {
-		aprint_normal_dev(sc->dk.sc_dev, "DMA Write-to-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
+	while ((((check = exchange_with_mem_dma_status_read(sc)) & DMA_STATUS_CHECK_BITS) != 0) && (count < blkcnt)) {
+		//aprint_normal_dev(sc->dk.sc_dev, "DMA Read_from-Sdram hasn't reached SDRAM yet (status 0x%08x)\n", check);
 		count ++;
 		delay(DEF_BLK_DELAY);
 	}
   
-	if (check & 0x3) {
+	if (check & DMA_STATUS_CHECK_BITS) {
 		aprint_error_dev(sc->dk.sc_dev, "DMA can't reach memory/SDRAM ? (%u, status 0x%08x, 0x%08x, 0x%08x, 0x%08x)\n",
 						 check & 0x0000FFFF,
 						 exchange_with_mem_dma_status_read(sc),

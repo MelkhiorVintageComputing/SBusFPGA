@@ -1,5 +1,6 @@
 from migen import *
 from migen.genlib.fifo import *
+from migen.genlib.cdc import PulseSynchronizer
 from litex.soc.interconnect.csr import *
 from litex.soc.interconnect import wishbone
 
@@ -70,9 +71,20 @@ class ExchangeWithMem(Module, AutoCSR):
         self.submodules.req_r_fsm = req_r_fsm = FSM(reset_state="Reset")
         self.submodules.req_w_fsm = req_w_fsm = FSM(reset_state="Reset")
 
+        # this could use CSRFields...
         self.comb += self.dma_status.status[0:1].eq(~req_r_fsm.ongoing("Idle")) # Read FSM Busy
         self.comb += self.dma_status.status[1:2].eq(~req_w_fsm.ongoing("Idle")) # Write FSM Busy
         self.comb += self.dma_status.status[2:3].eq(self.fromsbus_fifo.readable) # Some data available to write to memory
+        self.submodules.fromsbus_req_fifo_readable_sync = PulseSynchronizer("sbus", "sys")
+        fromsbus_req_fifo_readable_in_sys = Signal()
+        self.comb += self.fromsbus_req_fifo_readable_sync.i.eq(self.fromsbus_req_fifo.readable)
+        self.comb += fromsbus_req_fifo_readable_in_sys.eq(self.fromsbus_req_fifo_readable_sync.o)
+        self.comb += self.dma_status.status[3:4].eq(fromsbus_req_fifo_readable_in_sys) # we still have outstanding requests
+        self.submodules.tosbus_fifo_readable_sync = PulseSynchronizer("sbus", "sys")
+        tosbus_fifo_readable_in_sys = Signal()
+        self.comb += self.tosbus_fifo_readable_sync.i.eq(self.tosbus_fifo.readable)
+        self.comb += tosbus_fifo_readable_in_sys.eq(self.tosbus_fifo_readable_sync.o)
+        self.comb += self.dma_status.status[4:5].eq(tosbus_fifo_readable_in_sys)  # there's still data to be sent to memory; this will drop before the last SBus Master Cycle is finished, but then the SBus is busy so the host won't be able to read the status before the cycle is finished so we're good
 
         self.comb += self.dma_status.status[8:9].eq(req_r_fsm.ongoing("ReqFromMemory"))
         self.comb += self.dma_status.status[9:10].eq(req_r_fsm.ongoing("WaitForData"))
