@@ -22,6 +22,9 @@ from sbus_to_fpga_trng import *
 
 from litedram.frontend.dma import *
 
+from engine import Engine;
+from migen.genlib.resetsync import AsyncResetSynchronizer;
+
 import sbus_to_fpga_export;
 
 # CRG ----------------------------------------------------------------------------------------------
@@ -37,10 +40,24 @@ class _CRG(Module):
         self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
+        self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz for curve25519engine  -> eng_clk
+        self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> mul_clk
+        self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz for curve25519engine -> rf_clk
 
         # # #
         clk48 = platform.request("clk48")
-        self.cd_native.clk = clk48
+        ###### explanations from betrusted-io/betrusted-soc/betrusted_soc.py
+        # Note: below feature cannot be used because Litex appends this *after* platform commands! This causes the generated
+        # clock derived constraints immediately below to fail, because .xdc file is parsed in-order, and the main clock needs
+        # to be created before the derived clocks. Instead, we use the line afterwards.
+        platform.add_platform_command("create_clock -name clk48 -period 20.8333 [get_nets clk48]")
+        # The above constraint must strictly proceed the below create_generated_clock constraints in the .XDC file
+        # This allows PLLs/MMCMEs to be placed anywhere and reference the input clock
+        self.clk48_bufg = Signal()
+        self.specials += Instance("BUFG", i_I=clk48, o_O=self.clk48_bufg)
+        self.comb += self.cd_native.clk.eq(self.clk48_bufg)                
+        #self.cd_native.clk = clk48
+        
         clk_sbus = platform.request("SBUS_3V3_CLK")
         self.cd_sbus.clk = clk_sbus
         rst_sbus = platform.request("SBUS_3V3_RSTs")
@@ -49,16 +66,39 @@ class _CRG(Module):
         ##self.comb += self.cd_sys.rst.eq(~rst_sbus)
 
         self.submodules.pll = pll = S7MMCM(speedgrade=-1)
-        pll.register_clkin(clk48, 48e6)
+        #pll.register_clkin(clk48, 48e6)
+        pll.register_clkin(self.clk48_bufg, 48e6)
         pll.create_clkout(self.cd_sys, sys_clk_freq)
+        platform.add_platform_command("create_generated_clock -name sysclk [get_pins {{MMCME2_ADV/CLKOUT0}}]")
         pll.create_clkout(self.cd_sys4x,     4*sys_clk_freq)
+        platform.add_platform_command("create_generated_clock -name sys4xclk [get_pins {{MMCME2_ADV/CLKOUT1}}]")
         pll.create_clkout(self.cd_sys4x_dqs, 4*sys_clk_freq, phase=90)
+        platform.add_platform_command("create_generated_clock -name sys4x90clk [get_pins {{MMCME2_ADV/CLKOUT2}}]")
         self.comb += pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
         platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
         platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
+
+        
+        self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=-1)
+        curve25519_clk_freq = 80e6
+        #curve25519_pll.register_clkin(clk48, 48e6)
+        curve25519_pll.register_clkin(self.clk48_bufg, 48e6)
+        curve25519_pll.create_clkout(self.cd_clk50,     curve25519_clk_freq/2, margin=0)
+        platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{MMCME2_ADV_1/CLKOUT0}}]")
+        curve25519_pll.create_clkout(self.cd_clk100,    curve25519_clk_freq, margin=0)
+        platform.add_platform_command("create_generated_clock -name clk100 [get_pins {{MMCME2_ADV_1/CLKOUT1}}]")
+        curve25519_pll.create_clkout(self.cd_clk200,    curve25519_clk_freq*2, margin=0)
+        platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{MMCME2_ADV_1/CLKOUT2}}]")
+        #self.comb += curve25519_pll.reset.eq(~rst_sbus) # | ~por_done 
+        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk50.clk)
+        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk100.clk)
+        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk200.clk)
+        platform.add_false_path_constraints(self.cd_clk50.clk, self.cd_sys.clk)
+        platform.add_false_path_constraints(self.cd_clk100.clk, self.cd_sys.clk)
+        platform.add_false_path_constraints(self.cd_clk200.clk, self.cd_sys.clk)
         
         # Power on reset, reset propagate from SBus to SYS
 #        por_count = Signal(16, reset=2**16-1)
@@ -71,15 +111,19 @@ class _CRG(Module):
 
         # USB
         self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=-1)
-        usb_pll.register_clkin(clk48, 48e6)
+        #usb_pll.register_clkin(clk48, 48e6)
+        usb_pll.register_clkin(self.clk48_bufg, 48e6)
         usb_pll.create_clkout(self.cd_usb, 48e6, margin = 0)
+        platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{MMCME2_ADV_2/CLKOUT0}}]")
         self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk)
 
-        self.submodules.pll_idelay = pll_idelay = S7PLL(speedgrade=-1)
-        pll_idelay.register_clkin(clk48, 48e6)
+        self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=-1)
+        #pll_idelay.register_clkin(clk48, 48e6)
+        pll_idelay.register_clkin(self.clk48_bufg, 48e6)
         pll_idelay.create_clkout(self.cd_idelay, 200e6, margin = 0)
-        self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done 
+        platform.add_platform_command("create_generated_clock -name idelayclk [get_pins {{MMCME2_ADV_3/CLKOUT0}}]")
+        self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done
 
         self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
         
@@ -112,12 +156,13 @@ class SBusFPGA(SoCCore):
         # The position of the 'usb_fake_dma' is so it overlaps
         # the virtual address space used by NetBSD DMA allocators
         self.wb_mem_map = wb_mem_map = {
-            "prom":           0x00000000,
-            "csr" :           0x00040000,
-            "usb_host":       0x00080000,
-            "usb_shared_mem": 0x00090000,
-            "main_ram":       0x80000000,
-            "usb_fake_dma":   0xfc000000,
+            "prom":             0x00000000,
+            "csr" :             0x00040000,
+            "usb_host":         0x00080000,
+            "usb_shared_mem":   0x00090000,
+            "curve25519engine": 0x000a0000,
+            "main_ram":         0x80000000,
+            "usb_fake_dma":     0xfc000000,
         }
         self.mem_map.update(wb_mem_map)
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
@@ -228,6 +273,14 @@ class SBusFPGA(SoCCore):
         #self.add_sdcard()
 
         self.submodules.trng = NeoRV32TrngWrapper(platform=platform)
+
+        # beware the naming, as 'clk50' 'sysclk' 'clk200' are used in the original platform constraints
+        # the local engine.py was slightly modified to have configurable names, so we can have 'clk50', 'clk100', 'clk200'
+        # Beware that Engine implicitely runs in 'sys' by default, need to rename that one as well
+        self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100", "sys":"clk100"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None)))
+        self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
+        self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
+        #self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
 
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")

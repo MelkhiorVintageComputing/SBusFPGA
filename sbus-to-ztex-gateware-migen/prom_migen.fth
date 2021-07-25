@@ -24,8 +24,6 @@ my-space   constant my-sbus-space
 : map-in-led ( -- ) my-sbus-address sbusfpga_csraddr_leds + my-sbus-space h# 4 map-in is led-virt ;
 : map-out-led ( -- ) led-virt h# 4 map-out ;
 
-\ external
-
 : setled! ( pattern -- )
   map-in-led
   led-virt l! ( pattern virt -- )
@@ -160,8 +158,6 @@ my-space   constant my-sbus-space
 : map-in-trng ( -- ) my-sbus-address sbusfpga_csraddr_trng + my-sbus-space h# 8 map-in is trng-virt ;
 : map-out-trng ( -- ) trng-virt h# 8 map-out ;
 
-\ external
-
 : disabletrng! ( -- )
   map-in-trng
   1 trng-virt l! ( pattern virt -- )
@@ -169,5 +165,56 @@ my-space   constant my-sbus-space
 ;
 
 disabletrng! 
+
+
+\ OpenBIOS tokenizer won't accept finish-device without new-device
+\ Cheat by using the tokenizer so we can do OpenBoot 2.x siblings
+\ tokenizer[ 01 emit-byte h# 27 emit-byte h# 01 emit-byte h# 1f emit-byte  ]tokenizer
+\ The OpenFirmware tokenizer does accept the 'clean' syntax
+finish-device
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ CURVE25519
+new-device
+
+\ Absolute minimal stuff; name & registers def.
+" betrustedc25519e" device-name
+
+\ one page of CSR registers, plus the memory
+\ we might want to replace the slave memory access
+\ by another instance of exchange_with_mem ?
+\ we split the memory space in two
+\ 0x1000 @ 0x0 for the microcode
+\ 0x10000 @ 0x10000 for the register file
+my-address sbusfpga_csraddr_curve25519engine + my-space xdrphys \ Offset#1
+h# 1000 xdrint xdr+ \ Merge size#1
+my-address sbusfpga_regionaddr_curve25519engine + my-space xdrphys xdr+  \ Merge offset#2
+h# 1000 xdrint xdr+  \ Merge size#2
+my-address sbusfpga_regionaddr_curve25519engine h# 10000 + + my-space xdrphys xdr+  \ Merge offset#3
+h# 10000 xdrint xdr+  \ Merge size#3
+" reg" attribute
+
+\ we don't support ET or HWORD
+h# 7d xdrint " slave-burst-sizes" attribute
+h# 7d xdrint " burst-sizes" attribute
+
+headers
+-1 instance value curve25519engine-virt
+-1 instance value curve25519engine-microcode-virt
+-1 instance value curve25519engine-regfile-virt
+my-address constant my-sbus-address
+my-space   constant my-sbus-space
+
+: map-in ( adr space size -- virt ) " map-in" $call-parent ;
+: map-out ( virt size -- ) " map-out" $call-parent ;
+
+: map-in-curve25519engine ( -- )
+  my-sbus-address sbusfpga_csraddr_curve25519engine + my-sbus-space h# 1000 map-in is curve25519engine-virt
+  my-sbus-address sbusfpga_regionaddr_curve25519engine + my-sbus-space h# 1000 map-in is curve25519engine-microcode-virt
+  my-sbus-address sbusfpga_regionaddr_curve25519engine h# 10000 + + my-sbus-space h# 10000 map-in is curve25519engine-regfile-virt
+;
+: map-out-curve25519engine ( -- )
+  curve25519engine-virt h# 1000 map-out
+  curve25519engine-microcode-virt h# 1000 map-out
+  curve25519engine-regfile-virt h# 10000 map-out
+;
 
 end0
