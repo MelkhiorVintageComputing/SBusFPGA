@@ -494,6 +494,14 @@ static int init_program(struct sbusfpga_curve25519engine_softc *sc) {
 			aprint_error_dev(sc->sc_dev, "INIT - Curve25519Engine register failure: mplen = 0x%08x\n", x);
 			err = 1;
 	}
+	const int test_reg_num = 73;
+	const uint32_t test_reg_value = 0x0C0FFEE0;
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile, test_reg_num, test_reg_value);
+	delay(1);
+	if ((x = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile, test_reg_num)) != test_reg_value) {
+		aprint_error_dev(sc->sc_dev, "INIT - Curve25519Engine register file failure: 0x%08x != 0x%08x\n", x, test_reg_value);
+		err = 1;
+	}
 #endif
 
 	curve25519engine_power_write(sc, 0);
