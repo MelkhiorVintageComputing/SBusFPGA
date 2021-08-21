@@ -93,6 +93,9 @@ static int start_job(struct sbusfpga_curve25519engine_softc *sc);
 static int wait_job(struct sbusfpga_curve25519engine_softc *sc);
 static int read_outputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusfpga_curve25519engine_montgomeryjob *job, const int window);
 
+static int power_on(struct sbusfpga_curve25519engine_softc *sc);
+static int power_off(struct sbusfpga_curve25519engine_softc *sc);
+
 #define SBUSFPGA_DO_MONTGOMERYJOB   _IOWR(0, 0, struct sbusfpga_curve25519engine_montgomeryjob)
 
 int
@@ -101,6 +104,9 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 	struct sbusfpga_curve25519engine_softc *sc = device_lookup_private(&sbusfpga_c29e_cd, minor(dev));
 	struct sbusfpga_curve25519engine_montgomeryjob* job = (struct sbusfpga_curve25519engine_montgomeryjob*)data;
 	int err = 0;
+
+	/* first we need to turn the engine power on ... */
+	power_on(sc);
 
 	if (!sc->initialized) {
 		if (init_program(sc)) {
@@ -130,6 +136,8 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		err = EINVAL;
 		break;
 	}
+
+	power_off(sc);
 	return(err);
 }
 
@@ -161,6 +169,7 @@ sbusfpga_curve25519engine_match(device_t parent, cfdata_t cf, void *aux)
 	return (strcmp("betrustedc25519e", sa->sa_name) == 0);
 }
 
+#if 1
 #if 0
 static const uint32_t program[192] = {0x00480800,
 									  0x007407cc,
@@ -309,6 +318,165 @@ static const uint32_t program[192] = {0x00480800,
 };
 static const uint32_t program_len = 141;
 #else
+static const uint32_t program[192] = {0x00640840,
+									  0x00680800,
+									  0x006c0600,
+									  0x00700840,
+									  0x00500a40,
+									  0x00554505,
+									  0x00500a00,
+									  0x00554545,
+									  0x00500940,
+									  0x00554545,
+									  0x00500840,
+									  0x004d4546,
+									  0x00480800,
+									  0x007407cc,
+									  0x007c07cb,
+									  0x0049d483,
+									  0x0079b643,
+									  0x0079e482,
+									  0x00659783,
+									  0x006db783,
+									  0x0079c683,
+									  0x0079e482,
+									  0x0069a783,
+									  0x0071c783,
+									  0x00480740,
+									  0x00500640,
+									  0x00540680,
+									  0x005806c0,
+									  0x005c0700,
+									  0x00015505,
+									  0x00780008,
+									  0x0001e006,
+									  0x005558c6,
+									  0x00055505,
+									  0x00780048,
+									  0x0005e046,
+									  0x00097585,
+									  0x00780088,
+									  0x0009e086,
+									  0x005d78c6,
+									  0x000d7585,
+									  0x007800c8,
+									  0x000de0c6,
+									  0x00100007,
+									  0x00141047,
+									  0x007458c6,
+									  0x0019d105,
+									  0x00780188,
+									  0x0019e186,
+									  0x001c3007,
+									  0x00202047,
+									  0x002481c5,
+									  0x00780248,
+									  0x0025e246,
+									  0x007488c6,
+									  0x0029d1c5,
+									  0x00780288,
+									  0x0029e286,
+									  0x002c9247,
+									  0x0030a287,
+									  0x00346907,
+									  0x00385107,
+									  0x003c5345,
+									  0x007803c8,
+									  0x003de3c6,
+									  0x0040f187,
+									  0x0044c607,
+									  0x00500380,
+									  0x00540400,
+									  0x005802c0,
+									  0x005c0440,
+									  0x00640500,
+									  0x00680540,
+									  0x006c0580,
+									  0x007005c0,
+									  0x010004c9,
+									  0x004e14c6,
+									  0xdf800809,
+									  0x0079b643,
+									  0x0079e482,
+									  0x00659783,
+									  0x006db783,
+									  0x0079c683,
+									  0x0079e482,
+									  0x0069a783,
+									  0x0071c783,
+									  0x00740640,
+									  0x00780680,
+									  0x0001e787,
+									  0x00040007,
+									  0x00041047,
+									  0x00081787,
+									  0x000c2007,
+									  0x001030c7,
+									  0x00144087,
+									  0x00700940,
+									  0x00185147,
+									  0x00721706,
+									  0x01000709,
+									  0x00186187,
+									  0xfe000809,
+									  0x001c5187,
+									  0x00700980,
+									  0x002071c7,
+									  0x00721706,
+									  0x01000709,
+									  0x00208207,
+									  0xfe000809,
+									  0x00247207,
+									  0x007009c0,
+									  0x00289247,
+									  0x00721706,
+									  0x01000709,
+									  0x0028a287,
+									  0xfe000809,
+									  0x002c9287,
+									  0x00700980,
+									  0x0030b2c7,
+									  0x00721706,
+									  0x01000709,
+									  0x0030c307,
+									  0xfe000809,
+									  0x00347307,
+									  0x00700a00,
+									  0x0038d347,
+									  0x00721706,
+									  0x01000709,
+									  0x0038e387,
+									  0xfe000809,
+									  0x003cd387,
+									  0x00700a40,
+									  0x0040f3c7,
+									  0x00721706,
+									  0x01000709,
+									  0x00410407,
+									  0xfe000809,
+									  0x0044f407,
+									  0x00700a00,
+									  0x00491447,
+									  0x00721706,
+									  0x01000709,
+									  0x00492487,
+									  0xfe000809,
+									  0x004cd487,
+									  0x00700940,
+									  0x005134c7,
+									  0x00721706,
+									  0x01000709,
+									  0x00514507,
+									  0xfe000809,
+									  0x00543507,
+									  0x007d5747,
+									  0x0000000a,
+									  0x0000000a,
+									  0x0000000a,
+};
+static const uint32_t program_len = 153;
+#endif
+#else
 static const uint32_t program[16] = {
 									 0x00640a40,
 									 0x00680840,
@@ -317,7 +485,6 @@ static const uint32_t program[16] = {
 };
 static const uint32_t program_len = 3;
 #endif
-
 
 /*
  * Attach all the sub-devices we can find
@@ -406,6 +573,9 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 			  sc->sc_burst,
 			  sbsc->sc_burst);
 
+	/* first we need to turn the engine power on ... */
+	power_on(sc);
+
 	if (init_program(sc)) {
 		if (init_program(sc)) {
 			aprint_normal_dev(sc->sc_dev, "INIT - FAILED\n");
@@ -416,6 +586,8 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 	} else {
 		sc->initialized = 1;
 	}
+
+	power_off(sc);
 }
 
 #define CONFIG_CSR_DATA_WIDTH 32
@@ -444,17 +616,24 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 #undef CSR_SDPHY_BASE
 #undef CSR_TRNG_BASE
 
+static int power_on(struct sbusfpga_curve25519engine_softc *sc) {
+	int err = 0;
+	if ((curve25519engine_power_read(sc) & 1) == 0) {
+		curve25519engine_power_write(sc, 1);
+		delay(2);
+	}
+	return err;
+}
+static int power_off(struct sbusfpga_curve25519engine_softc *sc) {
+	int err = 0;
+	curve25519engine_power_write(sc, 0);
+	return err;
+}
 
 static int init_program(struct sbusfpga_curve25519engine_softc *sc) {
 	/* the microcode is a the beginning */
 	int err = 0;
 	uint32_t i;
-
-	/* first we need to turn the engine power on ... */
-	if ((curve25519engine_power_read(sc) & 1) == 0) {
-		curve25519engine_power_write(sc, 1);
-		delay(2);
-	}
 	
 	for (i = 0 ; i < program_len + 1 ; i++) {
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_microcode, (i*4), program[i]);
@@ -496,15 +675,13 @@ static int init_program(struct sbusfpga_curve25519engine_softc *sc) {
 	}
 	const int test_reg_num = 73;
 	const uint32_t test_reg_value = 0x0C0FFEE0;
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile, test_reg_num, test_reg_value);
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile, 4*test_reg_num, test_reg_value);
 	delay(1);
-	if ((x = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile, test_reg_num)) != test_reg_value) {
+	if ((x = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile, 4*test_reg_num)) != test_reg_value) {
 		aprint_error_dev(sc->sc_dev, "INIT - Curve25519Engine register file failure: 0x%08x != 0x%08x\n", x, test_reg_value);
 		err = 1;
 	}
 #endif
-
-	curve25519engine_power_write(sc, 0);
 	
 	return err;
 }
@@ -517,12 +694,6 @@ static int write_inputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusf
 	if (status & 1) {
 		aprint_error_dev(sc->sc_dev, "WRITE - Curve25519Engine status: 0x%08x, still running?\n", status);
 		return -ENXIO;
-	}
-
-	/* first we need to turn the engine power on ... */
-	if ((curve25519engine_power_read(sc) & 1) == 0) {
-		curve25519engine_power_write(sc, 1);
-		delay(2);
 	}
 	
 	
@@ -545,12 +716,12 @@ static int write_inputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusf
 #define REG_BASE(reg) (base + (reg * 32))
 #define SUBREG_ADDR(reg, off) (REG_BASE(reg) + (off)*4)
 	for (i = 0 ; i < 8 && !err; i ++) {
-		if (job->affine_u[i] != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(24,i))) err = ENXIO;
-		if (job->x0_u[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(25,i))) err = ENXIO;
-		if (job->x0_w[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(26,i))) err = ENXIO;
-		if (job->x1_u[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(27,i))) err = ENXIO;
-		if (job->x1_w[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(28,i))) err = ENXIO;
-		if (job->scalar[i]   != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(31,i))) err = ENXIO;
+		if (job->affine_u[i] != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(24,i))) err = EIO;
+		if (job->x0_u[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(25,i))) err = EIO;
+		if (job->x0_w[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(26,i))) err = EIO;
+		if (job->x1_u[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(27,i))) err = EIO;
+		if (job->x1_w[i]     != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(28,i))) err = EIO;
+		if (job->scalar[i]   != bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(31,i))) err = EIO;
 		delay(1);
 	}
 	if (err) aprint_error_dev(sc->sc_dev, "WRITE - data did not read-write properly\n");
@@ -616,8 +787,6 @@ static int read_outputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusf
 	aprint_normal_dev(sc->sc_dev, "READ - Curve25519Engine 19 low 32 bits: 0x%08x\n", bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(19,0)));
 #undef SUBREG_ADDR
 #undef REG_BASE
-	
-	curve25519engine_power_write(sc, 0);
 
 	return 0;
 }
