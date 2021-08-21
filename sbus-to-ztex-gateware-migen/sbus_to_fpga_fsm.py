@@ -35,6 +35,7 @@ ENGINE_ADDR_PFXB = Signal(12, reset = 0x00b)
 
 wishbone_default_timeout = 120 ## must be > sbus_default_timeout
 sbus_default_timeout = 100 ## must be below 127 as we can wait twice on it inside the 255 cycles
+sbus_default_master_throttle = 3
 
 def siz_is_word(siz):
     return (SIZ_WORD == siz) | (SIZ_BURST2 == siz) | (SIZ_BURST4 == siz) | (SIZ_BURST8 == siz) | (SIZ_BURST16 == siz)
@@ -295,7 +296,7 @@ class SBusFPGABus(Module):
         wishbone_slave_timeout = Signal(log2_int(wishbone_default_timeout, False))
         sbus_slave_timeout = Signal(log2_int(sbus_default_timeout, False))
 
-        sbus_master_throttle = Signal(2)
+        sbus_master_throttle = Signal(log2_int(sbus_default_master_throttle, False))
         
         #self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
         
@@ -382,20 +383,6 @@ class SBusFPGABus(Module):
         #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_HWord_Wait_For_Wishbone") |
         #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte") |
         #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte_Wait_For_Wishbone"))
-
-        master_error_seen = Signal(4, reset = 0)
-        self.sync += platform.request("user_led", 0).eq(master_error_seen[0:1])
-        self.sync += platform.request("user_led", 1).eq(master_error_seen[1:2])
-        self.sync += platform.request("user_led", 2).eq(master_error_seen[2:3])
-        self.sync += platform.request("user_led", 3).eq(master_error_seen[3:4])
-        master_error_details = Signal(4, reset = 0)
-        self.sync += platform.request("user_led", 4).eq(master_error_details[0:1])
-        self.sync += platform.request("user_led", 5).eq(master_error_details[1:2])
-        self.sync += platform.request("user_led", 6).eq(master_error_details[2:3])
-        self.sync += platform.request("user_led", 7).eq(master_error_details[3:4])
-
-        self.sbus_master_last_virtual = Signal(32) # last VDMA address put on the bus in master mode
-        self.sbus_master_error_virtual = Signal(32) # this gets exported to a Wishbone CSR in exchange_with_mem
         
         #self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
         #self.sync += platform.request("user_led", 6).eq(master_data_src_tosbus_fifo)
@@ -410,6 +397,9 @@ class SBusFPGABus(Module):
         stat_master_done_counter = Signal(32)
         stat_master_error_counter = Signal(32)
         stat_master_rerun_counter = Signal(32)
+
+        sbus_master_last_virtual = Signal(32) # last VDMA address put on the bus in master mode
+        sbus_master_error_virtual = Signal(32)
 
         slave_fsm.act("Reset",
                       #NextValue(self.led_display.value, 0x0000000000),
@@ -711,43 +701,43 @@ class SBusFPGABus(Module):
                                        NextValue(master_size, SIZ_WORD),
                                        NextValue(SBUS_3V3_SIZ_o, SIZ_WORD),
                                        NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
-                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
                                  ],
                                  0x1: [NextValue(master_idx, 3),
                                        NextValue(master_size, SIZ_BYTE),
                                        NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
                                        NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
-                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
                                  ],
                                  0x2: [NextValue(master_idx, 2),
                                        NextValue(master_size, SIZ_BYTE),
                                        NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
                                        NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 1), self.wishbone_slave.adr)),
-                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 1), self.wishbone_slave.adr)),
+                                       NextValue(sbus_master_last_virtual, Cat(Signal(2, reset = 1), self.wishbone_slave.adr)),
                                  ],
                                  0x4: [NextValue(master_idx, 1),
                                        NextValue(master_size, SIZ_BYTE),
                                        NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
                                        NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
-                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
+                                       NextValue(sbus_master_last_virtual, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
                                  ],
                                  0x8: [NextValue(master_idx, 0),
                                        NextValue(master_size, SIZ_BYTE),
                                        NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
                                        NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 3), self.wishbone_slave.adr)),
-                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 3), self.wishbone_slave.adr)),
+                                       NextValue(sbus_master_last_virtual, Cat(Signal(2, reset = 3), self.wishbone_slave.adr)),
                                  ],
                                  0x3: [NextValue(master_idx, 2),
                                        NextValue(master_size, SIZ_HWORD),
                                        NextValue(SBUS_3V3_SIZ_o, SIZ_HWORD),
                                        NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
-                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
                                  ],
                                  0xc: [NextValue(master_idx, 0),
                                        NextValue(master_size, SIZ_HWORD),
                                        NextValue(SBUS_3V3_SIZ_o, SIZ_HWORD),
                                        NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
-                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
+                                       NextValue(sbus_master_last_virtual, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
                                  ],
                                  "default":[NextValue(burst_counter, 0), # FIXME if it happens!
                                             NextValue(burst_limit_m1, 0), ## only single word for now
@@ -780,7 +770,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, 3), ## only quadword word for now
                              NextValue(SBUS_3V3_D_o, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
-                             NextValue(self.sbus_master_last_virtual, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
+                             NextValue(sbus_master_last_virtual, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
                              NextValue(SBUS_3V3_PPRD_o, 1),
                              NextValue(SBUS_3V3_SIZ_o, SIZ_BURST4),
                              NextValue(master_we, 0),
@@ -802,7 +792,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, burst_size - 1),
                              NextValue(SBUS_3V3_D_o, self.tosbus_fifo.dout[0:32]),
-                             NextValue(self.sbus_master_last_virtual, self.tosbus_fifo.dout[0:32]),
+                             NextValue(sbus_master_last_virtual, self.tosbus_fifo.dout[0:32]),
                              NextValue(master_addr, self.tosbus_fifo.dout[2:32]),
                              NextValue(master_data, self.tosbus_fifo.dout[32:64]),
                              NextValue(fifo_buffer, self.tosbus_fifo.dout[32:]),
@@ -838,7 +828,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, burst_size - 1),
                              NextValue(SBUS_3V3_D_o, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
-                             NextValue(self.sbus_master_last_virtual, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
+                             NextValue(sbus_master_last_virtual, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
                              NextValue(fifo_blk_addr, self.fromsbus_req_fifo.dout[0:blk_addr_width]),
                              NextValue(master_data_src_fromsbus_fifo, 1),
                              self.fromsbus_req_fifo.re.eq(1),
@@ -1274,8 +1264,8 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(master_error_seen, 1),
                            NextValue(stat_master_error_counter, stat_master_error_counter + 1),
+                           NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
                            NextState("Idle")],
                           ACK_RERUN: ### dunno how to handle that yet,
                           [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
@@ -1333,10 +1323,8 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(master_error_seen, 8),
-                           NextValue(master_error_details, burst_counter),
                            NextValue(stat_master_error_counter, stat_master_error_counter + 1),
-                           NextValue(self.sbus_master_error_virtual, self.sbus_master_last_virtual),
+                           NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
                            NextState("Idle")
                           ],
                           "default": ## other ### burst not handled
@@ -1347,9 +1335,7 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(master_error_seen, 4),
                            NextValue(stat_master_error_counter, stat_master_error_counter + 1),
-                           NextValue(master_error_details, Cat(SBUS_3V3_ACKs_i, Signal(1, reset = 0))),
                            NextState("Idle")
                           ],
                       })
@@ -1396,11 +1382,18 @@ class SBusFPGABus(Module):
                                NextValue(stat_master_rerun_counter, stat_master_rerun_counter + 1),
                                NextState("Idle")
                               ],
+                              ACK_ERR:
+                              [NextValue(sbus_oe_data, 0),
+                               NextValue(sbus_oe_slave_in, 0),
+                               NextValue(sbus_oe_master_in, 0),
+                               NextValue(stat_master_error_counter, stat_master_error_counter + 1),
+                               NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
+                               NextState("Idle")
+                              ],
                               "default":
                               [NextValue(sbus_oe_data, 0),
                                NextValue(sbus_oe_slave_in, 0),
                                NextValue(sbus_oe_master_in, 0),
-                               NextValue(master_error_seen, 1),
                                NextValue(stat_master_error_counter, stat_master_error_counter + 1),
                                NextState("Idle")
                               ],
@@ -1417,6 +1410,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_data, 0),
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
+                      NextValue(sbus_master_throttle, sbus_default_master_throttle),
                       NextValue(stat_master_done_counter, stat_master_done_counter + 1),
                       NextState("Idle")
         )
@@ -1470,11 +1464,18 @@ class SBusFPGABus(Module):
                            NextValue(stat_master_rerun_counter, stat_master_rerun_counter + 1),
                            NextState("Idle")
                           ],
-                          "default": ## ACK_ERRS or other
+                          ACK_ERR: ## ACK_ERRS or other
                           [NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(master_error_seen, 1),
+                           NextValue(stat_master_error_counter, stat_master_error_counter + 1),
+                           NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
+                           NextState("Idle"),
+                          ],
+                          "default": ##  other
+                          [NextValue(sbus_oe_data, 0),
+                           NextValue(sbus_oe_slave_in, 0),
+                           NextValue(sbus_oe_master_in, 0),
                            NextValue(stat_master_error_counter, stat_master_error_counter + 1),
                            NextState("Idle"),
                           ],
@@ -1485,7 +1486,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_data, 0),
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
-                      NextValue(sbus_master_throttle, 3),
+                      NextValue(sbus_master_throttle, sbus_default_master_throttle),
                       NextValue(stat_master_done_counter, stat_master_done_counter + 1),
                       NextState("Idle")
         )
@@ -1717,6 +1718,7 @@ class SBusFPGABus(Module):
         self.buf_stat_master_done_counter = Signal(32)
         self.buf_stat_master_error_counter = Signal(32)
         self.buf_stat_master_rerun_counter = Signal(32)
+        self.buf_sbus_master_error_virtual = Signal(32)
         self.stat_update = Signal()
         stat_update_prev = Signal()
 
@@ -1733,6 +1735,7 @@ class SBusFPGABus(Module):
                         self.buf_stat_master_done_counter.eq(stat_master_done_counter),
                         self.buf_stat_master_error_counter.eq(stat_master_error_counter),
                         self.buf_stat_master_rerun_counter.eq(stat_master_rerun_counter),
+                        self.buf_sbus_master_error_virtual.eq(sbus_master_error_virtual),
                         self.stat_cycle_counter.eq(0),
                         stat_slave_start_counter.eq(0),
                         stat_slave_done_counter.eq(0),
@@ -1742,6 +1745,7 @@ class SBusFPGABus(Module):
                         stat_master_done_counter.eq(0),
                         stat_master_error_counter.eq(0),
                         stat_master_rerun_counter.eq(0),
+                        sbus_master_error_virtual.eq(0),
         )
         self.sync += If(stat_update_prev & ~self.stat_update, ## falling edge: reset buffer
                         self.buf_stat_cycle_counter.eq(0),
@@ -1753,4 +1757,5 @@ class SBusFPGABus(Module):
                         self.buf_stat_master_done_counter.eq(0),
                         self.buf_stat_master_error_counter.eq(0),
                         self.buf_stat_master_rerun_counter.eq(0),
+                        self.buf_sbus_master_error_virtual.eq(0),
         )

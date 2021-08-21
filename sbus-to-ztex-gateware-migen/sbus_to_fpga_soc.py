@@ -275,10 +275,6 @@ class SBusFPGA(SoCCore):
         self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
         #self.bus.add_master(name="mem_read_master", master=self.exchange_with_mem.wishbone_r_slave)
         #self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_slave)
-
-        self.submodules.sbus_master_error_virtual_sync = BusSynchronizer(width=32, idomain="sbus", odomain="sys")
-        self.comb += self.sbus_master_error_virtual_sync.i.eq(self.sbus_bus.sbus_master_error_virtual)
-        self.comb += self.exchange_with_mem.sbus_master_error_virtual.status.eq(self.sbus_master_error_virtual_sync.o)
         
         #self.add_sdcard()
 

@@ -23,10 +23,10 @@ class ExchangeWithMem(Module, AutoCSR):
         data_width_bits = burst_size * 32
         blk_addr_width = 32 - log2_int(data_width) # 27 for burst_size == 8
 
-        assert(len(self.dram_dma_writer.sink.data == data_width_bits))
-        assert(len(self.dram_dma_reader.source.data == data_width_bits))
-        assert(len(self.dram_dma_writer.sink.address == blk_addr_width))
-        assert(len(self.dram_dma_reader.sink.address == blk_addr_width))
+        assert(len(self.dram_dma_writer.sink.data) == data_width_bits)
+        assert(len(self.dram_dma_reader.source.data) == data_width_bits)
+        assert(len(self.dram_dma_writer.sink.address) == blk_addr_width)
+        assert(len(self.dram_dma_reader.sink.address) == blk_addr_width)
         
         #self.wishbone_r_master = wishbone.Interface(data_width=data_width_bits)
         #self.wishbone_w_master = wishbone.Interface(data_width=data_width_bits)
@@ -77,8 +77,6 @@ class ExchangeWithMem(Module, AutoCSR):
                                               CSRField("has_rd_data", 1, description = "Data available to write to SBus"),
         ])
         self.wr_tosdram = CSRStatus(32, description = "Last address written to SDRAM")
-
-        self.sbus_master_error_virtual = CSRStatus(32, description = "Virtual address that failed translation phase")
         
         if (do_checksum):
             self.checksum = CSRStorage(data_width_bits, write_from_dev=True, description = "checksum (XOR)");

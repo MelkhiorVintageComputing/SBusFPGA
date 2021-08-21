@@ -119,7 +119,6 @@ struct sbusfpga_sdram_rwpg {
 	u_int32_t last_blk;
 	u_int32_t last_dma;
 	u_int32_t dma_wrdone;
-	u_int32_t vdma_err;
 };
 #define SBUSFPGA_READ_PG    _IOWR('X', 0, struct sbusfpga_sdram_rwpg)
 #define SBUSFPGA_WRITE_PG   _IOWR('X', 1, struct sbusfpga_sdram_rwpg)
@@ -609,7 +608,6 @@ sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l
 		pg->last_blk = 	 exchange_with_mem_last_blk_read(sc);
 		pg->last_dma = 	 exchange_with_mem_last_dma_read(sc);
 		pg->dma_wrdone = exchange_with_mem_dma_wrdone_read(sc);
-		pg->vdma_err =   exchange_with_mem_sbus_master_error_virtual_read(sc);
 		if (err != 0)
 			err = EIO;
 		goto done;
@@ -624,7 +622,6 @@ sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l
 		pg->last_blk = 	 exchange_with_mem_last_blk_read(sc);
 		pg->last_dma = 	 exchange_with_mem_last_dma_read(sc);
 		pg->dma_wrdone = exchange_with_mem_dma_wrdone_read(sc);
-		pg->vdma_err =   exchange_with_mem_sbus_master_error_virtual_read(sc);
 		if (err != 0)
 			err = EIO;
 		goto done;
