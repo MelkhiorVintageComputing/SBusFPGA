@@ -1,6 +1,6 @@
 from migen import *
 from migen.genlib.fifo import *
-from migen.genlib.cdc import PulseSynchronizer
+from migen.genlib.cdc import BusSynchronizer
 from litex.soc.interconnect.csr import *
 from litex.soc.interconnect import wishbone
 
@@ -91,13 +91,14 @@ class ExchangeWithMem(Module, AutoCSR):
         self.comb += self.dma_status.fields.has_wr_data.eq(self.fromsbus_fifo.readable) # Some data available to write to memory
         
         # The next two status bits reflect stats in the SBus clock domain
-        self.submodules.fromsbus_req_fifo_readable_sync = PulseSynchronizer("sbus", "sys")
+        self.submodules.fromsbus_req_fifo_readable_sync = BusSynchronizer(width = 1, idomain = "sbus", odomain = "sys")
         fromsbus_req_fifo_readable_in_sys = Signal()
         self.comb += self.fromsbus_req_fifo_readable_sync.i.eq(self.fromsbus_req_fifo.readable)
         self.comb += fromsbus_req_fifo_readable_in_sys.eq(self.fromsbus_req_fifo_readable_sync.o)
 
         # w/o this extra delay, the driver sees an outdated checksum for some reason...
         # there's probably a more fundamental issue :-(
+        # note: replaced PulseSynchronizer with BusSynchronizer, should I retry w/o this ?
         fromsbus_req_fifo_readable_in_sys_cnt = Signal(5)
         self.sync += If(fromsbus_req_fifo_readable_in_sys,
                         fromsbus_req_fifo_readable_in_sys_cnt.eq(0x1F)
@@ -109,7 +110,7 @@ class ExchangeWithMem(Module, AutoCSR):
         #self.comb += self.dma_status.fields.has_requests.eq(fromsbus_req_fifo_readable_in_sys) # we still have outstanding requests
         self.comb += self.dma_status.fields.has_requests.eq(fromsbus_req_fifo_readable_in_sys | (fromsbus_req_fifo_readable_in_sys_cnt != 0)) # we still have outstanding requests, or had recently
         
-        self.submodules.tosbus_fifo_readable_sync = PulseSynchronizer("sbus", "sys")
+        self.submodules.tosbus_fifo_readable_sync = BusSynchronizer(width = 1, idomain = "sbus", odomain = "sys")
         tosbus_fifo_readable_in_sys = Signal()
         self.comb += self.tosbus_fifo_readable_sync.i.eq(self.tosbus_fifo.readable)
         self.comb += tosbus_fifo_readable_in_sys.eq(self.tosbus_fifo_readable_sync.o)

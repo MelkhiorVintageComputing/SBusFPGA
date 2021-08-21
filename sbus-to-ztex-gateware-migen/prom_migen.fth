@@ -217,4 +217,31 @@ my-space   constant my-sbus-space
   curve25519engine-regfile-virt h# 10000 map-out
 ;
 
+\ OpenBIOS tokenizer won't accept finish-device without new-device
+\ Cheat by using the tokenizer so we can do OpenBoot 2.x siblings
+\ tokenizer[ 01 emit-byte h# 27 emit-byte h# 01 emit-byte h# 1f emit-byte  ]tokenizer
+\ The OpenFirmware tokenizer does accept the 'clean' syntax
+finish-device
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ STAT
+new-device
+
+\ Absolute minimal stuff; name & registers def.
+" RDOL,sbusstat" device-name
+
+my-address sbusfpga_csraddr_sbus_bus_stat + my-space h# 100 reg
+\ we don't support ET or HWORD
+h# 7d xdrint " slave-burst-sizes" attribute
+h# 7d xdrint " burst-sizes" attribute
+
+headers
+-1 instance value sbus_bus_stat-virt
+my-address constant my-sbus-address
+my-space   constant my-sbus-space
+
+: map-in ( adr space size -- virt ) " map-in" $call-parent ;
+: map-out ( virt size -- ) " map-out" $call-parent ;
+
+: map-in-sbus_bus_stat ( -- ) my-sbus-address sbusfpga_csraddr_sbus_bus_stat + my-sbus-space h# 100 map-in is sbus_bus_stat-virt ;
+: map-out-sbus_bus_stat ( -- ) sbus_bus_stat-virt h# 100 map-out ;
+
 end0

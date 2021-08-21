@@ -17,13 +17,14 @@ from litedram.modules import MT41J128M16
 from litedram.phy import s7ddrphy
 
 from sbus_to_fpga_fsm import *
+from sbus_to_fpga_fsmstat import *
 from sbus_to_fpga_blk_dma import *
 from sbus_to_fpga_trng import *
 
 from litedram.frontend.dma import *
 
 from engine import Engine;
-from migen.genlib.cdc import PulseSynchronizer, BusSynchronizer
+from migen.genlib.cdc import BusSynchronizer
 from migen.genlib.resetsync import AsyncResetSynchronizer;
 
 import sbus_to_fpga_export;
@@ -268,6 +269,7 @@ class SBusFPGA(SoCCore):
                                 burst_size=burst_size)
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
+        self.submodules.sbus_bus_stat = SBusFPGABusStat(sbus_bus = self.sbus_bus)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
         self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
@@ -289,7 +291,7 @@ class SBusFPGA(SoCCore):
         self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
         self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
         #self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
-        self.submodules.curve25519_on_sync = PulseSynchronizer("clk100", "sys")
+        self.submodules.curve25519_on_sync = BusSynchronizer(width = 1, idomain = "clk100", odomain = "sys")
         self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
         self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
 

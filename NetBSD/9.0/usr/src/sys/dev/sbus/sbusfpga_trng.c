@@ -112,6 +112,7 @@ sbusfpga_trng_match(device_t parent, cfdata_t cf, void *aux)
 #define CSR_CURVE25519ENGINE_BASE
 #define CSR_DDRPHY_BASE
 #define CSR_EXCHANGE_WITH_MEM_BASE
+#define CSR_SBUS_BUS_STAT_BASE
 #define CSR_SDRAM_BASE
 #define CSR_SDBLOCK2MEM_BASE
 #define CSR_SDCORE_BASE
@@ -124,6 +125,7 @@ sbusfpga_trng_match(device_t parent, cfdata_t cf, void *aux)
 #undef CSR_CURVE25519ENGINE_BASE
 #undef CSR_DDRPHY_BASE
 #undef CSR_EXCHANGE_WITH_MEM_BASE
+#undef CSR_SBUS_BUS_STAT_BASE
 #undef CSR_SDRAM_BASE
 #undef CSR_SDBLOCK2MEM_BASE
 #undef CSR_SDCORE_BASE
@@ -145,7 +147,7 @@ sbusfpga_trng_getentropy(size_t nbytes, void *cookie) {
 	  } else {
 		  failure ++;
 		  if (failure > (1+(dbytes/4))) { // something going on
-			  aprint_normal_dev(sc->sc_dev, "out of entropy after %zd / %zd bytes\n", dbytes, nbytes);
+			  device_printf(sc->sc_dev, "out of entropy after %zd / %zd bytes\n", dbytes, nbytes);
 			  return;
 		  }
 		  delay(1);
@@ -153,7 +155,7 @@ sbusfpga_trng_getentropy(size_t nbytes, void *cookie) {
 	  if (((dbytes%32)==0) && (nbytes > dbytes))
 		  delay(1); // let the hardware breathes if the OS needs a lof of bytes
   }
-  aprint_normal_dev(sc->sc_dev, "gathered %zd bytes [%d]\n", dbytes, failure);
+  device_printf(sc->sc_dev, "gathered %zd bytes [%d]\n", dbytes, failure);
 }
 
 /*

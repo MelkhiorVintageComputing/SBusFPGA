@@ -596,6 +596,7 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 //#define CSR_CURVE25519ENGINE_BASE
 #define CSR_DDRPHY_BASE
 #define CSR_EXCHANGE_WITH_MEM_BASE
+#define CSR_SBUS_BUS_STAT_BASE
 #define CSR_SDRAM_BASE
 #define CSR_SDBLOCK2MEM_BASE
 #define CSR_SDCORE_BASE
@@ -608,6 +609,7 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 //#undef CSR_CURVE25519ENGINE_BASE
 #undef CSR_DDRPHY_BASE
 #undef CSR_EXCHANGE_WITH_MEM_BASE
+#undef CSR_SBUS_BUS_STAT_BASE
 #undef CSR_SDRAM_BASE
 #undef CSR_SDBLOCK2MEM_BASE
 #undef CSR_SDCORE_BASE

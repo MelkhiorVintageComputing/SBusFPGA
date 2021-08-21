@@ -547,6 +547,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 //#define CSR_DDRPHY_BASE
 //#define CSR_SDRAM_BASE
 //#define CSR_EXCHANGE_WITH_MEM_BASE
+#define CSR_SBUS_BUS_STAT_BASE
 #define CSR_SDBLOCK2MEM_BASE
 #define CSR_SDCORE_BASE
 #define CSR_SDIRQ_BASE
@@ -564,6 +565,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 //#undef CSR_DDRPHY_BASE
 //#undef CSR_SDRAM_BASE
 //#undef CSR_EXCHANGE_WITH_MEM_BASE
+#undef CSR_SBUS_BUS_STAT_BASE
 #undef CSR_SDBLOCK2MEM_BASE
 #undef CSR_SDCORE_BASE
 #undef CSR_SDIRQ_BASE
