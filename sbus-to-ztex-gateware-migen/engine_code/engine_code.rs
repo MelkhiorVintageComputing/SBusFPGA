@@ -1,4 +1,4 @@
-#![recursion_limit="512"]
+#![recursion_limit="768"]
 
 extern crate engine25519_as;
 use engine25519_as::*;
@@ -20,6 +20,23 @@ fn main() -> std::io::Result<()> {
                     // %19 is the loop counter, starts with 254 (if 0, loop runs exactly once) // I
                     // %31 is the scalar // I
                     // %18 is the swap variable
+					// START NEW
+					psa %25, #1
+					psa %26, #0
+					psa %27, %24
+					psa %28, #1
+					// #9 is 100
+					psa %20, #9
+					add %21, %20, %20
+					// #8 is 50
+					psa %20, #8
+					add %21, %21, %20
+					// #5 is 5
+					psa %20, #5
+					add %21, %21, %20
+					psa %20, #1
+					sub %19, %21, %20
+					// END NEW
                     psa %18, #0
 
                     // for i in (0..255).rev()
@@ -288,8 +305,8 @@ fn main() -> std::io::Result<()> {
 					fin
     );
     let mut pos = 0;
-    while pos < mcode2.len() {
-		  println!("0x{:08x},", mcode2[pos]);
+    while pos < mcode.len() {
+		  println!("0x{:08x},", mcode[pos]);
 		  pos = pos + 1;
     }
 	Ok(())
