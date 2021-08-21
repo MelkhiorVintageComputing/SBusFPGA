@@ -274,15 +274,16 @@ class SBusFPGABus(Module):
         SBUS_3V3_PA_i = Signal(28)
         self.comb += SBUS_3V3_PA_i.eq(pad_SBUS_3V3_PA)
 
-        p_data = Signal(32) # data to read/write
+        p_data = Signal(32) # data to read/write in Slave mode
 
-        data_read_addr = Signal(30) # first addr of req. when reading from WB
-        data_read_enable = Signal() # start enqueuing req. to read from WB
-
+        # buffers when someone inside issues a DMA write request to go over SBus
         master_data = Signal(32) # could be merged with p_data
-        master_data_src_tosbus_fifo = Signal()
-        master_data_src_fromsbus_fifo = Signal()
         master_addr = Signal(30) # could be meged with data_read_addr
+        # FIXME, ugly
+        # we're handling a request from the FIFO (not wishbone) - write to host
+        master_data_src_tosbus_fifo = Signal()
+        # we're handling a request from the FIFO (not wishbone) - read from host
+        master_data_src_fromsbus_fifo = Signal()
         master_size = Signal(4)
         master_idx = Signal(2)
 
@@ -298,10 +299,10 @@ class SBusFPGABus(Module):
         
         #self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
         
-        self.sync += platform.request("user_led", 4).eq(self.wishbone_slave.cyc)
-        self.sync += platform.request("user_led", 5).eq(self.wishbone_slave.stb)
-        self.sync += platform.request("user_led", 6).eq(self.wishbone_slave.we)
-        self.sync += platform.request("user_led", 7).eq(self.wishbone_slave.ack)
+        #self.sync += platform.request("user_led", 4).eq(self.wishbone_slave.cyc)
+        #self.sync += platform.request("user_led", 5).eq(self.wishbone_slave.stb)
+        #self.sync += platform.request("user_led", 6).eq(self.wishbone_slave.we)
+        #self.sync += platform.request("user_led", 7).eq(self.wishbone_slave.ack)
         #self.sync += platform.request("user_led", 0).eq(self.wishbone_slave.err)
         #led4 = platform.request("user_led", 4)
         #led5 = platform.request("user_led", 5)
@@ -342,11 +343,12 @@ class SBusFPGABus(Module):
         #                platform.request("user_led", 2).eq(cycle_busmaster[6]),
         #                platform.request("user_led", 3).eq(cycle_busmaster[7]))
 
+        # Read buffering when a DMA read request is issued by Wishbone
         self.master_read_buffer_data = Array(Signal(32) for a in range(4))
         self.master_read_buffer_addr = Signal(28)
         self.master_read_buffer_done = Array(Signal() for a in range(4))
         self.master_read_buffer_read = Array(Signal() for a in range(4))
-        self.master_read_buffer_start = Signal()
+        self.master_read_buffer_start = Signal(reset = 0)
         
         #self.sync += platform.request("user_led", 1).eq(self.master_read_buffer_start)
 
@@ -363,23 +365,37 @@ class SBusFPGABus(Module):
         #                                                slave_fsm.ongoing("Master_Read_Finish") |
         #                                                slave_fsm.ongoing("Master_Write") |
         #                                                slave_fsm.ongoing("Master_Write_Final"))
-        self.sync += platform.request("user_led", 2).eq(slave_fsm.ongoing("Slave_Do_Read") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst_Wait_For_Data") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst_Wait_For_Wishbone") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord_Wait_For_Data") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord_Wait_For_Wishbone") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte_Wait_For_Data") |
-                                                        slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte_Wait_For_Wishbone"))
-        self.sync += platform.request("user_led", 3).eq(slave_fsm.ongoing("Slave_Ack_Reg_Write_Burst") |
-                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Final") |
-                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Burst_Wait_For_Wishbone") |
-                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_HWord") |
-                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_HWord_Wait_For_Wishbone") |
-                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte") |
-                                                        slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte_Wait_For_Wishbone"))
+        #self.sync += platform.request("user_led", 2).eq(slave_fsm.ongoing("Slave_Do_Read") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst_Wait_For_Data") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_Burst_Wait_For_Wishbone") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord_Wait_For_Data") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_HWord_Wait_For_Wishbone") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte_Wait_For_Data") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Read_Reg_Byte_Wait_For_Wishbone"))
+        #self.sync += platform.request("user_led", 3).eq(slave_fsm.ongoing("Slave_Ack_Reg_Write_Burst") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Final") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Burst_Wait_For_Wishbone") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_HWord") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_HWord_Wait_For_Wishbone") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte") |
+        #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte_Wait_For_Wishbone"))
+
+        master_error_seen = Signal(4, reset = 0)
+        self.sync += platform.request("user_led", 0).eq(master_error_seen[0:1])
+        self.sync += platform.request("user_led", 1).eq(master_error_seen[1:2])
+        self.sync += platform.request("user_led", 2).eq(master_error_seen[2:3])
+        self.sync += platform.request("user_led", 3).eq(master_error_seen[3:4])
+        master_error_details = Signal(4, reset = 0)
+        self.sync += platform.request("user_led", 4).eq(master_error_details[0:1])
+        self.sync += platform.request("user_led", 5).eq(master_error_details[1:2])
+        self.sync += platform.request("user_led", 6).eq(master_error_details[2:3])
+        self.sync += platform.request("user_led", 7).eq(master_error_details[3:4])
+
+        self.sbus_master_last_virtual = Signal(32) # last VDMA address put on the bus in master mode
+        self.sbus_master_error_virtual = Signal(32) # this gets exported to a Wishbone CSR in exchange_with_mem
         
         #self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
         #self.sync += platform.request("user_led", 6).eq(master_data_src_tosbus_fifo)
@@ -665,40 +681,47 @@ class SBusFPGABus(Module):
                                                         self.wishbone_slave.dat_w[ 0: 8])),
                              Case(self.wishbone_slave.sel, {
                                  0xf: [NextValue(burst_counter, 0),
-                                      NextValue(burst_limit_m1, 0), ## only single word for now
-                                      NextValue(master_size, SIZ_WORD),
-                                      NextValue(SBUS_3V3_SIZ_o, SIZ_WORD),
-                                      NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(burst_limit_m1, 0), ## only single word for now
+                                       NextValue(master_size, SIZ_WORD),
+                                       NextValue(SBUS_3V3_SIZ_o, SIZ_WORD),
+                                       NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
                                  ],
                                  0x1: [NextValue(master_idx, 3),
-                                     NextValue(master_size, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(master_size, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
                                  ],
                                  0x2: [NextValue(master_idx, 2),
-                                     NextValue(master_size, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 1), self.wishbone_slave.adr)),
+                                       NextValue(master_size, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 1), self.wishbone_slave.adr)),
+                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 1), self.wishbone_slave.adr)),
                                  ],
                                  0x4: [NextValue(master_idx, 1),
-                                     NextValue(master_size, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
+                                       NextValue(master_size, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
+                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
                                  ],
                                  0x8: [NextValue(master_idx, 0),
-                                     NextValue(master_size, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
-                                     NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 3), self.wishbone_slave.adr)),
+                                       NextValue(master_size, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_SIZ_o, SIZ_BYTE),
+                                       NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 3), self.wishbone_slave.adr)),
+                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 3), self.wishbone_slave.adr)),
                                  ],
                                  0x3: [NextValue(master_idx, 2),
-                                     NextValue(master_size, SIZ_HWORD),
-                                     NextValue(SBUS_3V3_SIZ_o, SIZ_HWORD),
-                                     NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(master_size, SIZ_HWORD),
+                                       NextValue(SBUS_3V3_SIZ_o, SIZ_HWORD),
+                                       NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
+                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 0), self.wishbone_slave.adr)),
                                  ],
                                  0xc: [NextValue(master_idx, 0),
-                                     NextValue(master_size, SIZ_HWORD),
-                                     NextValue(SBUS_3V3_SIZ_o, SIZ_HWORD),
-                                     NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
+                                       NextValue(master_size, SIZ_HWORD),
+                                       NextValue(SBUS_3V3_SIZ_o, SIZ_HWORD),
+                                       NextValue(SBUS_3V3_D_o, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
+                                       NextValue(self.sbus_master_last_virtual, Cat(Signal(2, reset = 2), self.wishbone_slave.adr)),
                                  ],
                                  "default":[NextValue(burst_counter, 0), # FIXME if it happens!
                                             NextValue(burst_limit_m1, 0), ## only single word for now
@@ -730,6 +753,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, 3), ## only quadword word for now
                              NextValue(SBUS_3V3_D_o, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
+                             NextValue(self.sbus_master_last_virtual, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
                              NextValue(SBUS_3V3_PPRD_o, 1),
                              NextValue(SBUS_3V3_SIZ_o, SIZ_BURST4),
                              NextValue(master_we, 0),
@@ -750,6 +774,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, burst_size - 1),
                              NextValue(SBUS_3V3_D_o, self.tosbus_fifo.dout[0:32]),
+                             NextValue(self.sbus_master_last_virtual, self.tosbus_fifo.dout[0:32]),
                              NextValue(master_addr, self.tosbus_fifo.dout[2:32]),
                              NextValue(master_data, self.tosbus_fifo.dout[32:64]),
                              NextValue(fifo_buffer, self.tosbus_fifo.dout[32:]),
@@ -784,6 +809,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, burst_size - 1),
                              NextValue(SBUS_3V3_D_o, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
+                             NextValue(self.sbus_master_last_virtual, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
                              NextValue(fifo_blk_addr, self.fromsbus_req_fifo.dout[0:blk_addr_width]),
                              NextValue(master_data_src_fromsbus_fifo, 1),
                              self.fromsbus_req_fifo.re.eq(1),
@@ -1199,15 +1225,20 @@ class SBusFPGABus(Module):
                       ),
                       Case(SBUS_3V3_ACKs_i, {
                           ACK_ERR: ## ouch
-                          [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                           NextValue(self.wishbone_slave.err, 1),
+                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
+                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                              NextValue(self.wishbone_slave.err, 1),
+                           ),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
+                           NextValue(master_error_seen, 1),
                            NextState("Idle")],
                           ACK_RERUN: ### dunno how to handle that yet,
-                          [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                           NextValue(self.wishbone_slave.err, 1),
+                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
+                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                              NextValue(self.wishbone_slave.err, 1),
+                           ),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
@@ -1240,19 +1271,38 @@ class SBusFPGABus(Module):
                           [NextState("Master_Read") ## redundant
                           ],
                           ACK_RERUN: ### burst not handled
-                          [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                           NextValue(self.wishbone_slave.err, 1),
+                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
+                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                              NextValue(self.wishbone_slave.err, 1),
+                           ),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
                            NextState("Idle")
                           ],
-                          "default": ## ACK_ERRS or other ### burst not handled
-                          [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                           NextValue(self.wishbone_slave.err, 1),
+                          ACK_ERR: ## ### burst not handled
+                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
+                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                              NextValue(self.wishbone_slave.err, 1),
+                           ),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
+                           NextValue(master_error_seen, 8),
+                           NextValue(master_error_details, burst_counter),
+                           NextValue(self.sbus_master_error_virtual, self.sbus_master_last_virtual),
+                           NextState("Idle")
+                          ],
+                          "default": ## other ### burst not handled
+                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
+                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                              NextValue(self.wishbone_slave.err, 1),
+                           ),
+                           NextValue(sbus_oe_data, 0),
+                           NextValue(sbus_oe_slave_in, 0),
+                           NextValue(sbus_oe_master_in, 0),
+                           NextValue(master_error_seen, 4),
+                           NextValue(master_error_details, Cat(SBUS_3V3_ACKs_i, Signal(1, reset = 0))),
                            NextState("Idle")
                           ],
                       })
@@ -1302,6 +1352,7 @@ class SBusFPGABus(Module):
                               [NextValue(sbus_oe_data, 0),
                                NextValue(sbus_oe_slave_in, 0),
                                NextValue(sbus_oe_master_in, 0),
+                               NextValue(master_error_seen, 1),
                                NextState("Idle")
                               ],
                           }),
@@ -1372,7 +1423,8 @@ class SBusFPGABus(Module):
                           [NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextState("Idle")
+                           NextValue(master_error_seen, 1),
+                           NextState("Idle"),
                           ],
                       })
         )
@@ -1463,8 +1515,8 @@ class SBusFPGABus(Module):
         # ##### Slave read buffering FSM ####
         last_read_word_idx = Signal(2)
         self.submodules.wishbone_slave_read_buffering_fsm = wishbone_slave_read_buffering_fsm = FSM(reset_state="Reset")
-        self.sync += platform.request("user_led", 0).eq(~wishbone_slave_read_buffering_fsm.ongoing("Idle"))
-        self.sync += platform.request("user_led", 1).eq(self.master_read_buffer_done[last_read_word_idx])
+        #self.sync += platform.request("user_led", 0).eq(~wishbone_slave_read_buffering_fsm.ongoing("Idle"))
+        #self.sync += platform.request("user_led", 1).eq(self.master_read_buffer_done[last_read_word_idx])
         wishbone_slave_read_buffering_fsm.act("Reset",
                                               NextState("Idle")
         )

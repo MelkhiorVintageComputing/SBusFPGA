@@ -23,6 +23,7 @@ from sbus_to_fpga_trng import *
 from litedram.frontend.dma import *
 
 from engine import Engine;
+from migen.genlib.cdc import PulseSynchronizer, BusSynchronizer
 from migen.genlib.resetsync import AsyncResetSynchronizer;
 
 import sbus_to_fpga_export;
@@ -40,9 +41,10 @@ class _CRG(Module):
         self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
-        self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz for curve25519engine  -> eng_clk
-        self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> mul_clk
-        self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz for curve25519engine -> rf_clk
+        self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
+        self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
+        self.clock_domains.cd_clk100_gated = ClockDomain() # 100 MHz (gated) for curve25519engine -> mul_clk
+        self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
 
         # # #
         clk48 = platform.request("clk48")
@@ -76,21 +78,22 @@ class _CRG(Module):
         platform.add_platform_command("create_generated_clock -name sys4x90clk [get_pins {{MMCME2_ADV/CLKOUT2}}]")
         self.comb += pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
-        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
-        platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
+        #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
+        #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
-
         
         self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=-1)
         curve25519_clk_freq = 80e6
+        self.curve25519_on = Signal()
         #curve25519_pll.register_clkin(clk48, 48e6)
         curve25519_pll.register_clkin(self.clk48_bufg, 48e6)
-        curve25519_pll.create_clkout(self.cd_clk50,     curve25519_clk_freq/2, margin=0)
+        curve25519_pll.create_clkout(self.cd_clk50,     curve25519_clk_freq/2, margin=0, ce=curve25519_pll.locked & self.curve25519_on)
         platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{MMCME2_ADV_1/CLKOUT0}}]")
-        curve25519_pll.create_clkout(self.cd_clk100,    curve25519_clk_freq, margin=0)
+        curve25519_pll.create_clkout(self.cd_clk100,    curve25519_clk_freq, margin=0,   ce=curve25519_pll.locked,
+                                     gated_replicas={self.cd_clk100_gated : curve25519_pll.locked & self.curve25519_on})
         platform.add_platform_command("create_generated_clock -name clk100 [get_pins {{MMCME2_ADV_1/CLKOUT1}}]")
-        curve25519_pll.create_clkout(self.cd_clk200,    curve25519_clk_freq*2, margin=0)
+        curve25519_pll.create_clkout(self.cd_clk200,    curve25519_clk_freq*2, margin=0, ce=curve25519_pll.locked & self.curve25519_on)
         platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{MMCME2_ADV_1/CLKOUT2}}]")
         #self.comb += curve25519_pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk50.clk)
@@ -234,9 +237,9 @@ class SBusFPGA(SoCCore):
         # burst_size=16 should work on Ultra systems, but then they probably should go for 64-bits ET as well...
         # Older systems are probably limited to burst_size=4, (it should always be available)
         burst_size=8
-        self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=4))
-        self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=4))
-        self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=16))
+        self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=burst_size))
+        self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=burst_size))
+        self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=burst_size))
 
         self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=burst_size*32),
                                                             fifo_depth=4,
@@ -252,7 +255,8 @@ class SBusFPGA(SoCCore):
                                                             fromsbus_req_fifo=self.fromsbus_req_fifo,
                                                             dram_dma_writer=self.dram_dma_writer,
                                                             dram_dma_reader=self.dram_dma_reader,
-                                                            burst_size=burst_size)
+                                                            burst_size=burst_size,
+                                                            do_checksum = True)
         
         _sbus_bus = SBusFPGABus(platform=self.platform,
                                 hold_reset=hold_reset,
@@ -269,6 +273,10 @@ class SBusFPGA(SoCCore):
         self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
         #self.bus.add_master(name="mem_read_master", master=self.exchange_with_mem.wishbone_r_slave)
         #self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_slave)
+
+        self.submodules.sbus_master_error_virtual_sync = BusSynchronizer(width=32, idomain="sbus", odomain="sys")
+        self.comb += self.sbus_master_error_virtual_sync.i.eq(self.sbus_bus.sbus_master_error_virtual)
+        self.comb += self.exchange_with_mem.sbus_master_error_virtual.status.eq(self.sbus_master_error_virtual_sync.o)
         
         #self.add_sdcard()
 
@@ -277,10 +285,13 @@ class SBusFPGA(SoCCore):
         # beware the naming, as 'clk50' 'sysclk' 'clk200' are used in the original platform constraints
         # the local engine.py was slightly modified to have configurable names, so we can have 'clk50', 'clk100', 'clk200'
         # Beware that Engine implicitely runs in 'sys' by default, need to rename that one as well
-        self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100", "sys":"clk100"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None)))
+        self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated", "sys":"clk100"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None)))
         self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
         self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
         #self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
+        self.submodules.curve25519_on_sync = PulseSynchronizer("clk100", "sys")
+        self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
+        self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
 
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")

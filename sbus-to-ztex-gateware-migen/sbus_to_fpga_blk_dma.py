@@ -10,7 +10,7 @@ from litex.soc.interconnect import wishbone
 # width of fromsbus_fifo is 'blk_addr_width' + 'burst_size * 32' (blk_addr + data)
 # the blk_addr does the round-trip to accompany the data
 class ExchangeWithMem(Module, AutoCSR):
-    def __init__(self, soc, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_dma_writer, dram_dma_reader, burst_size = 8):
+    def __init__(self, soc, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_dma_writer, dram_dma_reader, burst_size = 8, do_checksum = False):
         #self.wishbone_r_slave = wishbone.Interface(data_width=soc.bus.data_width)
         #self.wishbone_w_slave = wishbone.Interface(data_width=soc.bus.data_width)
         self.tosbus_fifo = tosbus_fifo
@@ -61,34 +61,59 @@ class ExchangeWithMem(Module, AutoCSR):
         
         self.blk_addr =   CSRStorage(32, description = "SDRAM Block address to read/write from Wishbone memory (block of size {})".format(data_width))
         self.dma_addr =   CSRStorage(32, description = "Host Base address where to write/read data (i.e. SPARC Virtual addr)")
-        self.blk_cnt =    CSRStorage(32, write_from_dev=True, description = "How many blk to read/write (max 2^{}-1); bit 31 is RD".format(max_block_bits), reset = 0)
+        #self.blk_cnt =    CSRStorage(32, write_from_dev=True, description = "How many blk to read/write (max 2^{}-1); bit 31 is RD".format(max_block_bits), reset = 0)
+        self.blk_cnt = CSRStorage(write_from_dev=True, fields = [CSRField("blk_cnt", max_block_bits, description = "How many blk to read/write (max 2^{}-1)".format(max_block_bits)),
+                                                                 CSRField("rsvd", 32 - (max_block_bits + 1), description = "Reserved"),
+                                                                 CSRField("rd_wr", 1, description = "Read/Write selector"),
+        ])
         self.last_blk =   CSRStatus(32, description = "Last Blk addr finished on WB side")
         self.last_dma =   CSRStatus(32, description = "Last DMA addr finished on WB side")
+        self.dma_wrdone = CSRStatus(32, description = "DMA Block written to SDRAM", reset = 0)
         self.blk_rem =    CSRStatus(32, description = "How many block remaining; bit 31 is RD", reset = 0)
-        self.dma_status = CSRStatus(32, description = "Status register")
+        self.dma_status = CSRStatus(fields = [CSRField("rd_fsm_busy", 1, description = "Read FSM is doing some work"),
+                                              CSRField("wr_fsm_busy", 1, description = "Write FSM is doing some work"),
+                                              CSRField("has_wr_data", 1, description = "Data available to write to SDRAM"),
+                                              CSRField("has_requests", 1, description = "There's outstanding requests to the SBus"),
+                                              CSRField("has_rd_data", 1, description = "Data available to write to SBus"),
+        ])
         self.wr_tosdram = CSRStatus(32, description = "Last address written to SDRAM")
+
+        self.sbus_master_error_virtual = CSRStatus(32, description = "Virtual address that failed translation phase")
+        
+        if (do_checksum):
+            self.checksum = CSRStorage(data_width_bits, write_from_dev=True, description = "checksum (XOR)");
 
         self.submodules.req_r_fsm = req_r_fsm = FSM(reset_state="Reset")
         self.submodules.req_w_fsm = req_w_fsm = FSM(reset_state="Reset")
 
-        # this could use CSRFields...
-        self.comb += self.dma_status.status[0:1].eq(~req_r_fsm.ongoing("Idle")) # Read FSM Busy
-        self.comb += self.dma_status.status[1:2].eq(~req_w_fsm.ongoing("Idle")) # Write FSM Busy
-        self.comb += self.dma_status.status[2:3].eq(self.fromsbus_fifo.readable) # Some data available to write to memory
+        self.comb += self.dma_status.fields.rd_fsm_busy.eq(~req_r_fsm.ongoing("Idle")) # Read FSM Busy
+        self.comb += self.dma_status.fields.wr_fsm_busy.eq(~req_w_fsm.ongoing("Idle")) # Write FSM Busy
+        self.comb += self.dma_status.fields.has_wr_data.eq(self.fromsbus_fifo.readable) # Some data available to write to memory
+        
+        # The next two status bits reflect stats in the SBus clock domain
         self.submodules.fromsbus_req_fifo_readable_sync = PulseSynchronizer("sbus", "sys")
         fromsbus_req_fifo_readable_in_sys = Signal()
         self.comb += self.fromsbus_req_fifo_readable_sync.i.eq(self.fromsbus_req_fifo.readable)
         self.comb += fromsbus_req_fifo_readable_in_sys.eq(self.fromsbus_req_fifo_readable_sync.o)
-        self.comb += self.dma_status.status[3:4].eq(fromsbus_req_fifo_readable_in_sys) # we still have outstanding requests
+
+        # w/o this extra delay, the driver sees an outdated checksum for some reason...
+        # there's probably a more fundamental issue :-(
+        fromsbus_req_fifo_readable_in_sys_cnt = Signal(5)
+        self.sync += If(fromsbus_req_fifo_readable_in_sys,
+                        fromsbus_req_fifo_readable_in_sys_cnt.eq(0x1F)
+                     ).Else(
+                         If(fromsbus_req_fifo_readable_in_sys_cnt > 0,
+                            fromsbus_req_fifo_readable_in_sys_cnt.eq(fromsbus_req_fifo_readable_in_sys_cnt - 1)
+                         )
+                     )
+        #self.comb += self.dma_status.fields.has_requests.eq(fromsbus_req_fifo_readable_in_sys) # we still have outstanding requests
+        self.comb += self.dma_status.fields.has_requests.eq(fromsbus_req_fifo_readable_in_sys | (fromsbus_req_fifo_readable_in_sys_cnt != 0)) # we still have outstanding requests, or had recently
+        
         self.submodules.tosbus_fifo_readable_sync = PulseSynchronizer("sbus", "sys")
         tosbus_fifo_readable_in_sys = Signal()
         self.comb += self.tosbus_fifo_readable_sync.i.eq(self.tosbus_fifo.readable)
         self.comb += tosbus_fifo_readable_in_sys.eq(self.tosbus_fifo_readable_sync.o)
-        self.comb += self.dma_status.status[4:5].eq(tosbus_fifo_readable_in_sys)  # there's still data to be sent to memory; this will drop before the last SBus Master Cycle is finished, but then the SBus is busy so the host won't be able to read the status before the cycle is finished so we're good
-
-        self.comb += self.dma_status.status[8:9].eq(req_r_fsm.ongoing("ReqFromMemory"))
-        self.comb += self.dma_status.status[9:10].eq(req_r_fsm.ongoing("WaitForData"))
-        self.comb += self.dma_status.status[10:11].eq(req_r_fsm.ongoing("QueueReqToMemory"))
+        self.comb += self.dma_status.fields.has_rd_data.eq(tosbus_fifo_readable_in_sys)  # there's still data to be sent to memory; this will drop before the last SBus Master Cycle is finished, but then the SBus is busy so the host won't be able to read the status before the cycle is finished so we're good
         
         #self.comb += self.dma_status.status[16:17].eq(self.wishbone_w_master.cyc) # show the WB iface status (W)
         #self.comb += self.dma_status.status[17:18].eq(self.wishbone_w_master.stb)
@@ -106,17 +131,17 @@ class ExchangeWithMem(Module, AutoCSR):
                     NextState("Idle")
         )
         req_r_fsm.act("Idle",
-                    If(((self.blk_cnt.storage[0:max_block_bits] != 0) & # checking self.blk_cnt.re might be too transient ? -> need to auto-reset
-                        (~self.blk_cnt.storage[31:32])), # !read -> write
+                    If(((self.blk_cnt.fields.blk_cnt != 0) & # checking self.blk_cnt.re might be too transient ? -> need to auto-reset
+                        (~self.blk_cnt.fields.rd_wr)), # !read -> write
                        NextValue(local_r_addr, self.blk_addr.storage),
                        NextValue(dma_r_addr, self.dma_addr.storage),
-                       NextValue(self.blk_rem.status, Cat(self.blk_cnt.storage[0:max_block_bits], Signal(32-max_block_bits, reset = 0))),
+                       NextValue(self.blk_rem.status, Cat(self.blk_cnt.fields.blk_cnt, Signal(32-max_block_bits, reset = 0))),
                        NextState("ReqFromMemory")
-                    ).Elif(((self.blk_cnt.storage[0:max_block_bits] != 0) & # checking self.blk_cnt.re might be too transient ? -> need to auto-reset
-                            (self.blk_cnt.storage[31:32])), # read
+                    ).Elif(((self.blk_cnt.fields.blk_cnt != 0) & # checking self.blk_cnt.re might be too transient ? -> need to auto-reset
+                            (self.blk_cnt.fields.rd_wr)), # read
                            NextValue(local_r_addr, self.blk_addr.storage),
                            NextValue(dma_r_addr, self.dma_addr.storage),
-                           NextValue(self.blk_rem.status, Cat(self.blk_cnt.storage[0:max_block_bits], Signal(32-max_block_bits, reset = 0))),
+                           NextValue(self.blk_rem.status, Cat(self.blk_cnt.fields.blk_cnt, Signal(32-max_block_bits, reset = 0))),
                            NextState("QueueReqToMemory")
                     )
         )
@@ -128,10 +153,13 @@ class ExchangeWithMem(Module, AutoCSR):
                       )
         )
         req_r_fsm.act("WaitForData",
-                      If(self.dram_dma_reader.source.valid &
-                         self.tosbus_fifo.writable,
+                      If(self.dram_dma_reader.source.valid & self.tosbus_fifo.writable,
                          self.tosbus_fifo.we.eq(1),
                          self.tosbus_fifo.din.eq(Cat(dma_r_addr, self.dram_dma_reader.source.data)),
+                         If(do_checksum,
+                            self.checksum.we.eq(1),
+                            self.checksum.dat_w.eq(self.checksum.storage ^ self.dram_dma_reader.source.data),
+                         ),
                          self.dram_dma_reader.source.ready.eq(1),
                          NextValue(self.last_blk.status, local_r_addr),
                          NextValue(self.last_dma.status, dma_r_addr),
@@ -203,7 +231,12 @@ class ExchangeWithMem(Module, AutoCSR):
                          self.dram_dma_writer.sink.valid.eq(1),
                          NextValue(self.wr_tosdram.status, self.fromsbus_fifo.dout[0:blk_addr_width]),
                          If(self.dram_dma_writer.sink.ready,
-                            self.fromsbus_fifo.re.eq(1)
+                            self.fromsbus_fifo.re.eq(1),
+                            NextValue(self.dma_wrdone.status, self.dma_wrdone.status + 1),
+                            If(do_checksum,
+                               self.checksum.we.eq(1),
+                               self.checksum.dat_w.eq(self.checksum.storage ^ self.fromsbus_fifo.dout[blk_addr_width:(blk_addr_width + data_width_bits)]),
+                            )
                          )
                       )
         )
