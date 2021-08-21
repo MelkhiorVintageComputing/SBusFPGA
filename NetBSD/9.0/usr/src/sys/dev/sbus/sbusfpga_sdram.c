@@ -48,7 +48,6 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/buf.h>
 
 #include <sys/bufq.h>
-#include <sys/disk.h>
 #include <dev/dkvar.h>
 
 #include <dev/sbus/sbusfpga_sdram.h>
@@ -104,7 +103,7 @@ static int sbusfpga_sdram_diskstart(device_t self, struct buf *bp);
 struct dkdriver sbusfpga_sdram_dkdriver = {
 	.d_strategy = sbusfpga_sdram_strategy,
 	.d_minphys = sbusfpga_sdram_minphys,
-	.d_diskstart = sbusfpga_sdram_diskstart								  
+	.d_diskstart = sbusfpga_sdram_diskstart
 };
 
 extern struct cfdriver sbusfpga_sdram_cd;
@@ -112,65 +111,28 @@ extern struct cfdriver sbusfpga_sdram_cd;
 static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data);
 static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data);
 
-int
-sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
-{
-	struct sbusfpga_sdram_softc *sc = device_lookup_private(&sbusfpga_sdram_cd, DISKUNIT(dev));
-	int err = 0, err2 = 0;
+struct sbusfpga_sdram_rwpg {
+	u_int32_t pgdata[512];
+	u_int32_t checksum[8];
+	u_int32_t checksumbis[8];
+	u_int32_t pgnum;
+	u_int32_t last_blk;
+	u_int32_t last_dma;
+	u_int32_t dma_wrdone;
+	u_int32_t vdma_err;
+};
+#define SBUSFPGA_READ_PG    _IOWR('X', 0, struct sbusfpga_sdram_rwpg)
+#define SBUSFPGA_WRITE_PG   _IOWR('X', 1, struct sbusfpga_sdram_rwpg)
 
-	if (sc == NULL) {
-		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
-		return (ENXIO);
-	}
-
-#if 0
-	switch (cmd) {	
-		/* case VNDIOCCLR: */
-		/* case VNDIOCCLR50: */
-	case DIOCGDINFO:
-	case DIOCSDINFO:
-	case DIOCWDINFO:
-	case DIOCGPARTINFO:
-	case DIOCKLABEL:
-	case DIOCWLABEL:
-	case DIOCCACHESYNC:
-#ifdef __HAVE_OLD_DISKLABEL
-	case ODIOCGDINFO:
-	case ODIOCSDINFO:
-	case ODIOCWDINFO:
-	case ODIOCGDEFLABEL:
-#endif
-	case DIOCDWEDGE:
-	case DIOCAWEDGE:
-	case DIOCLWEDGES:
-	case DIOCRMWEDGES:
-	case DIOCMWEDGES:
-	case DIOCGWEDGEINFO:
-	case DIOCGDEFLABEL:
-		err2 = dk_ioctl(&sc->dk, dev, cmd, data, flag, l);
-		if (err2 != EPASSTHROUGH)
-			err = err2;
-		break;
-	default:
-		err = EINVAL;
-		break;
-	}
-#else
-	err2 = dk_ioctl(&sc->dk, dev, cmd, data, flag, l);
-	if (err2 != EPASSTHROUGH)
-		err = err2;
-	else
-		err = ENOTTY;
-#endif
-	return(err);
-}
+static inline void exchange_with_mem_checksum_read(struct sbusfpga_sdram_softc *sc, uint32_t* data);
+static inline void exchange_with_mem_checksum_write(struct sbusfpga_sdram_softc *sc, uint32_t* data);
 
 int
 sbusfpga_sdram_open(dev_t dev, int flag, int fmt, struct lwp *l)
 {
 	struct sbusfpga_sdram_softc *sd = device_lookup_private(&sbusfpga_sdram_cd, DISKUNIT(dev));
 	struct dk_softc *dksc;
-	int error;
+	int error = 0;
 
 	if (sd == NULL) {
 		aprint_error("%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
@@ -194,15 +156,18 @@ sbusfpga_sdram_close(dev_t dev, int flag, int fmt, struct lwp *l)
 {
 	struct sbusfpga_sdram_softc *sd = device_lookup_private(&sbusfpga_sdram_cd, DISKUNIT(dev));
 	struct dk_softc *dksc;
+	int error = 0;
 
 	if (sd == NULL) {
 		aprint_error("%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
 	}
-	
+
 	dksc = &sd->dk;
 
-	return dk_close(dksc, dev, flag, fmt, l);
+	error = dk_close(dksc, dev, flag, fmt, l);
+
+	return error;
 }
 
 int
@@ -359,8 +324,6 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	}
 
 	/* we seem OK hardware-wise */
-
-	
 	dk_init(&sc->dk, self, DKTYPE_FLASH);
 	disk_init(&sc->dk.sc_dkdev, device_xname(sc->dk.sc_dev), &sbusfpga_sdram_dkdriver);
 	dk_attach(&sc->dk);
@@ -435,7 +398,6 @@ static void	sbusfpga_sdram_set_geometry(struct sbusfpga_sdram_softc *sc) {
 
 	disk_set_info(dksc->sc_dev, &dksc->sc_dkdev, "sbusfpga_sdram");
 }
-
 
 int
 sbusfpga_sdram_size(dev_t dev) {
@@ -609,6 +571,74 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 #undef CSR_SDPHY_BASE
 #undef CSR_TRNG_BASE
 
+/* not yet generated */
+static inline void exchange_with_mem_checksum_read(struct sbusfpga_sdram_softc *sc, uint32_t* data) {
+	int i;
+	for (i = 0 ; i < 8 ; i++) { // FIXME
+		data[i] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_exchange_with_mem, 4*i+(CSR_EXCHANGE_WITH_MEM_CHECKSUM_ADDR - CSR_EXCHANGE_WITH_MEM_BASE));
+	}
+}
+static inline void exchange_with_mem_checksum_write(struct sbusfpga_sdram_softc *sc, uint32_t* data) {
+	int i;
+	for (i = 0 ; i < 8 ; i++) { // FIXME
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_exchange_with_mem, 4*i+(CSR_EXCHANGE_WITH_MEM_CHECKSUM_ADDR - CSR_EXCHANGE_WITH_MEM_BASE), data[i]);
+	}
+}
+
+int
+sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
+{
+	struct sbusfpga_sdram_softc *sc = device_lookup_private(&sbusfpga_sdram_cd, DISKUNIT(dev));
+	int err = 0;//, err2 = 0;
+
+	if (sc == NULL) {
+		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
+		return (ENXIO);
+	}
+
+	switch (cmd) {
+	case SBUSFPGA_READ_PG: {
+		struct sbusfpga_sdram_rwpg* pg = (struct sbusfpga_sdram_rwpg*)data;
+		exchange_with_mem_checksum_write(sc, pg->checksum);
+		err = sbusfpga_sdram_read_block(sc, pg->pgnum * 4, 4, pg->pgdata);
+		exchange_with_mem_checksum_read(sc, pg->checksum);
+		delay(1);
+		exchange_with_mem_checksum_read(sc, pg->checksumbis);
+		pg->last_blk = 	 exchange_with_mem_last_blk_read(sc);
+		pg->last_dma = 	 exchange_with_mem_last_dma_read(sc);
+		pg->dma_wrdone = exchange_with_mem_dma_wrdone_read(sc);
+		pg->vdma_err =   exchange_with_mem_sbus_master_error_virtual_read(sc);
+		if (err != 0)
+			err = EIO;
+		goto done;
+	}
+	case SBUSFPGA_WRITE_PG: {
+		struct sbusfpga_sdram_rwpg* pg = (struct sbusfpga_sdram_rwpg*)data;
+		exchange_with_mem_checksum_write(sc, pg->checksum);
+		err = sbusfpga_sdram_write_block(sc, pg->pgnum * 4, 4, pg->pgdata);
+		exchange_with_mem_checksum_read(sc, pg->checksum);
+		delay(1);
+		exchange_with_mem_checksum_read(sc, pg->checksumbis);
+		pg->last_blk = 	 exchange_with_mem_last_blk_read(sc);
+		pg->last_dma = 	 exchange_with_mem_last_dma_read(sc);
+		pg->dma_wrdone = exchange_with_mem_dma_wrdone_read(sc);
+		pg->vdma_err =   exchange_with_mem_sbus_master_error_virtual_read(sc);
+		if (err != 0)
+			err = EIO;
+		goto done;
+	}
+	}
+	
+	err = dk_ioctl(&sc->dk, dev, cmd, data, flag, l);
+	/*if (err2 != EPASSTHROUGH)
+		err = err2;
+	else
+	err = ENOTTY;*/
+
+ done:
+	return err;
+}
+
 #define DMA_STATUS_CHECK_BITS (0x01F)
 
 int
@@ -652,7 +682,7 @@ dma_init(struct sbusfpga_sdram_softc *sc) {
 		return 0;
 	}
 	
-	aprint_normal_dev(sc->dk.sc_dev, "DMA: SW -> kernal address is %p, dvma address is 0x%08llx\n", sc->sc_dma_kva, sc->sc_dmamap->dm_segs[0].ds_addr);
+	aprint_normal_dev(sc->dk.sc_dev, "DMA: SW -> kernel address is %p, dvma address is 0x%08llx\n", sc->sc_dma_kva, sc->sc_dmamap->dm_segs[0].ds_addr);
 	
 	return 1;
 }
