@@ -1934,7 +1934,8 @@ Here are the currently implemented opcodes for The Engine:
         ##### TIMING CONSTRAINTS -- you want these. Trust me.
 
         clk50 = "clk50"
-        clk100 = "clk100"
+        #clk100 = "clk100"
+        clk100 = "sysclk"
         clk200 = "clk200"
         # registered exec units need this set of rules
         ### clk200->clk50 multi-cycle paths:

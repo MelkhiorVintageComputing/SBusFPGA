@@ -43,7 +43,7 @@ class _CRG(Module):
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
         self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
-        self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
+        #self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
         self.clock_domains.cd_clk100_gated = ClockDomain() # 100 MHz (gated) for curve25519engine -> mul_clk
         self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
 
@@ -67,11 +67,13 @@ class _CRG(Module):
         self.comb += self.cd_sbus.rst.eq(~rst_sbus)
         ##self.cd_sys.clk = clk_sbus
         ##self.comb += self.cd_sys.rst.eq(~rst_sbus)
+        
+        self.curve25519_on = Signal()
 
         self.submodules.pll = pll = S7MMCM(speedgrade=-1)
         #pll.register_clkin(clk48, 48e6)
         pll.register_clkin(self.clk48_bufg, 48e6)
-        pll.create_clkout(self.cd_sys, sys_clk_freq)
+        pll.create_clkout(self.cd_sys,       sys_clk_freq, gated_replicas={self.cd_clk100_gated : pll.locked & self.curve25519_on})
         platform.add_platform_command("create_generated_clock -name sysclk [get_pins {{MMCME2_ADV/CLKOUT0}}]")
         pll.create_clkout(self.cd_sys4x,     4*sys_clk_freq)
         platform.add_platform_command("create_generated_clock -name sys4xclk [get_pins {{MMCME2_ADV/CLKOUT1}}]")
@@ -84,25 +86,30 @@ class _CRG(Module):
         #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
         
-        self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=-1)
-        curve25519_clk_freq = 90e6
-        self.curve25519_on = Signal()
-        #curve25519_pll.register_clkin(clk48, 48e6)
-        curve25519_pll.register_clkin(self.clk48_bufg, 48e6)
-        curve25519_pll.create_clkout(self.cd_clk50,     curve25519_clk_freq/2, margin=0, ce=curve25519_pll.locked & self.curve25519_on)
-        platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{MMCME2_ADV_1/CLKOUT0}}]")
-        curve25519_pll.create_clkout(self.cd_clk100,    curve25519_clk_freq, margin=0,   ce=curve25519_pll.locked,
-                                     gated_replicas={self.cd_clk100_gated : curve25519_pll.locked & self.curve25519_on})
-        platform.add_platform_command("create_generated_clock -name clk100 [get_pins {{MMCME2_ADV_1/CLKOUT1}}]")
-        curve25519_pll.create_clkout(self.cd_clk200,    curve25519_clk_freq*2, margin=0, ce=curve25519_pll.locked & self.curve25519_on)
-        platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{MMCME2_ADV_1/CLKOUT2}}]")
-        #self.comb += curve25519_pll.reset.eq(~rst_sbus) # | ~por_done 
-        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk50.clk)
-        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk100.clk)
-        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk200.clk)
-        platform.add_false_path_constraints(self.cd_clk50.clk, self.cd_sys.clk)
-        platform.add_false_path_constraints(self.cd_clk100.clk, self.cd_sys.clk)
-        platform.add_false_path_constraints(self.cd_clk200.clk, self.cd_sys.clk)
+        pll.create_clkout(self.cd_clk50, sys_clk_freq/2, ce=pll.locked & self.curve25519_on)
+        platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{MMCME2_ADV/CLKOUT3}}]")
+        pll.create_clkout(self.cd_clk200, sys_clk_freq*2, ce=pll.locked & self.curve25519_on)
+        platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{MMCME2_ADV/CLKOUT4}}]")
+        
+        #self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=-1)
+        #curve25519_clk_freq = 90e6
+        ##self.curve25519_on = Signal()
+        ##curve25519_pll.register_clkin(clk48, 48e6)
+        #curve25519_pll.register_clkin(self.clk48_bufg, 48e6)
+        #curve25519_pll.create_clkout(self.cd_clk50,     curve25519_clk_freq/2, margin=0, ce=curve25519_pll.locked & self.curve25519_on)
+        #platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{MMCME2_ADV_1/CLKOUT0}}]")
+        #curve25519_pll.create_clkout(self.cd_clk100,    curve25519_clk_freq, margin=0,   ce=curve25519_pll.locked,
+        #                             gated_replicas={self.cd_clk100_gated : curve25519_pll.locked & self.curve25519_on})
+        #platform.add_platform_command("create_generated_clock -name clk100 [get_pins {{MMCME2_ADV_1/CLKOUT1}}]")
+        #curve25519_pll.create_clkout(self.cd_clk200,    curve25519_clk_freq*2, margin=0, ce=curve25519_pll.locked & self.curve25519_on)
+        #platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{MMCME2_ADV_1/CLKOUT2}}]")
+        ##self.comb += curve25519_pll.reset.eq(~rst_sbus) # | ~por_done 
+        #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk50.clk)
+        #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk100.clk)
+        #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_clk200.clk)
+        #platform.add_false_path_constraints(self.cd_clk50.clk, self.cd_sys.clk)
+        #platform.add_false_path_constraints(self.cd_clk100.clk, self.cd_sys.clk)
+        #platform.add_false_path_constraints(self.cd_clk200.clk, self.cd_sys.clk)
         
         # Power on reset, reset propagate from SBus to SYS
 #        por_count = Signal(16, reset=2**16-1)
@@ -283,14 +290,15 @@ class SBusFPGA(SoCCore):
         # beware the naming, as 'clk50' 'sysclk' 'clk200' are used in the original platform constraints
         # the local engine.py was slightly modified to have configurable names, so we can have 'clk50', 'clk100', 'clk200'
         # Beware that Engine implicitely runs in 'sys' by default, need to rename that one as well
-        self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated", "sys":"clk100"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None)))
-        self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
-        self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
-        #self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
-        self.submodules.curve25519_on_sync = BusSynchronizer(width = 1, idomain = "clk100", odomain = "sys")
-        self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
-        self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
-
+        self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None))) # , "sys":"clk100"
+        #self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
+        #self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
+        self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
+        #self.submodules.curve25519_on_sync = BusSynchronizer(width = 1, idomain = "clk100", odomain = "sys")
+        #self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
+        #self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
+        self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
+        
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
