@@ -280,11 +280,14 @@ class SBusFPGABus(Module):
         # buffers when someone inside issues a DMA write request to go over SBus
         master_data = Signal(32) # could be merged with p_data
         master_addr = Signal(30) # could be meged with data_read_addr
-        # FIXME, ugly
-        # we're handling a request from the FIFO (not wishbone) - write to host
-        master_data_src_tosbus_fifo = Signal()
-        # we're handling a request from the FIFO (not wishbone) - read from host
-        master_data_src_fromsbus_fifo = Signal()
+        
+        MASTER_SRC_INV = 0
+        MASTER_SRC_BLKDMAFIFO = 1
+        MASTER_SRC_WISHBONE = 2
+        MASTER_SRC_WISHBONEBUF = 3
+        master_src = Signal(2)
+        master_src_retry = Signal(1) # reset after each successful master cycle
+        
         master_size = Signal(4)
         master_idx = Signal(2)
 
@@ -385,8 +388,6 @@ class SBusFPGABus(Module):
         #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte_Wait_For_Wishbone"))
         
         #self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
-        #self.sync += platform.request("user_led", 6).eq(master_data_src_tosbus_fifo)
-        #self.sync += platform.request("user_led", 7).eq(master_data_src_fromsbus_fifo)
         
         stat_slave_start_counter = Signal(32)
         stat_slave_done_counter = Signal(32)
@@ -671,6 +672,26 @@ class SBusFPGABus(Module):
                              (wishbone_slave_timeout == 0),
                              ## sel == 0 so nothing to write, don't acquire the SBus
                              NextValue(self.wishbone_slave.ack, 1),
+                      ).Elif(SBUS_3V3_BGs_i & ## highest priority are retries, otherwise we'd lose the data
+                             master_src_retry &
+                             (master_we == 0) &
+                             (master_src == MASTER_SRC_BLKDMAFIFO) &
+                             (sbus_master_throttle == 0),
+                             NextValue(SBUS_3V3_BRs_o, 0)
+                      ).Elif(~SBUS_3V3_BGs_i & ## highest priority are retries, otherwise we'd lose the data
+                             master_src_retry &
+                             (master_we == 0) &
+                             (master_src == MASTER_SRC_BLKDMAFIFO),
+                             NextValue(sbus_wishbone_le, 0), # checkme
+                             NextValue(SBUS_3V3_BRs_o, 1), # relinquish the request
+                             NextValue(sbus_oe_data, 1), ## output data (at least for @ during translation)
+                             NextValue(sbus_oe_slave_in, 1), ## PPRD, SIZ becomes output
+                             NextValue(sbus_oe_master_in, 0), ## ERRs, ACKs are input
+                             NextValue(burst_counter, 0),
+                             NextValue(SBUS_3V3_D_o, sbus_master_last_virtual),
+                             NextValue(SBUS_3V3_PPRD_o, 1),
+                             #NextValue(stat_master_start_counter, stat_master_start_counter + 1),
+                             NextState("Master_Translation"),
                       ).Elif(SBUS_3V3_BGs_i &
                              self.wishbone_slave.cyc &
                              self.wishbone_slave.stb &
@@ -698,6 +719,7 @@ class SBusFPGABus(Module):
                                                         self.wishbone_slave.dat_w[16:24],
                                                         self.wishbone_slave.dat_w[ 8:16],
                                                         self.wishbone_slave.dat_w[ 0: 8])),
+                             NextValue(master_src, MASTER_SRC_WISHBONE),
                              Case(self.wishbone_slave.sel, {
                                  0xf: [NextValue(burst_counter, 0),
                                        NextValue(burst_limit_m1, 0), ## only single word for now
@@ -749,7 +771,6 @@ class SBusFPGABus(Module):
                                             #NextValue(led0123, self.wishbone_slave.sel)
                                  ]
                              }),
-#                             NextValue(master_data, self.wishbone_slave.dat_w),
                              NextValue(self.wishbone_slave.ack, 1),
                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
                              NextValue(SBUS_3V3_PPRD_o, 0),
@@ -774,6 +795,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_limit_m1, 3), ## only quadword word for now
                              NextValue(SBUS_3V3_D_o, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
                              NextValue(sbus_master_last_virtual, Cat(Signal(4, reset = 0), self.master_read_buffer_addr)),
+                             NextValue(master_src, MASTER_SRC_WISHBONEBUF),
                              NextValue(SBUS_3V3_PPRD_o, 1),
                              NextValue(SBUS_3V3_SIZ_o, SIZ_BURST4),
                              NextValue(master_we, 0),
@@ -799,7 +821,7 @@ class SBusFPGABus(Module):
                              NextValue(master_addr, self.tosbus_fifo.dout[2:32]),
                              NextValue(master_data, self.tosbus_fifo.dout[32:64]),
                              NextValue(fifo_buffer, self.tosbus_fifo.dout[32:]),
-                             NextValue(master_data_src_tosbus_fifo, 1),
+                             NextValue(master_src, MASTER_SRC_BLKDMAFIFO),
                              self.tosbus_fifo.re.eq(1),
                              Case(burst_size, {
                                  2 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST2),
@@ -833,7 +855,7 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_D_o, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
                              NextValue(sbus_master_last_virtual, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
                              NextValue(fifo_blk_addr, self.fromsbus_req_fifo.dout[0:blk_addr_width]),
-                             NextValue(master_data_src_fromsbus_fifo, 1),
+                             NextValue(master_src, MASTER_SRC_BLKDMAFIFO),
                              self.fromsbus_req_fifo.re.eq(1),
                              Case(burst_size, {
                                  2 : [NextValue(SBUS_3V3_SIZ_o, SIZ_BURST2),
@@ -1250,18 +1272,26 @@ class SBusFPGABus(Module):
                                                                 master_data[16:32],)),
                                  })
                              }),
-                         If(master_data_src_tosbus_fifo,
-                            NextValue(master_data, fifo_buffer[32:64]), # 0:32 is on the bus already
-                         ),
+                         Case(master_src, {
+                             MASTER_SRC_BLKDMAFIFO:
+                             [NextValue(master_data, fifo_buffer[32:64]), # 0:32 is on the bus already
+                              ],
+                         }),
                       ).Else(
                          NextValue(sbus_oe_data, 0)
                       ),
                       Case(SBUS_3V3_ACKs_i, {
                           ACK_ERR: ## ouch
-                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
-                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                              NextValue(self.wishbone_slave.err, 1),
-                           ),
+                          [Case(master_src, {
+                               MASTER_SRC_WISHBONE:
+                               [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                                NextValue(self.wishbone_slave.err, 1),
+                               ],
+                               MASTER_SRC_WISHBONEBUF:
+                               [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                                NextValue(self.wishbone_slave.err, 1),
+                               ],
+                           }),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
@@ -1269,10 +1299,16 @@ class SBusFPGABus(Module):
                            NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
                            NextState("Idle")],
                           ACK_RERUN: ### dunno how to handle that yet,
-                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
-                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                              NextValue(self.wishbone_slave.err, 1),
-                           ),
+                          [Case(master_src, {
+                               MASTER_SRC_WISHBONE:
+                               [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                                NextValue(self.wishbone_slave.err, 1),
+                               ],
+                               MASTER_SRC_WISHBONEBUF:
+                               [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                                NextValue(self.wishbone_slave.err, 1),
+                               ],
+                           }),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
@@ -1306,10 +1342,19 @@ class SBusFPGABus(Module):
                           [NextState("Master_Read") ## redundant
                           ],
                           ACK_RERUN: ### burst not handled
-                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
-                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                              NextValue(self.wishbone_slave.err, 1),
-                           ),
+                          [Case(master_src, {
+                              MASTER_SRC_WISHBONE:
+                              [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                               NextValue(self.wishbone_slave.err, 1),
+                              ],
+                              MASTER_SRC_WISHBONEBUF:
+                              [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                               NextValue(self.wishbone_slave.err, 1),
+                              ],
+                              MASTER_SRC_BLKDMAFIFO:
+                              [NextValue(master_src_retry, 1),
+                              ],
+                          }),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
@@ -1317,10 +1362,19 @@ class SBusFPGABus(Module):
                            NextState("Idle")
                           ],
                           ACK_ERR: ## ### burst not handled
-                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
-                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                              NextValue(self.wishbone_slave.err, 1),
-                           ),
+                          [Case(master_src, {
+                              MASTER_SRC_WISHBONE:
+                              [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                               NextValue(self.wishbone_slave.err, 1),
+                              ],
+                              MASTER_SRC_WISHBONEBUF:
+                              [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                               NextValue(self.wishbone_slave.err, 1),
+                              ],
+                              MASTER_SRC_BLKDMAFIFO:
+                              [NextValue(master_src_retry, ~master_src_retry), # only retry if this wasn't a retry
+                              ],
+                           }),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
@@ -1329,10 +1383,16 @@ class SBusFPGABus(Module):
                            NextState("Idle")
                           ],
                           "default": ## other ### burst not handled
-                          [If(~master_data_src_tosbus_fifo & ~master_data_src_fromsbus_fifo,
-                              NextValue(wishbone_slave_timeout, wishbone_default_timeout),
-                              NextValue(self.wishbone_slave.err, 1),
-                           ),
+                          [Case(master_src, {
+                               MASTER_SRC_WISHBONE:
+                               [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                                NextValue(self.wishbone_slave.err, 1),
+                               ],
+                               MASTER_SRC_WISHBONEBUF:
+                               [NextValue(wishbone_slave_timeout, wishbone_default_timeout),
+                                NextValue(self.wishbone_slave.err, 1),
+                               ],
+                           }),
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
@@ -1343,16 +1403,17 @@ class SBusFPGABus(Module):
         )
         slave_fsm.act("Master_Read_Ack",
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x0b), self.led_display.value[8:40])),
-                      If(master_data_src_fromsbus_fifo,
-                         Case(burst_counter, {
-                             0: NextValue(fifo_buffer[0:32], SBUS_3V3_D_i),
-                             1: NextValue(fifo_buffer[32:64], SBUS_3V3_D_i),
-                             2: NextValue(fifo_buffer[64:96], SBUS_3V3_D_i),
-                             3: NextValue(fifo_buffer[96:128], SBUS_3V3_D_i),
-                             4: NextValue(fifo_buffer[128:160], SBUS_3V3_D_i),
-                             5: NextValue(fifo_buffer[160:192], SBUS_3V3_D_i),
-                             6: NextValue(fifo_buffer[192:224], SBUS_3V3_D_i),
-                             7: NextValue(fifo_buffer[224:256], SBUS_3V3_D_i),
+                      Case(master_src, {
+                          MASTER_SRC_BLKDMAFIFO:
+                          [Case(burst_counter, {
+                              0: NextValue(fifo_buffer[0:32], SBUS_3V3_D_i),
+                              1: NextValue(fifo_buffer[32:64], SBUS_3V3_D_i),
+                              2: NextValue(fifo_buffer[64:96], SBUS_3V3_D_i),
+                              3: NextValue(fifo_buffer[96:128], SBUS_3V3_D_i),
+                              4: NextValue(fifo_buffer[128:160], SBUS_3V3_D_i),
+                              5: NextValue(fifo_buffer[160:192], SBUS_3V3_D_i),
+                              6: NextValue(fifo_buffer[192:224], SBUS_3V3_D_i),
+                              7: NextValue(fifo_buffer[224:256], SBUS_3V3_D_i),
 #                             8: NextValue(fifo_buffer[256:288], SBUS_3V3_D_i),
 #                             9: NextValue(fifo_buffer[288:320], SBUS_3V3_D_i),
 #                             10: NextValue(fifo_buffer[320:352], SBUS_3V3_D_i),
@@ -1361,16 +1422,20 @@ class SBusFPGABus(Module):
 #                             13: NextValue(fifo_buffer[416:448], SBUS_3V3_D_i),
 #                             14: NextValue(fifo_buffer[448:480], SBUS_3V3_D_i),
 #                             15: NextValue(fifo_buffer[480:512], SBUS_3V3_D_i),
-                         }),
-                      ).Else(
-                          NextValue(self.master_read_buffer_data[burst_counter[0:2]], SBUS_3V3_D_i),
-                          NextValue(self.master_read_buffer_done[burst_counter[0:2]], 1),
-                      ),
+                          }),
+                          ],
+                          MASTER_SRC_WISHBONEBUF:
+                          [NextValue(self.master_read_buffer_data[burst_counter[0:2]], SBUS_3V3_D_i),
+                           NextValue(self.master_read_buffer_done[burst_counter[0:2]], 1),
+                          ],
+                      }),
                       NextValue(burst_counter, burst_counter + 1),
                       If(burst_counter == burst_limit_m1,
-                         If(~master_data_src_fromsbus_fifo,
-                            NextValue(self.master_read_buffer_start, 0),
-                         ),
+                         Case(master_src, {
+                             MASTER_SRC_WISHBONEBUF:
+                             [NextValue(self.master_read_buffer_start, 0),
+                             ],
+                         }),
                          NextState("Master_Read_Finish")
                       ).Else(
                           Case(SBUS_3V3_ACKs_i, {
@@ -1403,16 +1468,18 @@ class SBusFPGABus(Module):
         )
         slave_fsm.act("Master_Read_Finish", ## missing the handling of late error
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x0c), self.led_display.value[8:40])),
-                      If(master_data_src_fromsbus_fifo,
-                         fromsbus_fifo.we.eq(1),
-                         fromsbus_fifo.din.eq(Cat(fifo_blk_addr, fifo_buffer)),
-                         NextValue(master_data_src_fromsbus_fifo, 0),
-                      ),
+                      Case(master_src, {
+                          MASTER_SRC_BLKDMAFIFO:
+                          [fromsbus_fifo.we.eq(1),
+                           fromsbus_fifo.din.eq(Cat(fifo_blk_addr, fifo_buffer)),
+                          ],
+                      }),
                       NextValue(sbus_oe_data, 0),
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
                       NextValue(sbus_master_throttle, sbus_default_master_throttle),
                       NextValue(stat_master_done_counter, stat_master_done_counter + 1),
+                      NextValue(master_src_retry, 0),
                       NextState("Idle")
         )
         slave_fsm.act("Master_Write",
@@ -1421,20 +1488,18 @@ class SBusFPGABus(Module):
                           ACK_WORD: # FIXME: check againt master_size ?
                           [If(burst_counter == burst_limit_m1,
                               NextState("Master_Write_Final"),
-                              If(master_data_src_tosbus_fifo,
-                                 NextValue(master_data_src_tosbus_fifo, 0),
-                              )
                           ).Else(
                               NextValue(SBUS_3V3_D_o, master_data),
                               NextValue(burst_counter, burst_counter + 1),
-                              If(master_data_src_tosbus_fifo,
-                                 Case(burst_counter, { #0:32 just ack'd, 32:64 is on the bus now, burst_counter will only increment for the next cycle, so we're two steps ahead
-                                     0: NextValue(master_data, fifo_buffer[64:96]),
-                                     1: NextValue(master_data, fifo_buffer[96:128]),
-                                     2: NextValue(master_data, fifo_buffer[128:160]),
-                                     3: NextValue(master_data, fifo_buffer[160:192]),
-                                     4: NextValue(master_data, fifo_buffer[192:224]),
-                                     5: NextValue(master_data, fifo_buffer[224:256]),
+                              Case(master_src, {
+                                  MASTER_SRC_BLKDMAFIFO:
+                                  [Case(burst_counter, { #0:32 just ack'd, 32:64 is on the bus now, burst_counter will only increment for the next cycle, so we're two steps ahead
+                                      0: NextValue(master_data, fifo_buffer[64:96]),
+                                      1: NextValue(master_data, fifo_buffer[96:128]),
+                                      2: NextValue(master_data, fifo_buffer[128:160]),
+                                      3: NextValue(master_data, fifo_buffer[160:192]),
+                                      4: NextValue(master_data, fifo_buffer[192:224]),
+                                      5: NextValue(master_data, fifo_buffer[224:256]),
 #                                     6: NextValue(master_data, fifo_buffer[256:288]),
 #                                     7: NextValue(master_data, fifo_buffer[288:320]),
 #                                     8: NextValue(master_data, fifo_buffer[320:352]),
@@ -1446,8 +1511,9 @@ class SBusFPGABus(Module):
                                      #14: NextValue(master_data, fifo_buffer[512:544]),
                                      #15: NextValue(master_data, fifo_buffer[544:576]),
                                      "default": NextValue(master_data, 0),
-                                 })
-                              ),
+                                  })
+                                  ],
+                              }),
                           )],
                           ACK_BYTE: # FIXME: check againt master_size ?
                           [NextState("Master_Write_Final"),
@@ -1489,6 +1555,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_master_in, 0),
                       NextValue(sbus_master_throttle, sbus_default_master_throttle),
                       NextValue(stat_master_done_counter, stat_master_done_counter + 1),
+                      NextValue(master_src_retry, 0),
                       NextState("Idle")
         )
         # ##### FINISHED #####

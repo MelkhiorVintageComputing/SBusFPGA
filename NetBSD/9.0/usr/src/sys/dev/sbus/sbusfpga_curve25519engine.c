@@ -105,9 +105,6 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 	struct sbusfpga_curve25519engine_montgomeryjob* job = (struct sbusfpga_curve25519engine_montgomeryjob*)data;
 	int err = 0;
 
-	/* first we need to turn the engine power on ... */
-	power_on(sc);
-
 	if (!sc->initialized) {
 		if (init_program(sc)) {
 			return ENXIO;
@@ -137,19 +134,25 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		break;
 	}
 
-	power_off(sc);
 	return(err);
 }
 
 int
 sbusfpga_curve25519engine_open(dev_t dev, int flags, int mode, struct lwp *l)
 {
+	struct sbusfpga_curve25519engine_softc *sc = device_lookup_private(&sbusfpga_c29e_cd, minor(dev));
+	/* first we need to turn the engine power on ... */
+	power_on(sc);
+	
 	return (0);
 }
 
 int
 sbusfpga_curve25519engine_close(dev_t dev, int flags, int mode, struct lwp *l)
 {
+	struct sbusfpga_curve25519engine_softc *sc = device_lookup_private(&sbusfpga_c29e_cd, minor(dev));
+	power_off(sc);
+	
 	return (0);
 }
 
@@ -325,7 +328,7 @@ static int init_program(struct sbusfpga_curve25519engine_softc *sc) {
 	
 	for (i = 0 ; i < program_len + 1 ; i++) {
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_microcode, (i*4), program[i]);
-		if ((i%8)==7)
+		if ((i%16)==15)
 			delay(1);
 	}
 
