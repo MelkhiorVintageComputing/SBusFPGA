@@ -85,7 +85,7 @@ class _CRG(Module):
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
         
         self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=-1)
-        curve25519_clk_freq = 80e6
+        curve25519_clk_freq = 90e6
         self.curve25519_on = Signal()
         #curve25519_pll.register_clkin(clk48, 48e6)
         curve25519_pll.register_clkin(self.clk48_bufg, 48e6)

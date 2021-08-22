@@ -25,8 +25,6 @@ class ExchangeWithMem(Module, AutoCSR):
 
         assert(len(self.dram_dma_writer.sink.data) == data_width_bits)
         assert(len(self.dram_dma_reader.source.data) == data_width_bits)
-        assert(len(self.dram_dma_writer.sink.address) == blk_addr_width)
-        assert(len(self.dram_dma_reader.sink.address) == blk_addr_width)
         
         #self.wishbone_r_master = wishbone.Interface(data_width=data_width_bits)
         #self.wishbone_w_master = wishbone.Interface(data_width=data_width_bits)

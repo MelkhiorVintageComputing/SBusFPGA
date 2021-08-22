@@ -228,6 +228,7 @@ class Curve25519Const(Module, AutoDoc):
             7: [20, "twenty", "The number 20 (for pow22501)"],
             8: [50, "fifty", "The number 50 (for pow22501)"],
             9: [100, "one hundred", "The number 100 (for pow22501)"],
+            10: [254, "two hundred fifty four", "The number 254 (iteration count)"],
         }
         self.adr = Signal(5)
         self.const = Signal(256)

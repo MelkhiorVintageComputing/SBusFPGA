@@ -33,8 +33,8 @@ ENGINE_ADDR_PFXA = Signal(12, reset = 0x00a)
 ENGINE_ADDR_PFXB = Signal(12, reset = 0x00b)
 #SDRAM_ADDR_PFX = Signal(12, reset = 2048)
 
-wishbone_default_timeout = 120 ## must be > sbus_default_timeout
-sbus_default_timeout = 100 ## must be below 127 as we can wait twice on it inside the 255 cycles
+wishbone_default_timeout = 120 ##
+sbus_default_timeout = 50 ## must be below 255
 sbus_default_master_throttle = 3
 
 def siz_is_word(siz):
@@ -582,6 +582,7 @@ class SBusFPGABus(Module):
                                        NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                                        NextValue(SBUS_3V3_ERRs_o, 1),
                                        #NextValue(self.led_display.value, 0x0000000010 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                       NextValue(sbus_slave_timeout, sbus_default_timeout),
                                        NextState("Slave_Ack_Reg_Write_Burst")
                                     ).Else(
                                         NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
@@ -610,6 +611,7 @@ class SBusFPGABus(Module):
                                 NextValue(SBUS_3V3_ACKs_o, ACK_BYTE),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 #NextValue(self.led_display.value, 0x0000000010 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                NextValue(sbus_slave_timeout, sbus_default_timeout),
                                 NextState("Slave_Ack_Reg_Write_Byte")
                             ).Else(
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
@@ -644,6 +646,7 @@ class SBusFPGABus(Module):
                                        NextValue(SBUS_3V3_ACKs_o, ACK_HWORD),
                                        NextValue(SBUS_3V3_ERRs_o, 1),
                                        #NextValue(self.led_display.value, 0x0000000010 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                       NextValue(sbus_slave_timeout, sbus_default_timeout),
                                        NextState("Slave_Ack_Reg_Write_HWord")
                                     ).Else(
                                         NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
@@ -888,7 +891,6 @@ class SBusFPGABus(Module):
                           NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                           NextValue(self.wishbone_master.we, 0),
                           NextValue(wishbone_master_timeout, wishbone_default_timeout),
-                          NextValue(sbus_slave_timeout, sbus_default_timeout),
                           NextValue(self.wishbone_master.adr, Cat(index_with_wrap(burst_counter+1, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), # 4 bits, adr FIXME
                                                                   sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
                                                                   sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
@@ -932,7 +934,6 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.we, 0),
                          NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[2:28], Signal(4, reset = 0))),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
-                         NextValue(sbus_slave_timeout, sbus_slave_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Data")
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
@@ -994,7 +995,6 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.we, 0),
                          NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[2:28], Signal(4, reset = 0))),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
-                         NextValue(sbus_slave_timeout, sbus_slave_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_HWord_Wait_For_Data")
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
@@ -1054,7 +1054,6 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.we, 0),
                          NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[2:28], Signal(4, reset = 0))),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
-                         NextValue(sbus_slave_timeout, sbus_slave_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_Byte_Wait_For_Data")
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
@@ -1088,8 +1087,9 @@ class SBusFPGABus(Module):
                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                          NextState("Slave_Ack_Reg_Write_Final")
                       ).Else(
-                          NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
-                          NextValue(burst_counter, burst_counter + 1)
+                          NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
+                          NextValue(burst_counter, burst_counter + 1),
+                          NextState("Slave_Ack_Reg_Write_Burst_Wait_For_Wishbone"),
                       )
         )
         slave_fsm.act("Slave_Ack_Reg_Write_Final",
@@ -1204,12 +1204,13 @@ class SBusFPGABus(Module):
         )
         # ##### SLAVE ERROR #####
         slave_fsm.act("Slave_Error",
-                      NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), 
+                      NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                       #NextValue(self.led_display.value, 0x0000000080 | self.led_display.value),
                       If(((SBUS_3V3_ASs_i == 1) | ((SBUS_3V3_ASs_i == 0) & (SBUS_3V3_SELs_i == 1))),
                          NextValue(sbus_oe_data, 0),
                          NextValue(sbus_oe_slave_in, 0),
                          NextValue(sbus_oe_master_in, 0),
+                         NextValue(sbus_slave_timeout, 0),
                          NextState("Idle")
                       )
         )
