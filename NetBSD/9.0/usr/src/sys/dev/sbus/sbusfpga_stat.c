@@ -58,7 +58,7 @@ CFATTACH_DECL_NEW(sbusfpga_stat, sizeof(struct sbusfpga_sbus_bus_stat_softc),
 
 dev_type_open(sbusfpga_stat_open);
 dev_type_close(sbusfpga_stat_close);
-
+dev_type_ioctl(sbusfpga_stat_ioctl);
 
 
 const struct cdevsw sbusfpga_stat_cdevsw = {
@@ -66,7 +66,7 @@ const struct cdevsw sbusfpga_stat_cdevsw = {
 	.d_close = sbusfpga_stat_close,
 	.d_read = noread,
 	.d_write = nowrite,
-	.d_ioctl = noioctl,
+	.d_ioctl = sbusfpga_stat_ioctl,
 	.d_stop = nostop,
 	.d_tty = notty,
 	.d_poll = nopoll,
@@ -187,7 +187,40 @@ sbusfpga_stat_attach(device_t parent, device_t self, void *aux)
 
 	callout_init(&sc->sc_display, CALLOUT_MPSAFE);
 	callout_setfunc(&sc->sc_display, sbusfpga_stat_display, sc);
+	/* disable by default */
+	sc->sc_enable = 0;
+	/* do it once during boot*/
 	callout_schedule(&sc->sc_display, sc->sc_delay);
+}
+
+#define SBUSFPGA_STAT_ON    _IO(0, 1)
+#define SBUSFPGA_STAT_OFF   _IO(0, 0)
+
+int
+sbusfpga_stat_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
+{
+	struct sbusfpga_sbus_bus_stat_softc *sc = device_lookup_private(&sbusfpga_stat_cd, minor(dev));
+	int err = 0;
+
+	switch (cmd) {
+	case SBUSFPGA_STAT_ON:
+		if (!sc->sc_enable) {
+			sc->sc_enable = 1;
+			callout_schedule(&sc->sc_display, sc->sc_delay);
+		}
+		break;
+	case SBUSFPGA_STAT_OFF:
+		if (sc->sc_enable) {
+			callout_stop(&sc->sc_display);
+			sc->sc_enable = 0;
+		}
+		break;
+	default:
+		err = ENOTTY;
+		break;
+	}
+	
+	return err;
 }
 
 static void sbusfpga_stat_display(void *args) {
@@ -219,5 +252,6 @@ static void sbusfpga_stat_display(void *args) {
 					  sbus_bus_stat_sbus_master_error_virtual_read(sc));
 	}
 	sbus_bus_stat_stat_ctrl_write(sc, 0);
-	callout_schedule(&sc->sc_display, sc->sc_delay);
+	if (sc->sc_enable)
+		callout_schedule(&sc->sc_display, sc->sc_delay);
 }

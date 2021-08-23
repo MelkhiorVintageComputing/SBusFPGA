@@ -39,6 +39,7 @@ struct sbusfpga_sbus_bus_stat_softc {
 	int	sc_bufsiz;		/* Size of buffer */
 	callout_t		 sc_display;
 	int sc_delay;
+	int sc_enable;
 };
 
 #endif /* _SBUSFPGA_STAT_H_ */
