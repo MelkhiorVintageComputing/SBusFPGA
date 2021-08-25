@@ -25,7 +25,13 @@ opcodes = {  # mnemonic : [bit coding, docstring]
     "FIN" : [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
     "SHL" : [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
     "XBT" : [12, "Wd[0] $\gets$ Ra[254]  // extract the 255th bit of Ra and put it into the 0th bit of Wd"],
-    "MAX" : [13, "Maximum opcode number (for bounds checking)"],
+    "CLMUL":      [13, "carry-less multiplication; reg-reg only; per 128-bits block"], # basically 256-bits form of vpclmulqdq
+    "GCM_SHLMI":  [14, "Shift A left by imm, insert B MSB as dest LSB; reg-reg or reg-imm; per 128-bits block"], # make SHL redundant: SHL %rd, %ra == GCM_SHLMI %rd, %ra, #0, #1
+    "GCM_SHRMI":  [15, "Shift A right by imm, insert B LSB as dest MSB; reg-reg or reg-imm; per 128-bits block"], # 
+    "GCM_CMPD":   [16, "Compute D:X0 from X1:X0; reg ; per 128-bits block"], # specific
+    "GCM_SWAP64": [17, "Swap doubleword (64 bits) ; reg-reg or imm-reg or reg-imm; per 128-bits block"], # 
+    "AESESMI" : [18, "AES ; reg-reg ; per 128-bits block" ],
+    "MAX" : [19, "Maximum opcode number (for bounds checking)"],
 }
 
 num_registers = 32
@@ -1418,7 +1424,203 @@ carries that have already been propagated. If we fail to do this, then we re-pro
             )
         ]
 
+class ExecClmul(ExecUnit, AutoDoc):
+    def clmul64(self, IN2, IN1):
+        return (Replicate(IN2[0], 64) & (IN1[0:64])) ^ Cat(Signal(1, reset = 0), (Replicate(IN2[1], 63) & IN1[0:63])) ^ Cat(Signal(2, reset = 0), (Replicate(IN2[2], 62) & IN1[0:62])) ^ Cat(Signal(3, reset = 0), (Replicate(IN2[3], 61) & IN1[0:61])) ^ Cat(Signal(4, reset = 0), (Replicate(IN2[4], 60) & IN1[0:60])) ^ Cat(Signal(5, reset = 0), (Replicate(IN2[5], 59) & IN1[0:59])) ^ Cat(Signal(6, reset = 0), (Replicate(IN2[6], 58) & IN1[0:58])) ^ Cat(Signal(7, reset = 0), (Replicate(IN2[7], 57) & IN1[0:57])) ^ Cat(Signal(8, reset = 0), (Replicate(IN2[8], 56) & IN1[0:56])) ^ Cat(Signal(9, reset = 0), (Replicate(IN2[9], 55) & IN1[0:55])) ^ Cat(Signal(10, reset = 0), (Replicate(IN2[10], 54) & IN1[0:54])) ^ Cat(Signal(11, reset = 0), (Replicate(IN2[11], 53) & IN1[0:53])) ^ Cat(Signal(12, reset = 0), (Replicate(IN2[12], 52) & IN1[0:52])) ^ Cat(Signal(13, reset = 0), (Replicate(IN2[13], 51) & IN1[0:51])) ^ Cat(Signal(14, reset = 0), (Replicate(IN2[14], 50) & IN1[0:50])) ^ Cat(Signal(15, reset = 0), (Replicate(IN2[15], 49) & IN1[0:49])) ^ Cat(Signal(16, reset = 0), (Replicate(IN2[16], 48) & IN1[0:48])) ^ Cat(Signal(17, reset = 0), (Replicate(IN2[17], 47) & IN1[0:47])) ^ Cat(Signal(18, reset = 0), (Replicate(IN2[18], 46) & IN1[0:46])) ^ Cat(Signal(19, reset = 0), (Replicate(IN2[19], 45) & IN1[0:45])) ^ Cat(Signal(20, reset = 0), (Replicate(IN2[20], 44) & IN1[0:44])) ^ Cat(Signal(21, reset = 0), (Replicate(IN2[21], 43) & IN1[0:43])) ^ Cat(Signal(22, reset = 0), (Replicate(IN2[22], 42) & IN1[0:42])) ^ Cat(Signal(23, reset = 0), (Replicate(IN2[23], 41) & IN1[0:41])) ^ Cat(Signal(24, reset = 0), (Replicate(IN2[24], 40) & IN1[0:40])) ^ Cat(Signal(25, reset = 0), (Replicate(IN2[25], 39) & IN1[0:39])) ^ Cat(Signal(26, reset = 0), (Replicate(IN2[26], 38) & IN1[0:38])) ^ Cat(Signal(27, reset = 0), (Replicate(IN2[27], 37) & IN1[0:37])) ^ Cat(Signal(28, reset = 0), (Replicate(IN2[28], 36) & IN1[0:36])) ^ Cat(Signal(29, reset = 0), (Replicate(IN2[29], 35) & IN1[0:35])) ^ Cat(Signal(30, reset = 0), (Replicate(IN2[30], 34) & IN1[0:34])) ^ Cat(Signal(31, reset = 0), (Replicate(IN2[31], 33) & IN1[0:33])) ^ Cat(Signal(32, reset = 0), (Replicate(IN2[32], 32) & IN1[0:32])) ^ Cat(Signal(33, reset = 0), (Replicate(IN2[33], 31) & IN1[0:31])) ^ Cat(Signal(34, reset = 0), (Replicate(IN2[34], 30) & IN1[0:30])) ^ Cat(Signal(35, reset = 0), (Replicate(IN2[35], 29) & IN1[0:29])) ^ Cat(Signal(36, reset = 0), (Replicate(IN2[36], 28) & IN1[0:28])) ^ Cat(Signal(37, reset = 0), (Replicate(IN2[37], 27) & IN1[0:27])) ^ Cat(Signal(38, reset = 0), (Replicate(IN2[38], 26) & IN1[0:26])) ^ Cat(Signal(39, reset = 0), (Replicate(IN2[39], 25) & IN1[0:25])) ^ Cat(Signal(40, reset = 0), (Replicate(IN2[40], 24) & IN1[0:24])) ^ Cat(Signal(41, reset = 0), (Replicate(IN2[41], 23) & IN1[0:23])) ^ Cat(Signal(42, reset = 0), (Replicate(IN2[42], 22) & IN1[0:22])) ^ Cat(Signal(43, reset = 0), (Replicate(IN2[43], 21) & IN1[0:21])) ^ Cat(Signal(44, reset = 0), (Replicate(IN2[44], 20) & IN1[0:20])) ^ Cat(Signal(45, reset = 0), (Replicate(IN2[45], 19) & IN1[0:19])) ^ Cat(Signal(46, reset = 0), (Replicate(IN2[46], 18) & IN1[0:18])) ^ Cat(Signal(47, reset = 0), (Replicate(IN2[47], 17) & IN1[0:17])) ^ Cat(Signal(48, reset = 0), (Replicate(IN2[48], 16) & IN1[0:16])) ^ Cat(Signal(49, reset = 0), (Replicate(IN2[49], 15) & IN1[0:15])) ^ Cat(Signal(50, reset = 0), (Replicate(IN2[50], 14) & IN1[0:14])) ^ Cat(Signal(51, reset = 0), (Replicate(IN2[51], 13) & IN1[0:13])) ^ Cat(Signal(52, reset = 0), (Replicate(IN2[52], 12) & IN1[0:12])) ^ Cat(Signal(53, reset = 0), (Replicate(IN2[53], 11) & IN1[0:11])) ^ Cat(Signal(54, reset = 0), (Replicate(IN2[54], 10) & IN1[0:10])) ^ Cat(Signal(55, reset = 0), (Replicate(IN2[55], 9) & IN1[0:9])) ^ Cat(Signal(56, reset = 0), (Replicate(IN2[56], 8) & IN1[0:8])) ^ Cat(Signal(57, reset = 0), (Replicate(IN2[57], 7) & IN1[0:7])) ^ Cat(Signal(58, reset = 0), (Replicate(IN2[58], 6) & IN1[0:6])) ^ Cat(Signal(59, reset = 0), (Replicate(IN2[59], 5) & IN1[0:5])) ^ Cat(Signal(60, reset = 0), (Replicate(IN2[60], 4) & IN1[0:4])) ^ Cat(Signal(61, reset = 0), (Replicate(IN2[61], 3) & IN1[0:3])) ^ Cat(Signal(62, reset = 0), (Replicate(IN2[62], 2) & IN1[0:2])) ^ Cat(Signal(63, reset = 0), (Replicate(IN2[63], 1) & IN1[0:1]))
 
+    def clmul64h(self, IN2, IN1):
+        return Cat((((Replicate(IN2[0], 1)) & IN1[63:64]) ^ ((Replicate(IN2[1], 2)) & IN1[62:64]) ^ ((Replicate(IN2[2], 3)) & IN1[61:64]) ^ ((Replicate(IN2[3], 4)) & IN1[60:64]) ^ ((Replicate(IN2[4], 5)) & IN1[59:64]) ^ ((Replicate(IN2[5], 6)) & IN1[58:64]) ^ ((Replicate(IN2[6], 7)) & IN1[57:64]) ^ ((Replicate(IN2[7], 8)) & IN1[56:64]) ^ ((Replicate(IN2[8], 9)) & IN1[55:64]) ^ ((Replicate(IN2[9], 10)) & IN1[54:64]) ^ ((Replicate(IN2[10], 11)) & IN1[53:64]) ^ ((Replicate(IN2[11], 12)) & IN1[52:64]) ^ ((Replicate(IN2[12], 13)) & IN1[51:64]) ^ ((Replicate(IN2[13], 14)) & IN1[50:64]) ^ ((Replicate(IN2[14], 15)) & IN1[49:64]) ^ ((Replicate(IN2[15], 16)) & IN1[48:64]) ^ ((Replicate(IN2[16], 17)) & IN1[47:64]) ^ ((Replicate(IN2[17], 18)) & IN1[46:64]) ^ ((Replicate(IN2[18], 19)) & IN1[45:64]) ^ ((Replicate(IN2[19], 20)) & IN1[44:64]) ^ ((Replicate(IN2[20], 21)) & IN1[43:64]) ^ ((Replicate(IN2[21], 22)) & IN1[42:64]) ^ ((Replicate(IN2[22], 23)) & IN1[41:64]) ^ ((Replicate(IN2[23], 24)) & IN1[40:64]) ^ ((Replicate(IN2[24], 25)) & IN1[39:64]) ^ ((Replicate(IN2[25], 26)) & IN1[38:64]) ^ ((Replicate(IN2[26], 27)) & IN1[37:64]) ^ ((Replicate(IN2[27], 28)) & IN1[36:64]) ^ ((Replicate(IN2[28], 29)) & IN1[35:64]) ^ ((Replicate(IN2[29], 30)) & IN1[34:64]) ^ ((Replicate(IN2[30], 31)) & IN1[33:64]) ^ ((Replicate(IN2[31], 32)) & IN1[32:64]) ^ ((Replicate(IN2[32], 33)) & IN1[31:64]) ^ ((Replicate(IN2[33], 34)) & IN1[30:64]) ^ ((Replicate(IN2[34], 35)) & IN1[29:64]) ^ ((Replicate(IN2[35], 36)) & IN1[28:64]) ^ ((Replicate(IN2[36], 37)) & IN1[27:64]) ^ ((Replicate(IN2[37], 38)) & IN1[26:64]) ^ ((Replicate(IN2[38], 39)) & IN1[25:64]) ^ ((Replicate(IN2[39], 40)) & IN1[24:64]) ^ ((Replicate(IN2[40], 41)) & IN1[23:64]) ^ ((Replicate(IN2[41], 42)) & IN1[22:64]) ^ ((Replicate(IN2[42], 43)) & IN1[21:64]) ^ ((Replicate(IN2[43], 44)) & IN1[20:64]) ^ ((Replicate(IN2[44], 45)) & IN1[19:64]) ^ ((Replicate(IN2[45], 46)) & IN1[18:64]) ^ ((Replicate(IN2[46], 47)) & IN1[17:64]) ^ ((Replicate(IN2[47], 48)) & IN1[16:64]) ^ ((Replicate(IN2[48], 49)) & IN1[15:64]) ^ ((Replicate(IN2[49], 50)) & IN1[14:64]) ^ ((Replicate(IN2[50], 51)) & IN1[13:64]) ^ ((Replicate(IN2[51], 52)) & IN1[12:64]) ^ ((Replicate(IN2[52], 53)) & IN1[11:64]) ^ ((Replicate(IN2[53], 54)) & IN1[10:64]) ^ ((Replicate(IN2[54], 55)) & IN1[9:64]) ^ ((Replicate(IN2[55], 56)) & IN1[8:64]) ^ ((Replicate(IN2[56], 57)) & IN1[7:64]) ^ ((Replicate(IN2[57], 58)) & IN1[6:64]) ^ ((Replicate(IN2[58], 59)) & IN1[5:64]) ^ ((Replicate(IN2[59], 60)) & IN1[4:64]) ^ ((Replicate(IN2[60], 61)) & IN1[3:64]) ^ ((Replicate(IN2[61], 62)) & IN1[2:64]) ^ ((Replicate(IN2[62], 63)) & IN1[1:64]) ^ ((Replicate(IN2[63], 64)) & IN1[0:64])), Signal(1, reset = 0))[1:65]
+    
+    def __init__(self, width=256):
+        ExecUnit.__init__(self, width, ["CLMUL"])
+        self.notes = ModuleDoc(title="Clmul ExecUnit Subclass", body=f"""
+        """)
+
+        clmul64x_in1 = Signal(64)
+        clmul64x_in2 = Signal(64)
+        clmul64_out = Signal(64)
+        clmul64h_out = Signal(64)
+        nlane = width // 128
+        clmul_buf = Signal((nlane-1) * 128) ## width must be a multiple of 128...
+        lanec = Signal(log2_int(nlane, False))
+        assert(nlane == 2) ## fixme
+
+        self.sync.eng_clk += [
+            clmul64_out.eq(self.clmul64(clmul64x_in1, clmul64x_in2)),
+            clmul64h_out.eq(self.clmul64h(clmul64x_in1, clmul64x_in2)),
+        ]
+
+        self.sync.eng_clk += [
+            #self.q_valid.eq(self.start),
+            self.instruction_out.eq(self.instruction_in),
+        ]
+
+        
+        self.submodules.seq = seq = ClockDomainsRenamer("eng_clk")(FSM(reset_state="IDLE"))
+        seq.act("IDLE",
+                If(self.start,
+                   Case(self.instruction.immediate[0:2], {
+                       0x0: [ clmul64x_in1.eq(self.a[  0: 64]), clmul64x_in2.eq(self.b[  0: 64]) ],
+                       0x1: [ clmul64x_in1.eq(self.a[  0: 64]), clmul64x_in2.eq(self.b[ 64:128]) ],
+                       0x2: [ clmul64x_in1.eq(self.a[ 64:128]), clmul64x_in2.eq(self.b[  0: 64]) ],
+                       0x3: [ clmul64x_in1.eq(self.a[ 64:128]), clmul64x_in2.eq(self.b[ 64:128]) ],
+                   }),
+                   NextState("NEXT")))
+        seq.act("NEXT",
+                Case(lanec, {
+                    0: [ NextValue(clmul_buf[0:128], Cat(clmul64_out, clmul64h_out)),
+                         Case(self.instruction.immediate[0:2], {
+                             0x0: [ clmul64x_in1.eq(self.a[128:192]), clmul64x_in2.eq(self.b[128:192]) ],
+                             0x1: [ clmul64x_in1.eq(self.a[128:192]), clmul64x_in2.eq(self.b[192:256]) ],
+                             0x2: [ clmul64x_in1.eq(self.a[192:256]), clmul64x_in2.eq(self.b[128:192]) ],
+                             0x3: [ clmul64x_in1.eq(self.a[192:256]), clmul64x_in2.eq(self.b[192:256]) ],
+                         }),
+                         NextValue(lanec, 1),
+                    ],
+                    1: [ self.q_valid.eq(1),
+                         self.q.eq(Cat(clmul_buf, clmul64_out, clmul64h_out)),
+                         NextValue(lanec, 0),
+                         NextState("IDLE")
+                    ],
+                }))
+
+class ExecGCMShifts(ExecUnit, AutoDoc):
+    def __init__(self, width=256):
+        ExecUnit.__init__(self, width, ["GCM_SHLMI", "GCM_SHRMI", "GCM_CMPD", "GCM_SWAP64"])
+        self.notes = ModuleDoc(title="GCM Shifts ExecUnit Subclass", body=f"""
+        """)
+
+        assert(width == 256) # fixme
+
+        self.sync.eng_clk += [
+            self.q_valid.eq(self.start),
+            self.instruction_out.eq(self.instruction_in),
+        ]
+        self.comb += [
+            If(self.instruction.opcode == opcodes["GCM_CMPD"][0],
+               self.q.eq(Cat(self.a[  0: 64], self.a[ 64:128] ^ Cat(Signal(63, reset = 0), self.a[  0:  1]) ^ Cat(Signal(62, reset = 0), self.a[  0:  2]) ^ Cat(Signal(57, reset = 0), self.a[  0:  7]),
+                             self.a[128:192], self.a[192:256] ^ Cat(Signal(63, reset = 0), self.a[128:129]) ^ Cat(Signal(62, reset = 0), self.a[128:130]) ^ Cat(Signal(57, reset = 0), self.a[128:135]))
+               ) #eq
+            ).Elif(self.instruction.opcode == opcodes["GCM_SHRMI"][0],
+                   Case(self.instruction.immediate[0:3], {
+                       0x0: self.q.eq(self.a),
+                       0x1: self.q.eq(Cat(self.a[1:128], self.b[0:1], self.a[129:256], self.b[0:1])),
+                       0x2: self.q.eq(Cat(self.a[2:128], self.b[0:2], self.a[130:256], self.b[0:2])),
+                       0x3: self.q.eq(Cat(self.a[3:128], self.b[0:3], self.a[131:256], self.b[0:3])),
+                       0x4: self.q.eq(Cat(self.a[4:128], self.b[0:4], self.a[132:256], self.b[0:4])),
+                       0x5: self.q.eq(Cat(self.a[5:128], self.b[0:5], self.a[133:256], self.b[0:5])),
+                       0x6: self.q.eq(Cat(self.a[6:128], self.b[0:6], self.a[134:256], self.b[0:6])),
+                       0x7: self.q.eq(Cat(self.a[7:128], self.b[0:7], self.a[135:256], self.b[0:7])),
+                   })
+            ).Elif(self.instruction.opcode == opcodes["GCM_SHLMI"][0],
+                   Case(self.instruction.immediate[0:3], {
+                   0x0: self.q.eq(self.a), 
+                   0x1: self.q.eq(Cat(self.b[127:128], self.a[0:127], self.b[255:256], self.a[128:255])),
+                   0x2: self.q.eq(Cat(self.b[126:128], self.a[0:126], self.b[254:256], self.a[128:254])),
+                   0x3: self.q.eq(Cat(self.b[125:128], self.a[0:125], self.b[253:256], self.a[128:253])),
+                   0x4: self.q.eq(Cat(self.b[124:128], self.a[0:124], self.b[252:256], self.a[128:252])),
+                   0x5: self.q.eq(Cat(self.b[123:128], self.a[0:123], self.b[251:256], self.a[128:251])),
+                   0x6: self.q.eq(Cat(self.b[122:128], self.a[0:122], self.b[250:256], self.a[128:250])),
+                   0x7: self.q.eq(Cat(self.b[121:128], self.a[0:121], self.b[249:256], self.a[128:249])),
+                   })
+            ).Elif(self.instruction.opcode == opcodes["GCM_SWAP64"][0],
+                   self.q.eq(Cat(self.b[64:128], self.a[0:64], self.b[192:256], self.a[128:192]))
+            )
+        ]
+
+class ExecAES(ExecUnit, AutoDoc):
+    def __init__(self, width=256):
+        ExecUnit.__init__(self, width, ["AESESMI"])
+        self.notes = ModuleDoc(title="AES ExecUnit Subclass", body=f"""
+        """)
+
+        assert(width == 256) # fixme
+        nlane = width // 128
+        aes_buf = Signal((nlane-1) * 128) ## width must be a multiple of 128...
+        lanec = Signal(log2_int(nlane, False))
+        assert(nlane == 2) ## fixme
+        
+        aes_in = Array(Signal(8) for a in range(4))
+        aes_out = Array(Signal(24) for a in range(4))
+        for i in range(4):
+            self.sync.eng_clk += Case(aes_in[i], { 0x00: aes_out[i].eq(0xa563c6), 0x01: aes_out[i].eq(0x847cf8), 0x02: aes_out[i].eq(0x9977ee), 0x03: aes_out[i].eq(0x8d7bf6), 0x04: aes_out[i].eq(0x0df2ff), 0x05: aes_out[i].eq(0xbd6bd6), 0x06: aes_out[i].eq(0xb16fde), 0x07: aes_out[i].eq(0x54c591), 0x08: aes_out[i].eq(0x503060), 0x09: aes_out[i].eq(0x030102), 0x0a: aes_out[i].eq(0xa967ce), 0x0b: aes_out[i].eq(0x7d2b56), 0x0c: aes_out[i].eq(0x19fee7), 0x0d: aes_out[i].eq(0x62d7b5), 0x0e: aes_out[i].eq(0xe6ab4d), 0x0f: aes_out[i].eq(0x9a76ec), 0x10: aes_out[i].eq(0x45ca8f), 0x11: aes_out[i].eq(0x9d821f), 0x12: aes_out[i].eq(0x40c989), 0x13: aes_out[i].eq(0x877dfa), 0x14: aes_out[i].eq(0x15faef), 0x15: aes_out[i].eq(0xeb59b2), 0x16: aes_out[i].eq(0xc9478e), 0x17: aes_out[i].eq(0x0bf0fb), 0x18: aes_out[i].eq(0xecad41), 0x19: aes_out[i].eq(0x67d4b3), 0x1a: aes_out[i].eq(0xfda25f), 0x1b: aes_out[i].eq(0xeaaf45), 0x1c: aes_out[i].eq(0xbf9c23), 0x1d: aes_out[i].eq(0xf7a453), 0x1e: aes_out[i].eq(0x9672e4), 0x1f: aes_out[i].eq(0x5bc09b), 0x20: aes_out[i].eq(0xc2b775), 0x21: aes_out[i].eq(0x1cfde1), 0x22: aes_out[i].eq(0xae933d), 0x23: aes_out[i].eq(0x6a264c), 0x24: aes_out[i].eq(0x5a366c), 0x25: aes_out[i].eq(0x413f7e), 0x26: aes_out[i].eq(0x02f7f5), 0x27: aes_out[i].eq(0x4fcc83), 0x28: aes_out[i].eq(0x5c3468), 0x29: aes_out[i].eq(0xf4a551), 0x2a: aes_out[i].eq(0x34e5d1), 0x2b: aes_out[i].eq(0x08f1f9), 0x2c: aes_out[i].eq(0x9371e2), 0x2d: aes_out[i].eq(0x73d8ab), 0x2e: aes_out[i].eq(0x533162), 0x2f: aes_out[i].eq(0x3f152a), 0x30: aes_out[i].eq(0x0c0408), 0x31: aes_out[i].eq(0x52c795), 0x32: aes_out[i].eq(0x652346), 0x33: aes_out[i].eq(0x5ec39d), 0x34: aes_out[i].eq(0x281830), 0x35: aes_out[i].eq(0xa19637), 0x36: aes_out[i].eq(0x0f050a), 0x37: aes_out[i].eq(0xb59a2f), 0x38: aes_out[i].eq(0x09070e), 0x39: aes_out[i].eq(0x361224), 0x3a: aes_out[i].eq(0x9b801b), 0x3b: aes_out[i].eq(0x3de2df), 0x3c: aes_out[i].eq(0x26ebcd), 0x3d: aes_out[i].eq(0x69274e), 0x3e: aes_out[i].eq(0xcdb27f), 0x3f: aes_out[i].eq(0x9f75ea), 0x40: aes_out[i].eq(0x1b0912), 0x41: aes_out[i].eq(0x9e831d), 0x42: aes_out[i].eq(0x742c58), 0x43: aes_out[i].eq(0x2e1a34), 0x44: aes_out[i].eq(0x2d1b36), 0x45: aes_out[i].eq(0xb26edc), 0x46: aes_out[i].eq(0xee5ab4), 0x47: aes_out[i].eq(0xfba05b), 0x48: aes_out[i].eq(0xf652a4), 0x49: aes_out[i].eq(0x4d3b76), 0x4a: aes_out[i].eq(0x61d6b7), 0x4b: aes_out[i].eq(0xceb37d), 0x4c: aes_out[i].eq(0x7b2952), 0x4d: aes_out[i].eq(0x3ee3dd), 0x4e: aes_out[i].eq(0x712f5e), 0x4f: aes_out[i].eq(0x978413), 0x50: aes_out[i].eq(0xf553a6), 0x51: aes_out[i].eq(0x68d1b9), 0x52: aes_out[i].eq(0x000000), 0x53: aes_out[i].eq(0x2cedc1), 0x54: aes_out[i].eq(0x602040), 0x55: aes_out[i].eq(0x1ffce3), 0x56: aes_out[i].eq(0xc8b179), 0x57: aes_out[i].eq(0xed5bb6), 0x58: aes_out[i].eq(0xbe6ad4), 0x59: aes_out[i].eq(0x46cb8d), 0x5a: aes_out[i].eq(0xd9be67), 0x5b: aes_out[i].eq(0x4b3972), 0x5c: aes_out[i].eq(0xde4a94), 0x5d: aes_out[i].eq(0xd44c98), 0x5e: aes_out[i].eq(0xe858b0), 0x5f: aes_out[i].eq(0x4acf85), 0x60: aes_out[i].eq(0x6bd0bb), 0x61: aes_out[i].eq(0x2aefc5), 0x62: aes_out[i].eq(0xe5aa4f), 0x63: aes_out[i].eq(0x16fbed), 0x64: aes_out[i].eq(0xc54386), 0x65: aes_out[i].eq(0xd74d9a), 0x66: aes_out[i].eq(0x553366), 0x67: aes_out[i].eq(0x948511), 0x68: aes_out[i].eq(0xcf458a), 0x69: aes_out[i].eq(0x10f9e9), 0x6a: aes_out[i].eq(0x060204), 0x6b: aes_out[i].eq(0x817ffe), 0x6c: aes_out[i].eq(0xf050a0), 0x6d: aes_out[i].eq(0x443c78), 0x6e: aes_out[i].eq(0xba9f25), 0x6f: aes_out[i].eq(0xe3a84b), 0x70: aes_out[i].eq(0xf351a2), 0x71: aes_out[i].eq(0xfea35d), 0x72: aes_out[i].eq(0xc04080), 0x73: aes_out[i].eq(0x8a8f05), 0x74: aes_out[i].eq(0xad923f), 0x75: aes_out[i].eq(0xbc9d21), 0x76: aes_out[i].eq(0x483870), 0x77: aes_out[i].eq(0x04f5f1), 0x78: aes_out[i].eq(0xdfbc63), 0x79: aes_out[i].eq(0xc1b677), 0x7a: aes_out[i].eq(0x75daaf), 0x7b: aes_out[i].eq(0x632142), 0x7c: aes_out[i].eq(0x301020), 0x7d: aes_out[i].eq(0x1affe5), 0x7e: aes_out[i].eq(0x0ef3fd), 0x7f: aes_out[i].eq(0x6dd2bf), 0x80: aes_out[i].eq(0x4ccd81), 0x81: aes_out[i].eq(0x140c18), 0x82: aes_out[i].eq(0x351326), 0x83: aes_out[i].eq(0x2fecc3), 0x84: aes_out[i].eq(0xe15fbe), 0x85: aes_out[i].eq(0xa29735), 0x86: aes_out[i].eq(0xcc4488), 0x87: aes_out[i].eq(0x39172e), 0x88: aes_out[i].eq(0x57c493), 0x89: aes_out[i].eq(0xf2a755), 0x8a: aes_out[i].eq(0x827efc), 0x8b: aes_out[i].eq(0x473d7a), 0x8c: aes_out[i].eq(0xac64c8), 0x8d: aes_out[i].eq(0xe75dba), 0x8e: aes_out[i].eq(0x2b1932), 0x8f: aes_out[i].eq(0x9573e6), 0x90: aes_out[i].eq(0xa060c0), 0x91: aes_out[i].eq(0x988119), 0x92: aes_out[i].eq(0xd14f9e), 0x93: aes_out[i].eq(0x7fdca3), 0x94: aes_out[i].eq(0x662244), 0x95: aes_out[i].eq(0x7e2a54), 0x96: aes_out[i].eq(0xab903b), 0x97: aes_out[i].eq(0x83880b), 0x98: aes_out[i].eq(0xca468c), 0x99: aes_out[i].eq(0x29eec7), 0x9a: aes_out[i].eq(0xd3b86b), 0x9b: aes_out[i].eq(0x3c1428), 0x9c: aes_out[i].eq(0x79dea7), 0x9d: aes_out[i].eq(0xe25ebc), 0x9e: aes_out[i].eq(0x1d0b16), 0x9f: aes_out[i].eq(0x76dbad), 0xa0: aes_out[i].eq(0x3be0db), 0xa1: aes_out[i].eq(0x563264), 0xa2: aes_out[i].eq(0x4e3a74), 0xa3: aes_out[i].eq(0x1e0a14), 0xa4: aes_out[i].eq(0xdb4992), 0xa5: aes_out[i].eq(0x0a060c), 0xa6: aes_out[i].eq(0x6c2448), 0xa7: aes_out[i].eq(0xe45cb8), 0xa8: aes_out[i].eq(0x5dc29f), 0xa9: aes_out[i].eq(0x6ed3bd), 0xaa: aes_out[i].eq(0xefac43), 0xab: aes_out[i].eq(0xa662c4), 0xac: aes_out[i].eq(0xa89139), 0xad: aes_out[i].eq(0xa49531), 0xae: aes_out[i].eq(0x37e4d3), 0xaf: aes_out[i].eq(0x8b79f2), 0xb0: aes_out[i].eq(0x32e7d5), 0xb1: aes_out[i].eq(0x43c88b), 0xb2: aes_out[i].eq(0x59376e), 0xb3: aes_out[i].eq(0xb76dda), 0xb4: aes_out[i].eq(0x8c8d01), 0xb5: aes_out[i].eq(0x64d5b1), 0xb6: aes_out[i].eq(0xd24e9c), 0xb7: aes_out[i].eq(0xe0a949), 0xb8: aes_out[i].eq(0xb46cd8), 0xb9: aes_out[i].eq(0xfa56ac), 0xba: aes_out[i].eq(0x07f4f3), 0xbb: aes_out[i].eq(0x25eacf), 0xbc: aes_out[i].eq(0xaf65ca), 0xbd: aes_out[i].eq(0x8e7af4), 0xbe: aes_out[i].eq(0xe9ae47), 0xbf: aes_out[i].eq(0x180810), 0xc0: aes_out[i].eq(0xd5ba6f), 0xc1: aes_out[i].eq(0x8878f0), 0xc2: aes_out[i].eq(0x6f254a), 0xc3: aes_out[i].eq(0x722e5c), 0xc4: aes_out[i].eq(0x241c38), 0xc5: aes_out[i].eq(0xf1a657), 0xc6: aes_out[i].eq(0xc7b473), 0xc7: aes_out[i].eq(0x51c697), 0xc8: aes_out[i].eq(0x23e8cb), 0xc9: aes_out[i].eq(0x7cdda1), 0xca: aes_out[i].eq(0x9c74e8), 0xcb: aes_out[i].eq(0x211f3e), 0xcc: aes_out[i].eq(0xdd4b96), 0xcd: aes_out[i].eq(0xdcbd61), 0xce: aes_out[i].eq(0x868b0d), 0xcf: aes_out[i].eq(0x858a0f), 0xd0: aes_out[i].eq(0x9070e0), 0xd1: aes_out[i].eq(0x423e7c), 0xd2: aes_out[i].eq(0xc4b571), 0xd3: aes_out[i].eq(0xaa66cc), 0xd4: aes_out[i].eq(0xd84890), 0xd5: aes_out[i].eq(0x050306), 0xd6: aes_out[i].eq(0x01f6f7), 0xd7: aes_out[i].eq(0x120e1c), 0xd8: aes_out[i].eq(0xa361c2), 0xd9: aes_out[i].eq(0x5f356a), 0xda: aes_out[i].eq(0xf957ae), 0xdb: aes_out[i].eq(0xd0b969), 0xdc: aes_out[i].eq(0x918617), 0xdd: aes_out[i].eq(0x58c199), 0xde: aes_out[i].eq(0x271d3a), 0xdf: aes_out[i].eq(0xb99e27), 0xe0: aes_out[i].eq(0x38e1d9), 0xe1: aes_out[i].eq(0x13f8eb), 0xe2: aes_out[i].eq(0xb3982b), 0xe3: aes_out[i].eq(0x331122), 0xe4: aes_out[i].eq(0xbb69d2), 0xe5: aes_out[i].eq(0x70d9a9), 0xe6: aes_out[i].eq(0x898e07), 0xe7: aes_out[i].eq(0xa79433), 0xe8: aes_out[i].eq(0xb69b2d), 0xe9: aes_out[i].eq(0x221e3c), 0xea: aes_out[i].eq(0x928715), 0xeb: aes_out[i].eq(0x20e9c9), 0xec: aes_out[i].eq(0x49ce87), 0xed: aes_out[i].eq(0xff55aa), 0xee: aes_out[i].eq(0x782850), 0xef: aes_out[i].eq(0x7adfa5), 0xf0: aes_out[i].eq(0x8f8c03), 0xf1: aes_out[i].eq(0xf8a159), 0xf2: aes_out[i].eq(0x808909), 0xf3: aes_out[i].eq(0x170d1a), 0xf4: aes_out[i].eq(0xdabf65), 0xf5: aes_out[i].eq(0x31e6d7), 0xf6: aes_out[i].eq(0xc64284), 0xf7: aes_out[i].eq(0xb868d0), 0xf8: aes_out[i].eq(0xc34182), 0xf9: aes_out[i].eq(0xb09929), 0xfa: aes_out[i].eq(0x772d5a), 0xfb: aes_out[i].eq(0x110f1e), 0xfc: aes_out[i].eq(0xcbb07b), 0xfd: aes_out[i].eq(0xfc54a8), 0xfe: aes_out[i].eq(0xd6bb6d), 0xff: aes_out[i].eq(0x3a162c) } )
+            
+        self.sync.eng_clk += [
+            #self.q_valid.eq(self.start),
+            self.instruction_out.eq(self.instruction_in),
+        ]
+        
+        self.submodules.seq = seq = ClockDomainsRenamer("eng_clk")(FSM(reset_state="IDLE"))
+        seq.act("IDLE",
+                If(self.start,
+                   Case(self.instruction.immediate[0:2], {
+                       0x0: [ aes_in[0].eq(self.a[  0:  8]), aes_in[1].eq(self.a[ 32: 40]), aes_in[2].eq(self.a[ 64: 72]), aes_in[3].eq(self.a[ 96:104]) ],
+                       0x1: [ aes_in[3].eq(self.a[  8: 16]), aes_in[0].eq(self.a[ 40: 48]), aes_in[1].eq(self.a[ 72: 80]), aes_in[2].eq(self.a[104:112]) ],
+                       0x2: [ aes_in[2].eq(self.a[ 16: 24]), aes_in[3].eq(self.a[ 48: 56]), aes_in[0].eq(self.a[ 80: 88]), aes_in[1].eq(self.a[112:120]) ],
+                       0x3: [ aes_in[1].eq(self.a[ 24: 32]), aes_in[2].eq(self.a[ 56: 64]), aes_in[3].eq(self.a[ 88: 96]), aes_in[0].eq(self.a[120:128]) ],
+                   }),
+                   NextState("NEXT")))
+        seq.act("NEXT",
+                Case(lanec, {
+                    0: [ Case(self.instruction.immediate[0:2], {
+                             0x0: [ aes_in[0].eq(self.a[128:136]), aes_in[1].eq(self.a[160:168]), aes_in[2].eq(self.a[192:200]), aes_in[3].eq(self.a[224:232]) ],
+                             0x1: [ aes_in[3].eq(self.a[136:144]), aes_in[0].eq(self.a[168:176]), aes_in[1].eq(self.a[200:208]), aes_in[2].eq(self.a[232:240]) ],
+                             0x2: [ aes_in[2].eq(self.a[144:152]), aes_in[3].eq(self.a[176:184]), aes_in[0].eq(self.a[208:216]), aes_in[1].eq(self.a[240:248]) ],
+                             0x3: [ aes_in[1].eq(self.a[152:160]), aes_in[2].eq(self.a[184:192]), aes_in[3].eq(self.a[216:224]), aes_in[0].eq(self.a[248:256]) ],
+                         }),
+                         Case(self.instruction.immediate[0:2], {
+                             0x0: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 0:16], aes_out[0][ 8:24],
+                                                                  aes_out[1][ 0:16], aes_out[1][ 8:24],
+                                                                  aes_out[2][ 0:16], aes_out[2][ 8:24],
+                                                                  aes_out[3][ 0:16], aes_out[3][ 8:24])),
+                             ],
+                             0x1: [ NextValue(aes_buf[0:128], Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
+                                                                  aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
+                                                                  aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
+                                                                  aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
+                             ],
+                             0x2: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:24], aes_out[0][ 0:16],
+                                                                  aes_out[1][ 8:24], aes_out[1][ 0:16],
+                                                                  aes_out[2][ 8:24], aes_out[2][ 0:16],
+                                                                  aes_out[3][ 8:24], aes_out[3][ 0:16])),
+                             ],
+                             0x3: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
+                                                                  aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
+                                                                  aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
+                                                                  aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
+                             ],
+                         }),
+                         NextValue(lanec, 1),
+                    ],
+                    1: [ self.q_valid.eq(1),
+                        Case(self.instruction.immediate[0:2], {
+                             0x0: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][ 0:16], aes_out[0][ 8:24],
+                                                                    aes_out[1][ 0:16], aes_out[1][ 8:24],
+                                                                    aes_out[2][ 0:16], aes_out[2][ 8:24],
+                                                                    aes_out[3][ 0:16], aes_out[3][ 8:24])),
+                             ],
+                             0x1: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
+                                                                    aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
+                                                                    aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
+                                                                    aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
+                             ],
+                             0x2: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][ 8:24], aes_out[0][ 0:16],
+                                                                    aes_out[1][ 8:24], aes_out[1][ 0:16],
+                                                                    aes_out[2][ 8:24], aes_out[2][ 0:16],
+                                                                    aes_out[3][ 8:24], aes_out[3][ 0:16])),
+                             ],
+                             0x3: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
+                                                                    aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
+                                                                    aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
+                                                                    aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
+                             ],
+                         }),
+                         NextValue(lanec, 0),
+                         NextState("IDLE")
+                    ],
+                }))
+
+        
 class Engine(Module, AutoCSR, AutoDoc):
     def __init__(self, platform, prefix, sim=False, build_prefix=""):
         opdoc = "\n"
@@ -1885,6 +2087,9 @@ Here are the currently implemented opcodes for The Engine:
             "exec_addsub"    : ExecAddSub(width=rf_width_raw),
             "exec_testreduce": ExecTestReduce(width=rf_width_raw),
             "exec_mul"       : ExecMul(width=rf_width_raw, sim=sim),
+            "exec_clmul"     : ExecClmul(width=rf_width_raw),
+            "exec_gcmshifts" : ExecGCMShifts(width=rf_width_raw),
+            "exec_aes"       : ExecAES(width=rf_width_raw),
         }
         index = 0
         for name, unit in exec_units.items():

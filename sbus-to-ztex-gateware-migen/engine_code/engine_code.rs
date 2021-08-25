@@ -539,9 +539,97 @@ fn main() -> std::io::Result<()> {
 					mul %31, %24, %24
 					fin
     );
+
+	let gcmcode_test = assemble_engine25519!(
+               start:
+                    // A in %0
+					// B in %1
+					clmul %4, %0, %1, #0
+					clmul %5, %0, %1, #1
+					clmul %6, %0, %1, #2
+					clmul %7, %0, %1, #3
+					//gcm_sl1ai %8, %0, %1
+					//gcm_sl1ai %9, %0, #0
+					//gcm_sl1ai %10, %1, %0
+					//gcm_sl1ai %11, %1, #0
+					gcm_cmpd %12, %0
+					gcm_cmpd %13, %1
+					//gcm_sri %14, %0, #0
+					//gcm_sri %15, %0, #1
+					//gcm_sri %16, %0, #2
+					//gcm_sri %17, %0, #3
+					//gcm_sri %18, %0, #4
+					//gcm_sri %19, %0, #5
+					//gcm_sri %20, %0, #6
+					//gcm_sri %21, %0, #7
+					fin
+    );
+	let gcmcode = assemble_engine25519!(
+               start:
+                    // A in %0
+					// B in %1
+					
+					// // poly mult
+					// C
+					clmul %4, %0, %1, #0
+					// E
+					clmul %5, %0, %1, #1
+					// F
+					clmul %6, %0, %1, #2
+					// D
+					clmul %7, %0, %1, #3
+					// E ^ F
+					xor %6, %5, %6
+					// put low64 of E^F in high64
+					gcm_swap64 %5, %6, #0
+					// put high64 of E^F in low64
+					gcm_swap64 %6, #0, %6
+					// D xor low
+					xor %7, %7, %6
+					// C xor high
+					xor %4, %4, %5
+					
+					// // reduction
+					// X1:X0 in %4
+					// X3:X2 in %7
+					// shift everybody by 1 to the left
+					// high shifting in 1 bit from low
+					gcm_shlmi %1, %7, %4, #1
+					// low
+					gcm_shlmi %0, %4, #0, #1
+					// post-shift
+					// X1:X0 in %0
+					// X3:X2 in %1
+					// compute D
+					gcm_cmpd %2, %0
+					// compute E, F, G
+					gcm_shrmi %3, %2, #0, #1
+					gcm_shrmi %4, %2, #0, #2
+					gcm_shrmi %5, %2, #0, #7
+					// XOR everybody
+					xor %2, %2, %3
+					xor %4, %4, %5
+					xor %2, %2, %4
+					xor %0, %2, %1
+					// output in %0
+					fin
+    );let gcmcode = assemble_engine25519!(
+               start:
+                    // X in %1
+					// KEY in %0
+					// one  full round demo
+					aesesmi %0, %1, %0, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					fin
+    );
+
+
     let mut pos = 0;
-    while pos < mcode_upd.len() {
-		  println!("0x{:08x},", mcode_upd[pos]);
+    while pos < gcmcode.len() {
+		  println!("0x{:08x},", gcmcode[pos]);
 		  pos = pos + 1;
     }
 	Ok(())
