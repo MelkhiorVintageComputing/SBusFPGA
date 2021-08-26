@@ -42,6 +42,8 @@ __KERNEL_RCSID(0, "$NetBSD$");
 #include <sys/conf.h>
 #include <sys/ioccom.h>
 
+#include <sys/mman.h>
+
 #include <dev/sbus/sbusvar.h>
 
 #include <dev/sbus/sbusfpga_curve25519engine.h>
@@ -58,6 +60,7 @@ CFATTACH_DECL_NEW(sbusfpga_c29e, sizeof(struct sbusfpga_curve25519engine_softc),
 dev_type_open(sbusfpga_curve25519engine_open);
 dev_type_close(sbusfpga_curve25519engine_close);
 dev_type_ioctl(sbusfpga_curve25519engine_ioctl);
+dev_type_mmap(sbusfpga_curve25519engine_mmap);
 
 
 
@@ -70,7 +73,7 @@ const struct cdevsw sbusfpga_c29e_cdevsw = {
 	.d_stop = nostop,
 	.d_tty = notty,
 	.d_poll = nopoll,
-	.d_mmap = nommap,
+	.d_mmap = sbusfpga_curve25519engine_mmap,
 	.d_kqfilter = nokqfilter,
 	.d_discard = nodiscard,
 	.d_flag = 0
@@ -86,12 +89,17 @@ struct sbusfpga_curve25519engine_montgomeryjob {
 	uint32_t affine_u[8];
 	uint32_t scalar[8];
 };
+struct sbusfpga_curve25519engine_aesjob {
+	uint32_t data[8];
+	uint32_t keys[120];
+};
 
 static int init_programs(struct sbusfpga_curve25519engine_softc *sc);
 static int write_inputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusfpga_curve25519engine_montgomeryjob *job, const int window);
 static int start_job(struct sbusfpga_curve25519engine_softc *sc);
 static int wait_job(struct sbusfpga_curve25519engine_softc *sc);
 static int read_outputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusfpga_curve25519engine_montgomeryjob *job, const int window);
+static int dma_init(struct sbusfpga_curve25519engine_softc *sc);
 
 static int power_on(struct sbusfpga_curve25519engine_softc *sc);
 static int power_off(struct sbusfpga_curve25519engine_softc *sc);
@@ -134,10 +142,11 @@ sbusfpga_curve25519engine_match(device_t parent, cfdata_t cf, void *aux)
 static const uint32_t program_ec25519[134] = {0x00640840, 0x00680800, 0x006c0600, 0x00700840, 0x004c0a80, 0x00480800, 0x007407cc, 0x007c07cb, 0x0049d483, 0x0079b643, 0x0079e482, 0x00659783, 0x006db783, 0x0079c683, 0x0079e482, 0x0069a783, 0x0071c783, 0x00480740, 0x0001a645, 0x00780008, 0x0001e006, 0x0069a8c6, 0x0005a645, 0x00780048, 0x0005e046, 0x0009c6c5, 0x00780088, 0x0009e086, 0x0071c8c6, 0x000dc6c5, 0x007800c8, 0x000de0c6, 0x00100007, 0x00141047, 0x007458c6, 0x0019d105, 0x00780188, 0x0019e186, 0x001c3007, 0x00202047, 0x002481c5, 0x00780248, 0x0025e246, 0x007488c6, 0x0029d1c5, 0x00780288, 0x0029e286, 0x006c9247, 0x0030a287, 0x00346907, 0x00645107, 0x003c5345, 0x007803c8, 0x003de3c6, 0x0068f187, 0x0070c607, 0x010004c9, 0x004e14c6, 0xe5800809, 0x0079b643, 0x0079e482, 0x00659783, 0x006db783, 0x0079c683, 0x0079e482, 0x0069a783, 0x0071c783, 0x00740640, 0x00780680, 0x0001e787, 0x00040007, 0x00041047, 0x00081787, 0x000c2007, 0x001030c7, 0x00144087, 0x00700940, 0x00185147, 0x00721706, 0x01000709, 0x00186187, 0xfe000809, 0x001c5187, 0x00700980, 0x002071c7, 0x00721706, 0x01000709, 0x00208207, 0xfe000809, 0x00247207, 0x007009c0, 0x00289247, 0x00721706, 0x01000709, 0x0028a287, 0xfe000809, 0x002c9287, 0x00700980, 0x0030b2c7, 0x00721706, 0x01000709, 0x0030c307, 0xfe000809, 0x00347307, 0x00700a00, 0x0038d347, 0x00721706, 0x01000709, 0x0038e387, 0xfe000809, 0x003cd387, 0x00700a40, 0x0040f3c7, 0x00721706, 0x01000709, 0x00410407, 0xfe000809, 0x0044f407, 0x00700a00, 0x00491447, 0x00721706, 0x01000709, 0x00492487, 0xfe000809, 0x004cd487, 0x00700940, 0x005134c7, 0x00721706, 0x01000709, 0x00514507, 0xfe000809, 0x00543507, 0x007d5747, 0x0000000a };
 
 static const uint32_t program_gcm[20] = {0x0010100d, 0x0094100d, 0x0118100d, 0x019c100d, 0x00186143, 0x00160191, 0x00186811, 0x001c61c3, 0x00105103, 0x008441ce, 0x0082010e, 0x00080010, 0x008e008f, 0x0112008f, 0x0396008f, 0x00083083, 0x00105103, 0x00084083, 0x00001083, 0x0000000a };
-static const uint32_t program_aes[21] = {0x00000052, 0x00800052, 0x01000052, 0x01800052, 0x0000000a };
+
+static const uint32_t program_aes[58] = {0x0001f003, 0x0005e012, 0x00841012, 0x01041012, 0x01841012, 0x0001d052, 0x00800052, 0x01000052, 0x01800052, 0x0005c012, 0x00841012, 0x01041012, 0x01841012, 0x0001b052, 0x00800052, 0x01000052, 0x01800052, 0x0005a012, 0x00841012, 0x01041012, 0x01841012, 0x00019052, 0x00800052, 0x01000052, 0x01800052, 0x00058012, 0x00841012, 0x01041012, 0x01841012, 0x00017052, 0x00800052, 0x01000052, 0x01800052, 0x00056012, 0x00841012, 0x01041012, 0x01841012, 0x00015052, 0x00800052, 0x01000052, 0x01800052, 0x00054012, 0x00841012, 0x01041012, 0x01841012, 0x00013052, 0x00800052, 0x01000052, 0x01800052, 0x00052012, 0x00841012, 0x01041012, 0x01841012, 0x02011052, 0x02800052, 0x03000052, 0x03800052, 0x0000000a };
 
 static const uint32_t* programs[4] = { program_ec25519, program_gcm, program_aes, NULL };
-static const uint32_t program_len[4] = { 134, 20, 5, 0 };
+static const uint32_t program_len[4] = { 134, 20, 58, 0 };
 static       uint32_t program_offset[4];
 
 /*
@@ -242,6 +251,15 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 	}
 
 	power_off(sc);
+
+	sc->active_sessions = 0;
+	sc->mapped_sessions = 0;
+
+	if (!dma_init(sc)) {
+		// ouch
+		sc->active_sessions = 0xFFFFFFFF;
+		sc->mapped_sessions = 0xFFFFFFFF;
+	}
 }
 
 #define CONFIG_CSR_DATA_WIDTH 32
@@ -275,9 +293,31 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 #define REG_BASE(reg) (base + (reg * 32))
 #define SUBREG_ADDR(reg, off) (REG_BASE(reg) + (off)*4)
 
+#include <sys/cprng.h>
+//cprng_strong32()
+struct sbusfpga_curve25519engine_session {
+	uint32_t session;
+	uint32_t cookie;
+};
+
 #define SBUSFPGA_DO_MONTGOMERYJOB   _IOWR(0, 0, struct sbusfpga_curve25519engine_montgomeryjob)
 #define SBUSFPGA_EC25519_CHECKGCM   _IOW(0, 1, struct sbusfpga_curve25519engine_montgomeryjob)
-#define SBUSFPGA_EC25519_CHECKAES   _IOW(0, 2, struct sbusfpga_curve25519engine_montgomeryjob)
+#define SBUSFPGA_EC25519_CHECKAES   _IOW(0, 2, struct sbusfpga_curve25519engine_aesjob)
+
+#define SBUSFPGA_EC25519_OPENSESSION   _IOR(1, 0, struct sbusfpga_curve25519engine_session)
+#define SBUSFPGA_EC25519_CLOSESESSION  _IOR(1, 1, struct sbusfpga_curve25519engine_session)
+
+static int get_session(struct sbusfpga_curve25519engine_softc *sc) {
+	int i;
+	/* don't use 0, we use it for testing */
+	for (i = 1 ; (i < MAX_ACTIVE_SESSION) && (i < MAX_SESSION) ; i++) {
+		if (((sc->active_sessions & (1<<i)) == 0) && ((sc->mapped_sessions & (1<<i)) == 0)) {
+			sc->active_sessions |= (1<<i);
+			return i;
+		}
+	}
+	return -1;
+}
 
 int
 sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
@@ -347,16 +387,18 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		break;
 	case SBUSFPGA_EC25519_CHECKAES: {
 		const uint32_t base = 0;
-		struct sbusfpga_curve25519engine_montgomeryjob* job = (struct sbusfpga_curve25519engine_montgomeryjob*)data;
+		struct sbusfpga_curve25519engine_aesjob* job = (struct sbusfpga_curve25519engine_aesjob*)data;
 		int reg, i;
 		
 		curve25519engine_mpstart_write(sc, program_offset[2]); /* AES */
 		curve25519engine_mplen_write(sc, program_len[2]); /* AES */
 		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,i), job->affine_u[i]);
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,i), job->data[i]);
 		}
-		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,i), job->scalar[i]);
+		for (reg = 31 ; reg > 16 ; reg--) {
+			for (i = 0 ; i < 8 ; i ++) {
+				bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i), job->keys[i]);
+			}
 		}
 		
 		err = start_job(sc);
@@ -377,6 +419,29 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		}
 	}
 		break;
+	case SBUSFPGA_EC25519_OPENSESSION:{
+		struct sbusfpga_curve25519engine_session* ses = (struct sbusfpga_curve25519engine_session*)data;
+		int s = get_session(sc);
+		if (s < 0)
+			return EBUSY;
+		ses->session = s;
+		sc->sessions_cookies[s] = cprng_strong32();
+		ses->cookie = sc->sessions_cookies[s];
+	}
+		break;
+	case SBUSFPGA_EC25519_CLOSESESSION:{
+		struct sbusfpga_curve25519engine_session* ses = (struct sbusfpga_curve25519engine_session*)data;
+		if ((ses->session >= MAX_ACTIVE_SESSION) || (ses->session >= MAX_SESSION))
+			return EINVAL;
+		if (sc->sessions_cookies[ses->session] != ses->cookie)
+			return EINVAL;
+		if ((sc->mapped_sessions & (1 << ses->session)) != 0)
+			return EBUSY;
+		sc->sessions_cookies[ses->session] = 0;
+		sc->active_sessions &= ~(1 << ses->session);
+	}
+		break;
+		
 	default:
 		err = EINVAL;
 		break;
@@ -544,10 +609,73 @@ static int read_outputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusf
 		/* job->x0_w[i]     = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(26,i)); */
 		/* job->x1_u[i]     = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(27,i)); */
 		/* job->x1_w[i]     = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(28,i)); */
-		job->scalar[i]   = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(31,i));
+		job->scalar[i]   = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,i));
 		/* delay(1); */
 	}
 	aprint_normal_dev(sc->sc_dev, "READ - Curve25519Engine 19 low 32 bits: 0x%08x\n", bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(19,0)));
 
 	return 0;
+}
+
+
+static int
+dma_init(struct sbusfpga_curve25519engine_softc *sc) {
+	
+	/* Allocate a dmamap */
+	if (bus_dmamap_create(sc->sc_dmatag, SBUSFPGA_CURVE25519ENGINE_VAL_DMA_MAX_SZ, 1, SBUSFPGA_CURVE25519ENGINE_VAL_DMA_MAX_SZ, 0, BUS_DMA_NOWAIT | BUS_DMA_ALLOCNOW, &sc->sc_dmamap) != 0) {
+		aprint_error_dev(sc->sc_dev, "DMA map create failed\n");
+		return 0;
+	} else {
+		aprint_normal_dev(sc->sc_dev, "dmamap: %lu %lu %d (%p)\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs, sc->sc_dmatag->_dmamap_load);
+	}
+
+	if (bus_dmamem_alloc(sc->sc_dmatag, SBUSFPGA_CURVE25519ENGINE_VAL_DMA_MAX_SZ, 64, 64, &sc->sc_segs, 1, &sc->sc_rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
+		aprint_error_dev(sc->sc_dev, "cannot allocate DVMA memory");
+		bus_dmamap_destroy(sc->sc_dmatag, sc->sc_dmamap);
+		return 0;
+	}
+  
+	if (bus_dmamem_map(sc->sc_dmatag, &sc->sc_segs, 1, SBUSFPGA_CURVE25519ENGINE_VAL_DMA_MAX_SZ, &sc->sc_dma_kva, BUS_DMA_NOWAIT)) {
+		aprint_error_dev(sc->sc_dev, "cannot allocate DVMA address");
+		bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
+		bus_dmamap_destroy(sc->sc_dmatag, sc->sc_dmamap);
+		return 0;
+	}
+  
+	if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, sc->sc_dma_kva, SBUSFPGA_CURVE25519ENGINE_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
+						BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+		aprint_error_dev(sc->sc_dev, "cannot load dma map");
+		bus_dmamem_unmap(sc->sc_dmatag, &sc->sc_dma_kva, SBUSFPGA_CURVE25519ENGINE_VAL_DMA_MAX_SZ);
+		bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
+		bus_dmamap_destroy(sc->sc_dmatag, sc->sc_dmamap);
+		return 0;
+	}
+	
+	aprint_normal_dev(sc->sc_dev, "DMA: SW -> kernel address is %p, dvma address is 0x%08llx\n", sc->sc_dma_kva, sc->sc_dmamap->dm_segs[0].ds_addr);
+	
+	return 1;
+}
+
+paddr_t sbusfpga_curve25519engine_mmap(dev_t dev, off_t offset, int prot) {
+	struct sbusfpga_curve25519engine_softc *sc = device_lookup_private(&sbusfpga_c29e_cd, minor(dev));
+	paddr_t addr = -1;
+	int ses = offset / 4096;
+	
+	if (offset % 4096)
+		return -1;
+	if (prot & PROT_EXEC)
+		return -1;
+	if (sc->mapped_sessions & (1 << ses))
+		return -1;
+	if ((sc->active_sessions & (1 << ses)) == 0)
+		return -1;
+
+	addr = bus_dmamem_mmap(sc->sc_dmatag, &sc->sc_segs, 1, offset, prot, BUS_DMA_NOWAIT);
+	
+	device_printf(sc->sc_dev, "mapped page %d\n", ses);
+
+	if (addr != -1)
+		sc->mapped_sessions |= (1 << ses);
+
+	return addr;
 }

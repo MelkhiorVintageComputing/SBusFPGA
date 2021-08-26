@@ -615,13 +615,80 @@ fn main() -> std::io::Result<()> {
 					fin
     );let gcmcode = assemble_engine25519!(
                start:
-                    // X in %1
-					// KEY in %0
+                    // X in %0
+					// KEY in %31-%17 (backward)
 					// one  full round demo
-					aesesmi %0, %1, %0, #0
+					xor %0, %0, %31
+
+					aesesmi %1, %0, %30, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %29, #0
 					aesesmi %0, %1, %0, #1
 					aesesmi %0, %1, %0, #2
 					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %28, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %27, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %26, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %25, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %24, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %23, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %22, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %21, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %20, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %19, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %18, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesi %0, %1, %17, #0
+					aesesi %0, %1, %0, #1
+					aesesi %0, %1, %0, #2
+					aesesi %0, %1, %0, #3
 
 					fin
     );

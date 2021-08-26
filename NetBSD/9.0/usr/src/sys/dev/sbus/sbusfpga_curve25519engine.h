@@ -29,6 +29,11 @@
 #ifndef _SBUSFPGA_CURVE25519ENGINE_H_
 #define _SBUSFPGA_CURVE25519ENGINE_H_
 
+#define MAX_SESSION 32 // HW limit
+#define MAX_ACTIVE_SESSION 8 // SW-imposed limit
+// Single 4KiB pages per session
+#define SBUSFPGA_CURVE25519ENGINE_VAL_DMA_MAX_SZ (MAX_ACTIVE_SESSION*4*1024)
+
 struct sbusfpga_curve25519engine_softc {
 	device_t sc_dev;		/* us as a device */
 	u_int	sc_rev;			/* revision */
@@ -42,8 +47,16 @@ struct sbusfpga_curve25519engine_softc {
 	int	sc_bufsiz_curve25519engine;		/* Size of buffer */
 	int	sc_bufsiz_microcode;		/* Size of buffer */
 	int	sc_bufsiz_regfile;		/* Size of buffer */
-	bus_dma_tag_t		sc_dmatag;
 	int initialized;
+	uint32_t active_sessions;
+	uint32_t mapped_sessions;
+	uint32_t sessions_cookies[MAX_ACTIVE_SESSION];
+	/* DMA kernel structures */
+	bus_dma_tag_t		sc_dmatag;
+	bus_dmamap_t		sc_dmamap;
+	bus_dma_segment_t       sc_segs;
+	int                     sc_rsegs;
+	void *              sc_dma_kva;
 };
 
 #endif /* _SBUSFPGA_CURVE25519ENGINE_H_ */
