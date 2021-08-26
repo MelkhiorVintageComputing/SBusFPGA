@@ -613,7 +613,8 @@ fn main() -> std::io::Result<()> {
 					xor %0, %2, %1
 					// output in %0
 					fin
-    );let gcmcode = assemble_engine25519!(
+    );
+	let aescode = assemble_engine25519!(
                start:
                     // X in %0
 					// KEY in %31-%17 (backward)
@@ -692,11 +693,118 @@ fn main() -> std::io::Result<()> {
 
 					fin
     );
+	let gcm_ad_code = assemble_engine25519!(
+    start:
+					// Input: rkeys in %31-%17 (backward)
+					// Transient:
+					//  %0, %1, %2 are tmp
+					//  init counter in %16
+					//  H will go in %15
+					//  T will go in %14
+					psa %16, #0
+					// use %2 as a flag
+					psa %2, #1
+	genht:
+					xor %0, %16, %31
+
+					aesesmi %1, %0, %30, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %29, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %28, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %27, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %26, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %25, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %24, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %23, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %22, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %21, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %20, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %19, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %18, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesi %0, %1, %17, #0
+					aesesi %0, %1, %0, #1
+					aesesi %0, %1, %0, #2
+					aesesi %0, %1, %0, #3
+
+					// if the %2 flag is cleared, we've just computed T
+					brz afterht, %2
+					// store H in %15
+					psa %15, %0
+					// increment counter; should we have a gcm_inc_be ?
+					// for now byterev + special constant
+					gcm_brev32 %16, %16
+					add %16, %16, #11
+					gcm_brev32 %16, %16
+					// clear flag & go encrypt t
+					psa %2, #0
+					brz genht, #0
+					
+		afterht:
+					// store T in %14
+					psa %14, %0
+					
+					// fully byte-revert H (first byte-in-dword, then dword-in-128bit)
+					gcm_brev64 %15, %15
+					gcm_swap64 %15, %15, %15
+					
+					fin
+    );
 
 
     let mut pos = 0;
-    while pos < gcmcode.len() {
-		  println!("0x{:08x},", gcmcode[pos]);
+    while pos < gcm_ad_code.len() {
+		  println!("0x{:08x},", gcm_ad_code[pos]);
 		  pos = pos + 1;
     }
 	Ok(())

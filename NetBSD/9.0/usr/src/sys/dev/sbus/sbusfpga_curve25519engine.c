@@ -118,7 +118,9 @@ int
 sbusfpga_curve25519engine_close(dev_t dev, int flags, int mode, struct lwp *l)
 {
 	struct sbusfpga_curve25519engine_softc *sc = device_lookup_private(&sbusfpga_c29e_cd, minor(dev));
-	power_off(sc);
+
+	if (sc->active_sessions == 0)
+		power_off(sc);
 	
 	return (0);
 }
@@ -145,8 +147,10 @@ static const uint32_t program_gcm[20] = {0x0010100d, 0x0094100d, 0x0118100d, 0x0
 
 static const uint32_t program_aes[58] = {0x0001f003, 0x0005e012, 0x00841012, 0x01041012, 0x01841012, 0x0001d052, 0x00800052, 0x01000052, 0x01800052, 0x0005c012, 0x00841012, 0x01041012, 0x01841012, 0x0001b052, 0x00800052, 0x01000052, 0x01800052, 0x0005a012, 0x00841012, 0x01041012, 0x01841012, 0x00019052, 0x00800052, 0x01000052, 0x01800052, 0x00058012, 0x00841012, 0x01041012, 0x01841012, 0x00017052, 0x00800052, 0x01000052, 0x01800052, 0x00056012, 0x00841012, 0x01041012, 0x01841012, 0x00015052, 0x00800052, 0x01000052, 0x01800052, 0x00054012, 0x00841012, 0x01041012, 0x01841012, 0x00013052, 0x00800052, 0x01000052, 0x01800052, 0x00052012, 0x00841012, 0x01041012, 0x01841012, 0x02011052, 0x02800052, 0x03000052, 0x03800052, 0x0000000a };
 
-static const uint32_t* programs[4] = { program_ec25519, program_gcm, program_aes, NULL };
-static const uint32_t program_len[4] = { 134, 20, 58, 0 };
+static const uint32_t program_gcm_ad[70] = {0x00400800, 0x00080840, 0x0001f403, 0x0005e012, 0x00841012, 0x01041012, 0x01841012, 0x0001d052, 0x00800052, 0x01000052, 0x01800052, 0x0005c012, 0x00841012, 0x01041012, 0x01841012, 0x0001b052, 0x00800052, 0x01000052, 0x01800052, 0x0005a012, 0x00841012, 0x01041012, 0x01841012, 0x00019052, 0x00800052, 0x01000052, 0x01800052, 0x00058012, 0x00841012, 0x01041012, 0x01841012, 0x00017052, 0x00800052, 0x01000052, 0x01800052, 0x00056012, 0x00841012, 0x01041012, 0x01841012, 0x00015052, 0x00800052, 0x01000052, 0x01800052, 0x00054012, 0x00841012, 0x01041012, 0x01841012, 0x00013052, 0x00800052, 0x01000052, 0x01800052, 0x00052012, 0x00841012, 0x01041012, 0x01841012, 0x02011052, 0x02800052, 0x03000052, 0x03800052, 0x03000089, 0x003c0000, 0x01400411, 0x0042b405, 0x01400411, 0x00080800, 0xe0000809, 0x00380000, 0x01bc03d1, 0x003cf3d1, 0x0000000a };
+
+static const uint32_t* programs[5] = { program_ec25519, program_gcm, program_aes, program_gcm_ad, NULL };
+static const uint32_t program_len[5] = { 134, 20, 58, 70, 0 };
 static       uint32_t program_offset[4];
 
 /*
@@ -303,6 +307,7 @@ struct sbusfpga_curve25519engine_session {
 #define SBUSFPGA_DO_MONTGOMERYJOB   _IOWR(0, 0, struct sbusfpga_curve25519engine_montgomeryjob)
 #define SBUSFPGA_EC25519_CHECKGCM   _IOW(0, 1, struct sbusfpga_curve25519engine_montgomeryjob)
 #define SBUSFPGA_EC25519_CHECKAES   _IOW(0, 2, struct sbusfpga_curve25519engine_aesjob)
+#define SBUSFPGA_EC25519_GCMAD      _IOW(0, 3, struct sbusfpga_curve25519engine_aesjob)
 
 #define SBUSFPGA_EC25519_OPENSESSION   _IOR(1, 0, struct sbusfpga_curve25519engine_session)
 #define SBUSFPGA_EC25519_CLOSESESSION  _IOR(1, 1, struct sbusfpga_curve25519engine_session)
@@ -397,7 +402,7 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		}
 		for (reg = 31 ; reg > 16 ; reg--) {
 			for (i = 0 ; i < 8 ; i ++) {
-				bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i), job->keys[i]);
+				bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i), job->keys[i+8*(31-reg)]);
 			}
 		}
 		
@@ -415,6 +420,40 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 				buf[i] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i));
 			}
 			device_printf(sc->sc_dev, "AES %d: 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x \n", reg,
+						  buf[0],  buf[1],  buf[2],  buf[3], buf[4],  buf[5],  buf[6],  buf[7]);
+		}
+	}
+		break;
+	case SBUSFPGA_EC25519_GCMAD: {
+		const uint32_t base = 0;
+		struct sbusfpga_curve25519engine_aesjob* job = (struct sbusfpga_curve25519engine_aesjob*)data;
+		int reg, i;
+		
+		curve25519engine_mpstart_write(sc, program_offset[3]); /* GCM_AD */
+		curve25519engine_mplen_write(sc, program_len[3]); /* GCM_AD */
+		for (i = 0 ; i < 8 ; i ++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,i), job->data[i]);
+		}
+		for (reg = 31 ; reg > 16 ; reg--) {
+			for (i = 0 ; i < 8 ; i ++) {
+				bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i), job->keys[i+8*(31-reg)]);
+			}
+		}
+		
+		err = start_job(sc);
+		if (err)
+			return err;
+		delay(1);
+		err = wait_job(sc);
+		/* if (err) */
+		/* 	return err; */
+
+		for (reg = 0 ; reg < 32 ; reg++) {
+			uint32_t buf[8];
+			for (i = 0 ; i < 8 ; i ++) {
+				buf[i] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i));
+			}
+			device_printf(sc->sc_dev, "GCM_AD %d: 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x \n", reg,
 						  buf[0],  buf[1],  buf[2],  buf[3], buf[4],  buf[5],  buf[6],  buf[7]);
 		}
 	}

@@ -13,7 +13,7 @@ opcode_bits = 6  # number of bits used to encode the opcode field
 opcodes = {  # mnemonic : [bit coding, docstring]
     "UDF" : [-1, "Placeholder for undefined opcodes"],
     "PSA" : [0, "Wd $\gets$ Ra  // pass A"],
-    "PSB" : [1, "Wd $\gets$ Rb  // pass B"],
+    "PSB" : [1, "Wd $\gets$ Rb  // pass B"], # Is that needed ???
     "MSK" : [2, "Wd $\gets$ Replicate(Ra[0], 256) & Rb  // for doing cswap()"],
     "XOR" : [3, "Wd $\gets$ Ra ^ Rb  // bitwise XOR"],
     "NOT" : [4, "Wd $\gets$ ~Ra   // binary invert"],
@@ -29,7 +29,7 @@ opcodes = {  # mnemonic : [bit coding, docstring]
     "GCM_SHLMI":  [14, "Shift A left by imm, insert B MSB as dest LSB; reg-reg or reg-imm; per 128-bits block"], # make SHL redundant: SHL %rd, %ra == GCM_SHLMI %rd, %ra, #0, #1
     "GCM_SHRMI":  [15, "Shift A right by imm, insert B LSB as dest MSB; reg-reg or reg-imm; per 128-bits block"], # 
     "GCM_CMPD":   [16, "Compute D:X0 from X1:X0; reg ; per 128-bits block"], # specific
-    "GCM_SWAP64": [17, "Swap doubleword (64 bits) ; reg-reg or imm-reg or reg-imm; per 128-bits block"], # 
+    "GCM_SWAP64": [17, "Swap doubleword (64 bits) ; reg-reg or imm-reg or reg-imm; per 128-bits block ; imm != 0 -> BYTEREV*"], # 
     "AESESMI" : [18, "AES ; reg-reg ; per 128-bits block; imm[0:2] indicates sub-round (as in rv32's aes32esmi) ; imm[2] is 1 for aesesi (shared opcode)" ],
     "MAX" : [19, "Maximum opcode number (for bounds checking)"],
 }
@@ -235,6 +235,7 @@ class Curve25519Const(Module, AutoDoc):
             8: [50, "fifty", "The number 50 (for pow22501)"],
             9: [100, "one hundred", "The number 100 (for pow22501)"],
             10: [254, "two hundred fifty four", "The number 254 (iteration count)"],
+            11: [0x00000001_00000000_00000000_00000000_00000001_00000000_00000000_00000000, "increment for GCM counter (LE)", "increment for GCM counter (LE)"],
         }
         self.adr = Signal(5)
         self.const = Signal(256)
@@ -1524,7 +1525,13 @@ class ExecGCMShifts(ExecUnit, AutoDoc):
                    0x7: self.q.eq(Cat(self.b[121:128], self.a[0:121], self.b[249:256], self.a[128:249])),
                    })
             ).Elif(self.instruction.opcode == opcodes["GCM_SWAP64"][0],
-                   self.q.eq(Cat(self.b[64:128], self.a[0:64], self.b[192:256], self.a[128:192]))
+                   # also gcm_brev*
+                   Case(self.instruction.immediate[0:2], {
+                       0: self.q.eq(Cat(self.b[64:128], self.a[0:64], self.b[192:256], self.a[128:192])),
+                       1: self.q.eq(Cat(self.a[8:16], self.a[0:8], self.a[24:32], self.a[16:24], self.a[40:48], self.a[32:40], self.a[56:64], self.a[48:56], self.a[72:80], self.a[64:72], self.a[88:96], self.a[80:88], self.a[104:112], self.a[96:104], self.a[120:128], self.a[112:120], self.a[136:144], self.a[128:136], self.a[152:160], self.a[144:152], self.a[168:176], self.a[160:168], self.a[184:192], self.a[176:184], self.a[200:208], self.a[192:200], self.a[216:224], self.a[208:216], self.a[232:240], self.a[224:232], self.a[248:256], self.a[240:248])),
+                       2: self.q.eq(Cat(self.a[24:32], self.a[16:24], self.a[8:16], self.a[0:8], self.a[56:64], self.a[48:56], self.a[40:48], self.a[32:40], self.a[88:96], self.a[80:88], self.a[72:80], self.a[64:72], self.a[120:128], self.a[112:120], self.a[104:112], self.a[96:104], self.a[152:160], self.a[144:152], self.a[136:144], self.a[128:136], self.a[184:192], self.a[176:184], self.a[168:176], self.a[160:168], self.a[216:224], self.a[208:216], self.a[200:208], self.a[192:200], self.a[248:256], self.a[240:248], self.a[232:240], self.a[224:232])),
+                       3: self.q.eq(Cat(self.a[56:64], self.a[48:56], self.a[40:48], self.a[32:40], self.a[24:32], self.a[16:24], self.a[8:16], self.a[0:8], self.a[120:128], self.a[112:120], self.a[104:112], self.a[96:104], self.a[88:96], self.a[80:88], self.a[72:80], self.a[64:72], self.a[184:192], self.a[176:184], self.a[168:176], self.a[160:168], self.a[152:160], self.a[144:152], self.a[136:144], self.a[128:136], self.a[248:256], self.a[240:248], self.a[232:240], self.a[224:232], self.a[216:224], self.a[208:216], self.a[200:208], self.a[192:200])),
+                   })
             )
         ]
 
