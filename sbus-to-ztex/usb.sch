@@ -265,10 +265,6 @@ Connection ~ 3950 2250
 Text Label 4950 1450 2    50   ~ 0
 VBus
 Wire Wire Line
-	4700 3000 4700 3200
-Wire Wire Line
-	4700 3200 5000 3200
-Wire Wire Line
 	5000 3200 5100 3200
 Connection ~ 5000 3200
 $Comp
@@ -393,4 +389,8 @@ F 6 "https://www.mouser.fr/ProductDetail/Texas-Instruments/TPS2051CDBVR?qs=PF3AD
 	1    0    0    -1  
 $EndComp
 Connection ~ 6200 2600
+Text HLabel 4450 2250 2    50   Input ~ 0
+USB_D+
+Text HLabel 4450 3450 2    50   Input ~ 0
+USB_D-
 $EndSCHEMATC
