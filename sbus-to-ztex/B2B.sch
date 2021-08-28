@@ -116,7 +116,7 @@ Text GLabel 4100 2850 2    60   Input ~ 0
 SBUS_3V3_D[24]
 Text GLabel 6650 5700 2    60   Input ~ 0
 SBUS_3V3_INT[7]*
-Text GLabel 1600 3550 0    60   Input ~ 0
+Text GLabel 7400 2350 0    60   Input ~ 0
 SBUS_3V3_INT[6]*
 Text GLabel 7400 3250 0    60   Input ~ 0
 SBUS_3V3_INT[5]*
@@ -210,7 +210,7 @@ Text GLabel 7400 3050 0    60   Input ~ 0
 SBUS_3V3_ACK[0]*
 Text GLabel 7400 2950 0    60   Input ~ 0
 SBUS_3V3_PPRD
-Text GLabel 7400 2350 0    60   Input ~ 0
+Text GLabel 1600 3550 0    60   Input ~ 0
 SBUS_3V3_EER*
 Wire Wire Line
 	1800 5850 1650 5850

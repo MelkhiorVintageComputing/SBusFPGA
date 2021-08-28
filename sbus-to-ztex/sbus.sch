@@ -981,6 +981,8 @@ F 1 "SN74CB3T16211DGGR" H 10350 2481 60  0000 C CNN
 F 2 "For_SeeedStudio:TSSOP-56_6.1x14mm_P0.5mm_For_SeeedStudio" H 10350 2440 60  0001 C CNN
 F 3 "" H 9550 2200 60  0000 C CNN
 F 4 "SN74CB3T16211DGGR" H 9550 2200 50  0001 C CNN "MPN"
+F 5 "https://www.mouser.fr/ProductDetail/Texas-Instruments/SN74CB3T16211DGGR?qs=%2Fha2pyFadujLgV8PJqueL5aUGpX9%252BbECTuUAq6EU8VAiPml4qcD9lw%3D%3D" H 9550 2200 50  0001 C CNN "URL-alt"
+F 6 "https://lcsc.com/product-detail/Signal-Switches-Encoders-Decoders-Multiplexers_Texas-Instruments-SN74CB3T16211DGGR_C2653275.html" H 9550 2200 50  0001 C CNN "URL"
 	1    9550 2200
 	1    0    0    -1  
 $EndComp
