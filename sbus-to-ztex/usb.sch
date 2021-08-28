@@ -30,20 +30,6 @@ F 8 "https://eu.mouser.com/ProductDetail/Molex/105017-0001?qs=hlXxxvYE36k7QcsR97
 	1    5000 2800
 	-1   0    0    -1  
 $EndComp
-$Comp
-L Power_Management:TPS2041B U7
-U 1 1 60D9A6AC
-P 6700 2800
-F 0 "U7" H 6700 3267 50  0000 C CNN
-F 1 "TPS2065" H 6700 3176 50  0000 C CNN
-F 2 "Package_TO_SOT_SMD:SOT-23-5" H 6700 3300 50  0001 C CNN
-F 3 "" H 6650 3100 50  0001 C CNN
-F 4 "TPS2065CDBVT-2" H 6700 2800 50  0001 C CNN "MPN"
-F 5 "595-TPS2065CDBVT-2" H 6700 2800 50  0001 C CNN "Mouser No"
-F 6 "https://eu.mouser.com/ProductDetail/Texas-Instruments/TPS2065CDBVT-2?qs=jUogulkOmla%2FprItLs6IKw%3D%3D" H 6700 2800 50  0001 C CNN "URL"
-	1    6700 2800
-	1    0    0    -1  
-$EndComp
 Text Label 7400 2800 0    50   ~ 0
 VBus
 Wire Wire Line
@@ -85,11 +71,8 @@ F 4 "0603WAF1002T5E" V 6200 1850 50  0001 C CNN "MPN"
 	1    6200 2450
 	-1   0    0    1   
 $EndComp
-Connection ~ 6200 2600
 Wire Wire Line
 	6200 2300 6200 2100
-Text GLabel 6250 2100 2    50   Input ~ 0
-+3V3
 $Comp
 L Device:R R?
 U 1 1 60D9A6CD
@@ -149,28 +132,6 @@ F 3 "" H 7200 2150 50  0001 C CNN
 	1    7200 2150
 	1    0    0    -1  
 $EndComp
-$Comp
-L Device:R R?
-U 1 1 60D9A6EF
-P 7200 2950
-AR Path="/5F6B165A/60D9A6EF" Ref="R?"  Part="1" 
-AR Path="/5F679B53/60D9A6EF" Ref="R?"  Part="1" 
-AR Path="/5F69F4EF/60D9A6EF" Ref="R?"  Part="1" 
-AR Path="/60D72F2C/60D9A6EF" Ref="R20"  Part="1" 
-F 0 "R20" V 7280 2950 50  0000 C CNN
-F 1 "1k" V 7200 2950 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 7130 2950 50  0001 C CNN
-F 3 "" H 7200 2950 50  0000 C CNN
-F 4 "0603WAF1001T5E" V 7200 2350 50  0001 C CNN "MPN"
-	1    7200 2950
-	-1   0    0    1   
-$EndComp
-Connection ~ 7200 2800
-Wire Wire Line
-	7200 3100 7200 3400
-Wire Wire Line
-	7200 3400 6700 3400
-Connection ~ 6700 3400
 Wire Wire Line
 	4700 2900 4450 2900
 Wire Wire Line
@@ -330,7 +291,7 @@ L Device:CP C3
 U 1 1 60D9A750
 P 4950 2000
 F 0 "C3" H 5068 2046 50  0000 L CNN
-F 1 "CP" H 5068 1955 50  0000 L CNN
+F 1 "150uF" H 5068 1955 50  0000 L CNN
 F 2 "Capacitor_SMD:C_1206_3216Metric" H 4988 1850 50  0001 C CNN
 F 3 "~" H 4950 2000 50  0001 C CNN
 F 4 "GRM31CR60J157ME11L" H 4950 2000 50  0001 C CNN "MPN"
@@ -376,5 +337,60 @@ USBH0_D-
 Text Label 4700 2050 2    50   ~ 0
 VBus_USB0
 Text Notes 5050 4200 0    50   ~ 0
-From Dolu1990's USB pmod
+Inspired by Dolu1990's USB pmod\nSwitch to a TPS2051C for availability (and .5A is enough as there's just one port)\n
+Text GLabel 6250 2100 2    50   Input ~ 0
++5V
+Text Notes 6350 4050 1    50   ~ 0
+TPS2051C uses EN not !EN
+Wire Wire Line
+	7850 1850 8050 1850
+$Comp
+L Device:C C?
+U 1 1 612D3A06
+P 7850 2000
+AR Path="/5F679B53/612D3A06" Ref="C?"  Part="1" 
+AR Path="/5F69F4EF/612D3A06" Ref="C?"  Part="1" 
+AR Path="/60D72F2C/612D3A06" Ref="C14"  Part="1" 
+F 0 "C14" H 7875 2100 50  0000 L CNN
+F 1 "100nF" H 7875 1900 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0603_1608Metric" H 7888 1850 50  0001 C CNN
+F 3 "" H 7850 2000 50  0000 C CNN
+F 4 "www.yageo.com" H 7850 2000 50  0001 C CNN "MNF1_URL"
+F 5 "CC0603KRX7R8BB104" H 7850 2000 50  0001 C CNN "MPN"
+F 6 "603-CC603KRX7R8BB104" H 7850 2000 50  0001 C CNN "Mouser"
+F 7 "?" H 7850 2000 50  0001 C CNN "Digikey"
+F 8 "?" H 7850 2000 50  0001 C CNN "LCSC"
+F 9 "?" H 7850 2000 50  0001 C CNN "Koncar"
+F 10 "TB" H 7850 2000 50  0001 C CNN "Side"
+	1    7850 2000
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:GND #PWR0134
+U 1 1 612D3A0D
+P 7850 2150
+F 0 "#PWR0134" H 7850 1900 50  0001 C CNN
+F 1 "GND" H 7855 1977 50  0000 C CNN
+F 2 "" H 7850 2150 50  0001 C CNN
+F 3 "" H 7850 2150 50  0001 C CNN
+	1    7850 2150
+	1    0    0    -1  
+$EndComp
+Text Label 8050 1850 0    50   ~ 0
+VBus
+$Comp
+L Power_Management:TPS2041B U7
+U 1 1 60D9A6AC
+P 6700 2800
+F 0 "U7" H 6700 3267 50  0000 C CNN
+F 1 "TPS2051C" H 6700 3176 50  0000 C CNN
+F 2 "Package_TO_SOT_SMD:SOT-23-5" H 6700 3300 50  0001 C CNN
+F 3 "" H 6650 3100 50  0001 C CNN
+F 4 "TPS2051CDBVR" H 6700 2800 50  0001 C CNN "MPN"
+F 5 "595-TPS2051CDBVR" H 6700 2800 50  0001 C CNN "Mouser No"
+F 6 "https://www.mouser.fr/ProductDetail/Texas-Instruments/TPS2051CDBVR?qs=PF3AD18CSE5vi2HeWLJCmw%3D%3D" H 6700 2800 50  0001 C CNN "URL"
+	1    6700 2800
+	1    0    0    -1  
+$EndComp
+Connection ~ 6200 2600
 $EndSCHEMATC

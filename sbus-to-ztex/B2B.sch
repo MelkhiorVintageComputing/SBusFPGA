@@ -116,9 +116,9 @@ Text GLabel 4100 2850 2    60   Input ~ 0
 SBUS_3V3_D[24]
 Text GLabel 6650 5700 2    60   Input ~ 0
 SBUS_3V3_INT[7]*
-Text GLabel 6300 5850 0    60   Input ~ 0
+Text GLabel 1600 3550 0    60   Input ~ 0
 SBUS_3V3_INT[6]*
-Text GLabel 6300 5950 0    60   Input ~ 0
+Text GLabel 7400 3250 0    60   Input ~ 0
 SBUS_3V3_INT[5]*
 Text GLabel 9900 3050 2    60   Input ~ 0
 SBUS_3V3_INT[4]*
@@ -599,8 +599,8 @@ Text GLabel 9900 3150 2    50   Input ~ 0
 PMOD-10
 Text GLabel 7400 1750 0    50   Input ~ 0
 PMOD-11
-Text GLabel 1600 3550 0    60   Input ~ 12
+Text GLabel 2350 5000 0    60   Input ~ 12
 LED0
-Text GLabel 7400 3250 0    60   Input ~ 12
+Text GLabel 2800 5350 0    60   Input ~ 12
 LED1
 $EndSCHEMATC
