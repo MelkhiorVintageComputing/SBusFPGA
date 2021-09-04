@@ -1265,9 +1265,43 @@ fn main() -> std::io::Result<()> {
 
 
     let mut pos = 0;
-    while pos < gcm_finish_code.len() {
-		  println!("0x{:08x},", gcm_finish_code[pos]);
+
+	pos = 0;
+	println!("PFX:");
+    while pos < gcm_pfx_code.len() {
+		  print!("0x{:08x},", gcm_pfx_code[pos]);
 		  pos = pos + 1;
     }
+	println!("");
+	println!("-> {}", gcm_pfx_code.len());
+
+	pos = 0;
+	println!("AD:");
+    while pos < gcm_ad_code.len() {
+		  print!("0x{:08x},", gcm_ad_code[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", gcm_ad_code.len());
+
+	pos = 0;
+	println!("AES:");
+    while pos < gcm_aes_code.len() {
+		  print!("0x{:08x},", gcm_aes_code[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", gcm_aes_code.len());
+
+	pos = 0;
+	println!("FINISH:");
+    while pos < gcm_finish_code.len() {
+		  print!("0x{:08x},", gcm_finish_code[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", gcm_finish_code.len());
+
+
 	Ok(())
 }
