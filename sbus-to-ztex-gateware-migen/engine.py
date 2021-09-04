@@ -30,7 +30,7 @@ opcodes = {  # mnemonic : [bit coding, docstring]
     "GCM_SHRMI":  [15, "Shift A right by imm, insert B LSB as dest MSB; reg-reg or reg-imm; per 128-bits block"], # 
     "GCM_CMPD":   [16, "Compute D:X0 from X1:X0; reg ; per 128-bits block"], # specific
     "GCM_SWAP64": [17, "Swap doubleword (64 bits) ; reg-reg or imm-reg or reg-imm; per 128-bits block ; imm != 0 -> BYTEREV*"], # 
-    "AESESMI" :   [18, "AES ; reg-reg ; per 128-bits block; imm[0:2] indicates sub-round (as in rv32's aes32esmi) ; imm[2] is 1 for aesesi (shared opcode)" ],
+    "AESESMI" :   [18, "AES ; reg-reg ; per 128-bits block; imm[0] is 1 for aesesi (shared opcode)" ],
     "MEM" :       [19, "MEM ; imm[0] == 0 for LOAD, imm[0] == 1 for STORE (beware, store copy the address in the output reg)" ],
     "AND" :       [20, "Wd $\gets$ Ra & Rb  // bitwise AND"],
     "MAX" : [21, "Maximum opcode number (for bounds checking)"],
@@ -1579,7 +1579,6 @@ class ExecAES(ExecUnit, AutoDoc):
         assert(width == 256) # fixme
         nlane = width // 128
         aes_buf = Signal(nlane * 128) ## width must be a multiple of 128...
-        lanec = Signal(log2_int(nlane, False))
         assert(nlane == 2) ## fixme
         
         aes_in = Array(Signal(8) for a in range(4))
@@ -1595,123 +1594,157 @@ class ExecAES(ExecUnit, AutoDoc):
         self.submodules.seq = seq = ClockDomainsRenamer("eng_clk")(FSM(reset_state="IDLE"))
         seq.act("IDLE",
                 If(self.start,
-                   NextValue(lanec, 0),
-                   Case(self.instruction.immediate[0:2], {
-                       0x0: [ NextValue(aes_in[0], self.a[  0:  8]), NextValue(aes_in[1], self.a[ 32: 40]), NextValue(aes_in[2], self.a[ 64: 72]), NextValue(aes_in[3], self.a[ 96:104]) ],
-                       0x1: [ NextValue(aes_in[3], self.a[  8: 16]), NextValue(aes_in[0], self.a[ 40: 48]), NextValue(aes_in[1], self.a[ 72: 80]), NextValue(aes_in[2], self.a[104:112]) ],
-                       0x2: [ NextValue(aes_in[2], self.a[ 16: 24]), NextValue(aes_in[3], self.a[ 48: 56]), NextValue(aes_in[0], self.a[ 80: 88]), NextValue(aes_in[1], self.a[112:120]) ],
-                       0x3: [ NextValue(aes_in[1], self.a[ 24: 32]), NextValue(aes_in[2], self.a[ 56: 64]), NextValue(aes_in[3], self.a[ 88: 96]), NextValue(aes_in[0], self.a[120:128]) ],
-                   }),
-                   NextState("NEXT")))
-        seq.act("NEXT",
-                Case(self.instruction.immediate[0:2], {
-                    0x0: [ NextValue(aes_in[0], self.a[128:136]), NextValue(aes_in[1], self.a[160:168]), NextValue(aes_in[2], self.a[192:200]), NextValue(aes_in[3], self.a[224:232]) ],
-                    0x1: [ NextValue(aes_in[3], self.a[136:144]), NextValue(aes_in[0], self.a[168:176]), NextValue(aes_in[1], self.a[200:208]), NextValue(aes_in[2], self.a[232:240]) ],
-                    0x2: [ NextValue(aes_in[2], self.a[144:152]), NextValue(aes_in[3], self.a[176:184]), NextValue(aes_in[0], self.a[208:216]), NextValue(aes_in[1], self.a[240:248]) ],
-                    0x3: [ NextValue(aes_in[1], self.a[152:160]), NextValue(aes_in[2], self.a[184:192]), NextValue(aes_in[3], self.a[216:224]), NextValue(aes_in[0], self.a[248:256]) ],
+                   # put the first byte in the lookup tables (LANE1)
+                   # [ NextValue(aes_in[i], self.a[32*i:32*i+8]) for i in range(0, 4) ],
+                   NextValue(aes_in[0], self.a[  0:  8]),
+                   NextValue(aes_in[1], self.a[ 32: 40]),
+                   NextValue(aes_in[2], self.a[ 64: 72]),
+                   NextValue(aes_in[3], self.a[ 96:104]),
+                   NextState("LANE2_1")))
+        seq.act("LANE2_1",
+                # put the first byte in the lookup tables (LANE2)
+                NextValue(aes_in[0], self.a[128:136]),
+                NextValue(aes_in[1], self.a[160:168]),
+                NextValue(aes_in[2], self.a[192:200]),
+                NextValue(aes_in[3], self.a[224:232]),
+                NextState("LANE1_2"))
+        seq.act("LANE1_2",
+                # store the xor'ed result for LANE1, byte 1 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[  0: 32], self.b[  0: 32] ^ Cat(aes_out[0][ 0:16], aes_out[0][ 8:24])),
+                    NextValue(aes_buf[ 32: 64], self.b[ 32: 64] ^ Cat(aes_out[1][ 0:16], aes_out[1][ 8:24])),
+                    NextValue(aes_buf[ 64: 96], self.b[ 64: 96] ^ Cat(aes_out[2][ 0:16], aes_out[2][ 8:24])),
+                    NextValue(aes_buf[ 96:128], self.b[ 96:128] ^ Cat(aes_out[3][ 0:16], aes_out[3][ 8:24]))],
+                1:[ NextValue(aes_buf[  0: 32], self.b[  0: 32] ^ Cat(aes_out[0][ 8:16], Signal(24, reset = 0))),
+                    NextValue(aes_buf[ 32: 64], self.b[ 32: 64] ^ Cat(aes_out[1][ 8:16], Signal(24, reset = 0))),
+                    NextValue(aes_buf[ 64: 96], self.b[ 64: 96] ^ Cat(aes_out[2][ 8:16], Signal(24, reset = 0))),
+                    NextValue(aes_buf[ 96:128], self.b[ 96:128] ^ Cat(aes_out[3][ 8:16], Signal(24, reset = 0)))],
                 }),
-                NextState("WRITE"))
-        seq.act("WRITE",
-                Case(lanec, {
-                    0: [ Case(self.instruction.immediate[2:3], {
-                        0: Case(self.instruction.immediate[0:2], {
-                            0x0: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 0:16], aes_out[0][ 8:24],
-                                                                 aes_out[1][ 0:16], aes_out[1][ 8:24],
-                                                                 aes_out[2][ 0:16], aes_out[2][ 8:24],
-                                                                 aes_out[3][ 0:16], aes_out[3][ 8:24])),
-                            ],
-                            0x1: [ NextValue(aes_buf[0:128], Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
-                                                                 aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
-                                                                 aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
-                                                                 aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
-                            ],
-                            0x2: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:24], aes_out[0][ 0:16],
-                                                                 aes_out[1][ 8:24], aes_out[1][ 0:16],
-                                                                 aes_out[2][ 8:24], aes_out[2][ 0:16],
-                                                                 aes_out[3][ 8:24], aes_out[3][ 0:16])),
-                            ],
-                            0x3: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
-                                                                 aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
-                                                                 aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
-                                                                 aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
-                            ],
-                        }),
-                        1: Case(self.instruction.immediate[0:2], {
-                            0x0: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:16], Signal(24, reset = 0),
-                                                                 aes_out[1][ 8:16], Signal(24, reset = 0),
-                                                                 aes_out[2][ 8:16], Signal(24, reset = 0),
-                                                                 aes_out[3][ 8:16], Signal(24, reset = 0))),
-                            ],
-                            0x1: [ NextValue(aes_buf[0:128], Cat(Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0),
-                                                                 Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0),
-                                                                 Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0),
-                                                                 Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0))),
-                            ],
-                            0x2: [ NextValue(aes_buf[0:128], Cat(Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0),
-                                                                 Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0),
-                                                                 Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0),
-                                                                 Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0))),
-                            ],
-                            0x3: [ NextValue(aes_buf[0:128], Cat(Signal(24, reset = 0), aes_out[0][ 8:16],
-                                                                 Signal(24, reset = 0), aes_out[1][ 8:16],
-                                                                 Signal(24, reset = 0), aes_out[2][ 8:16],
-                                                                 Signal(24, reset = 0), aes_out[3][ 8:16])),
-                            ],
-                        }),
-                    }),
-                         NextValue(lanec, 1)],
-                    1: [ Case(self.instruction.immediate[2:3], {
-                        0: Case(self.instruction.immediate[0:2], {
-                            0x0: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 0:16], aes_out[0][ 8:24],
-                                                                   aes_out[1][ 0:16], aes_out[1][ 8:24],
-                                                                   aes_out[2][ 0:16], aes_out[2][ 8:24],
-                                                                   aes_out[3][ 0:16], aes_out[3][ 8:24])),
-                            ],
-                            0x1: [ NextValue(aes_buf[128:256], Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
-                                                                   aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
-                                                                   aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
-                                                                   aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
-                            ],
-                            0x2: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 8:24], aes_out[0][ 0:16],
-                                                                   aes_out[1][ 8:24], aes_out[1][ 0:16],
-                                                                   aes_out[2][ 8:24], aes_out[2][ 0:16],
-                                                                   aes_out[3][ 8:24], aes_out[3][ 0:16])),
-                            ],
-                            0x3: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
-                                                                   aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
-                                                                   aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
-                                                                   aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
-                            ],
-                        }),
-                        1: Case(self.instruction.immediate[0:2], {
-                            0x0: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 8:16], Signal(24, reset = 0),
-                                                                   aes_out[1][ 8:16], Signal(24, reset = 0),
-                                                                   aes_out[2][ 8:16], Signal(24, reset = 0),
-                                                                   aes_out[3][ 8:16], Signal(24, reset = 0))),
-                        ],
-                            0x1: [ NextValue(aes_buf[128:256], Cat(Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0),
-                                                                   Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0),
-                                                                   Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0),
-                                                                   Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0))),
-                            ],
-                            0x2: [ NextValue(aes_buf[128:256], Cat(Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0),
-                                                                   Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0),
-                                                                   Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0),
-                                                                   Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0))),
-                            ],
-                            0x3: [ NextValue(aes_buf[128:256], Cat(Signal(24, reset = 0), aes_out[0][ 8:16],
-                                                                   Signal(24, reset = 0), aes_out[1][ 8:16],
-                                                                   Signal(24, reset = 0), aes_out[2][ 8:16],
-                                                                   Signal(24, reset = 0), aes_out[3][ 8:16])),
-                            ],
-                        }),
-                    }),
-                         NextState("OUT")
-                    ],
-                }))
+                # put the second byte in the lookup tables (LANE1)
+                NextValue(aes_in[3], self.a[  8: 16]),
+                NextValue(aes_in[0], self.a[ 40: 48]),
+                NextValue(aes_in[1], self.a[ 72: 80]),
+                NextValue(aes_in[2], self.a[104:112]),
+                NextState("LANE2_2"))
+        seq.act("LANE2_2",
+                # store the xor'ed result for LANE2, byte 1 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[128:160], self.b[128:160] ^ Cat(aes_out[0][ 0:16], aes_out[0][ 8:24])),
+                    NextValue(aes_buf[160:192], self.b[160:192] ^ Cat(aes_out[1][ 0:16], aes_out[1][ 8:24])),
+                    NextValue(aes_buf[192:224], self.b[192:224] ^ Cat(aes_out[2][ 0:16], aes_out[2][ 8:24])),
+                    NextValue(aes_buf[224:256], self.b[224:256] ^ Cat(aes_out[3][ 0:16], aes_out[3][ 8:24]))],
+                1:[ NextValue(aes_buf[128:160], self.b[128:160] ^ Cat(aes_out[0][ 8:16], Signal(24, reset = 0))),
+                    NextValue(aes_buf[160:192], self.b[160:192] ^ Cat(aes_out[1][ 8:16], Signal(24, reset = 0))),
+                    NextValue(aes_buf[192:224], self.b[192:224] ^ Cat(aes_out[2][ 8:16], Signal(24, reset = 0))),
+                    NextValue(aes_buf[224:256], self.b[224:256] ^ Cat(aes_out[3][ 8:16], Signal(24, reset = 0)))],
+                }),
+                # put the second byte in the lookup tables (LANE2)
+                NextValue(aes_in[3], self.a[136:144]),
+                NextValue(aes_in[0], self.a[168:176]),
+                NextValue(aes_in[1], self.a[200:208]),
+                NextValue(aes_in[2], self.a[232:240]),
+                NextState("LANE1_3"))
+        seq.act("LANE1_3",
+                # store the xor'ed result for LANE1, byte 2 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[  0: 32], aes_buf[  0: 32] ^ Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16])),
+                    NextValue(aes_buf[ 32: 64], aes_buf[ 32: 64] ^ Cat(aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16])),
+                    NextValue(aes_buf[ 64: 96], aes_buf[ 64: 96] ^ Cat(aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16])),
+                    NextValue(aes_buf[ 96:128], aes_buf[ 96:128] ^ Cat(aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16]))],
+                1:[ NextValue(aes_buf[  0: 32], aes_buf[  0: 32] ^ Cat(Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0))),
+                    NextValue(aes_buf[ 32: 64], aes_buf[ 32: 64] ^ Cat(Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0))),
+                    NextValue(aes_buf[ 64: 96], aes_buf[ 64: 96] ^ Cat(Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0))),
+                    NextValue(aes_buf[ 96:128], aes_buf[ 96:128] ^ Cat(Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0)))],
+                }),
+                # put the third byte in the lookup tables (LANE1)
+                NextValue(aes_in[2], self.a[ 16: 24]),
+                NextValue(aes_in[3], self.a[ 48: 56]),
+                NextValue(aes_in[0], self.a[ 80: 88]),
+                NextValue(aes_in[1], self.a[112:120]),
+                NextState("LANE2_3"))
+        seq.act("LANE2_3",
+                # store the xor'ed result for LANE2, byte 2 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[128:160], aes_buf[128:160] ^ Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16])),
+                    NextValue(aes_buf[160:192], aes_buf[160:192] ^ Cat(aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16])),
+                    NextValue(aes_buf[192:224], aes_buf[192:224] ^ Cat(aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16])),
+                    NextValue(aes_buf[224:256], aes_buf[224:256] ^ Cat(aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16]))],
+                1:[ NextValue(aes_buf[128:160], aes_buf[128:160] ^ Cat(Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0))),
+                    NextValue(aes_buf[160:192], aes_buf[160:192] ^ Cat(Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0))),
+                    NextValue(aes_buf[192:224], aes_buf[192:224] ^ Cat(Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0))),
+                    NextValue(aes_buf[224:256], aes_buf[224:256] ^ Cat(Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0)))],
+                }),
+                # put the third byte in the lookup tables (LANE2)
+                NextValue(aes_in[2], self.a[144:152]),
+                NextValue(aes_in[3], self.a[176:184]),
+                NextValue(aes_in[0], self.a[208:216]),
+                NextValue(aes_in[1], self.a[240:248]),
+                NextState("LANE1_4"))
+        seq.act("LANE1_4",
+                # store the xor'ed result for LANE1, byte 3 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[  0: 32], aes_buf[  0: 32] ^ Cat(aes_out[0][ 8:24], aes_out[0][ 0:16])),
+                    NextValue(aes_buf[ 32: 64], aes_buf[ 32: 64] ^ Cat(aes_out[1][ 8:24], aes_out[1][ 0:16])),
+                    NextValue(aes_buf[ 64: 96], aes_buf[ 64: 96] ^ Cat(aes_out[2][ 8:24], aes_out[2][ 0:16])),
+                    NextValue(aes_buf[ 96:128], aes_buf[ 96:128] ^ Cat(aes_out[3][ 8:24], aes_out[3][ 0:16]))],
+                1:[ NextValue(aes_buf[  0: 32], aes_buf[  0: 32] ^ Cat(Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0))),
+                    NextValue(aes_buf[ 32: 64], aes_buf[ 32: 64] ^ Cat(Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0))),
+                    NextValue(aes_buf[ 64: 96], aes_buf[ 64: 96] ^ Cat(Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0))),
+                    NextValue(aes_buf[ 96:128], aes_buf[ 96:128] ^ Cat(Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0)))],
+                }),
+                # put the fourth byte in the lookup tables (LANE1)
+                NextValue(aes_in[1], self.a[ 24: 32]),
+                NextValue(aes_in[2], self.a[ 56: 64]),
+                NextValue(aes_in[3], self.a[ 88: 96]),
+                NextValue(aes_in[0], self.a[120:128]),
+                NextState("LANE2_4"))
+        seq.act("LANE2_4",
+                # store the xor'ed result for LANE2, byte 3 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[128:160], aes_buf[128:160] ^ Cat(aes_out[0][ 8:24], aes_out[0][ 0:16])),
+                    NextValue(aes_buf[160:192], aes_buf[160:192] ^ Cat(aes_out[1][ 8:24], aes_out[1][ 0:16])),
+                    NextValue(aes_buf[192:224], aes_buf[192:224] ^ Cat(aes_out[2][ 8:24], aes_out[2][ 0:16])),
+                    NextValue(aes_buf[224:256], aes_buf[224:256] ^ Cat(aes_out[3][ 8:24], aes_out[3][ 0:16]))],
+                1:[ NextValue(aes_buf[128:160], aes_buf[128:160] ^ Cat(Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0))),
+                    NextValue(aes_buf[160:192], aes_buf[160:192] ^ Cat(Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0))),
+                    NextValue(aes_buf[192:224], aes_buf[192:224] ^ Cat(Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0))),
+                    NextValue(aes_buf[224:256], aes_buf[224:256] ^ Cat(Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0)))],
+                }),
+                # put the fourth byte in the lookup tables (LANE2)
+                NextValue(aes_in[1], self.a[152:160]),
+                NextValue(aes_in[2], self.a[184:192]),
+                NextValue(aes_in[3], self.a[216:224]),
+                NextValue(aes_in[0], self.a[248:256]),
+                NextState("LANE1_F"))
+        seq.act("LANE1_F",
+                # store the xor'ed result for LANE1, byte 4 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[  0: 32], aes_buf[  0: 32] ^ Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8])),
+                    NextValue(aes_buf[ 32: 64], aes_buf[ 32: 64] ^ Cat(aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8])),
+                    NextValue(aes_buf[ 64: 96], aes_buf[ 64: 96] ^ Cat(aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8])),
+                    NextValue(aes_buf[ 96:128], aes_buf[ 96:128] ^ Cat(aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8]))],
+                1:[ NextValue(aes_buf[  0: 32], aes_buf[  0: 32] ^ Cat(Signal(24, reset = 0), aes_out[0][ 8:16])),
+                    NextValue(aes_buf[ 32: 64], aes_buf[ 32: 64] ^ Cat(Signal(24, reset = 0), aes_out[1][ 8:16])),
+                    NextValue(aes_buf[ 64: 96], aes_buf[ 64: 96] ^ Cat(Signal(24, reset = 0), aes_out[2][ 8:16])),
+                    NextValue(aes_buf[ 96:128], aes_buf[ 96:128] ^ Cat(Signal(24, reset = 0), aes_out[3][ 8:16]))],
+                }),
+                NextState("LANE2_F"))
+        seq.act("LANE2_F",
+                # store the xor'ed result for LANE2, byte 4 in aes_buf
+                Case(self.instruction.immediate[0:1], {
+                0:[ NextValue(aes_buf[128:160], aes_buf[128:160] ^ Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8])),
+                    NextValue(aes_buf[160:192], aes_buf[160:192] ^ Cat(aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8])),
+                    NextValue(aes_buf[192:224], aes_buf[192:224] ^ Cat(aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8])),
+                    NextValue(aes_buf[224:256], aes_buf[224:256] ^ Cat(aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8]))],
+                1:[ NextValue(aes_buf[128:160], aes_buf[128:160] ^ Cat(Signal(24, reset = 0), aes_out[0][ 8:16])),
+                    NextValue(aes_buf[160:192], aes_buf[160:192] ^ Cat(Signal(24, reset = 0), aes_out[1][ 8:16])),
+                    NextValue(aes_buf[192:224], aes_buf[192:224] ^ Cat(Signal(24, reset = 0), aes_out[2][ 8:16])),
+                    NextValue(aes_buf[224:256], aes_buf[224:256] ^ Cat(Signal(24, reset = 0), aes_out[3][ 8:16]))],
+                }),
+                NextState("OUT"))
         seq.act("OUT",
                 self.q_valid.eq(1),
-                self.q.eq(self.b ^ aes_buf),
+                self.q.eq(aes_buf),
                 NextState("IDLE"))
 
 class ExecLS(ExecUnit, AutoDoc):

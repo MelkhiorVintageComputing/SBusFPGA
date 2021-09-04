@@ -621,75 +621,33 @@ fn main() -> std::io::Result<()> {
 					// one  full round demo
 					xor %0, %0, %31
 
-					aesesmi %1, %0, %30, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %30
 					
-					aesesmi %0, %1, %29, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %29
 					
-					aesesmi %1, %0, %28, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %28
 					
-					aesesmi %0, %1, %27, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %27
 
-					aesesmi %1, %0, %26, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %26
 					
-					aesesmi %0, %1, %25, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %25
 					
-					aesesmi %1, %0, %24, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %24
 					
-					aesesmi %0, %1, %23, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %23
 
-					aesesmi %1, %0, %22, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %22
 					
-					aesesmi %0, %1, %21, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %21
 					
-					aesesmi %1, %0, %20, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %20
 					
-					aesesmi %0, %1, %19, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %19
 
-					aesesmi %1, %0, %18, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %18
 					
-					aesesi %0, %1, %17, #0
-					aesesi %0, %1, %0, #1
-					aesesi %0, %1, %0, #2
-					aesesi %0, %1, %0, #3
+					aesesi %0, %1, %17
 
 					fin
     );
@@ -713,75 +671,33 @@ fn main() -> std::io::Result<()> {
 	genht:
 					xor %0, %1, %31
 
-					aesesmi %1, %0, %30, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %30
 					
-					aesesmi %0, %1, %29, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %29
 					
-					aesesmi %1, %0, %28, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %28
 					
-					aesesmi %0, %1, %27, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %27
 
-					aesesmi %1, %0, %26, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %26
 					
-					aesesmi %0, %1, %25, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %25
 					
-					aesesmi %1, %0, %24, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %24
 					
-					aesesmi %0, %1, %23, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %23
 
-					aesesmi %1, %0, %22, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %22
 					
-					aesesmi %0, %1, %21, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %21
 					
-					aesesmi %1, %0, %20, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %20
 					
-					aesesmi %0, %1, %19, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %19
 
-					aesesmi %1, %0, %18, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %18
 					
-					aesesi %0, %1, %17, #0
-					aesesi %0, %1, %0, #1
-					aesesi %0, %1, %0, #2
-					aesesi %0, %1, %0, #3
+					aesesi %0, %1, %17
 
 					// if the %2 flag is cleared, we've just computed T
 					brz afterht, %2
@@ -910,75 +826,33 @@ fn main() -> std::io::Result<()> {
 					
 					xor %0, %16, %31
 
-					aesesmi %1, %0, %30, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %30
 					
-					aesesmi %0, %1, %29, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %29
 					
-					aesesmi %1, %0, %28, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %28
 					
-					aesesmi %0, %1, %27, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %27
 
-					aesesmi %1, %0, %26, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %26
 					
-					aesesmi %0, %1, %25, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %25
 					
-					aesesmi %1, %0, %24, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %24
 					
-					aesesmi %0, %1, %23, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %23
 
-					aesesmi %1, %0, %22, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %22
 					
-					aesesmi %0, %1, %21, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %21
 					
-					aesesmi %1, %0, %20, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %20
 					
-					aesesmi %0, %1, %19, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %19
 
-					aesesmi %1, %0, %18, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %18
 					
-					aesesi %0, %1, %17, #0
-					aesesi %0, %1, %0, #1
-					aesesi %0, %1, %0, #2
-					aesesi %1, %1, %0, #3
+					aesesi %1, %1, %17
 					
 					//gcm_brev64 %1, %0
 					//gcm_swap64 %1, %1, %1
@@ -1071,75 +945,33 @@ fn main() -> std::io::Result<()> {
 					
 					xor %0, %16, %31
 
-					aesesmi %1, %0, %30, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %30
 					
-					aesesmi %0, %1, %29, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %29
 					
-					aesesmi %1, %0, %28, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %28
 					
-					aesesmi %0, %1, %27, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %27
 
-					aesesmi %1, %0, %26, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %26
 					
-					aesesmi %0, %1, %25, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %25
 					
-					aesesmi %1, %0, %24, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %24
 					
-					aesesmi %0, %1, %23, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %23
 
-					aesesmi %1, %0, %22, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %22
 					
-					aesesmi %0, %1, %21, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %21
 					
-					aesesmi %1, %0, %20, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %20
 					
-					aesesmi %0, %1, %19, #0
-					aesesmi %0, %1, %0, #1
-					aesesmi %0, %1, %0, #2
-					aesesmi %0, %1, %0, #3
+					aesesmi %0, %1, %19
 
-					aesesmi %1, %0, %18, #0
-					aesesmi %1, %0, %1, #1
-					aesesmi %1, %0, %1, #2
-					aesesmi %1, %0, %1, #3
+					aesesmi %1, %0, %18
 					
-					aesesi %0, %1, %17, #0
-					aesesi %0, %1, %0, #1
-					aesesi %0, %1, %0, #2
-					aesesi %1, %1, %0, #3
+					aesesi %1, %1, %17
 					
 					//gcm_brev64 %1, %0
 					//gcm_swap64 %1, %1, %1
@@ -1267,7 +1099,16 @@ fn main() -> std::io::Result<()> {
     let mut pos = 0;
 
 	pos = 0;
-	println!("PFX:");
+	println!("test AES:");
+    while pos < aescode.len() {
+		  print!("0x{:08x},", aescode[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", aescode.len());
+
+	pos = 0;
+	println!("GCM PFX:");
     while pos < gcm_pfx_code.len() {
 		  print!("0x{:08x},", gcm_pfx_code[pos]);
 		  pos = pos + 1;
@@ -1276,7 +1117,7 @@ fn main() -> std::io::Result<()> {
 	println!("-> {}", gcm_pfx_code.len());
 
 	pos = 0;
-	println!("AD:");
+	println!("GCM AD:");
     while pos < gcm_ad_code.len() {
 		  print!("0x{:08x},", gcm_ad_code[pos]);
 		  pos = pos + 1;
@@ -1285,7 +1126,7 @@ fn main() -> std::io::Result<()> {
 	println!("-> {}", gcm_ad_code.len());
 
 	pos = 0;
-	println!("AES:");
+	println!("GCM AES:");
     while pos < gcm_aes_code.len() {
 		  print!("0x{:08x},", gcm_aes_code[pos]);
 		  pos = pos + 1;
@@ -1294,7 +1135,7 @@ fn main() -> std::io::Result<()> {
 	println!("-> {}", gcm_aes_code.len());
 
 	pos = 0;
-	println!("FINISH:");
+	println!("GCM FINISH:");
     while pos < gcm_finish_code.len() {
 		  print!("0x{:08x},", gcm_finish_code[pos]);
 		  pos = pos + 1;
