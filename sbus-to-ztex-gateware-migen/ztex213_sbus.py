@@ -19,6 +19,8 @@ from litex.build.openocd import OpenOCD
 
 # IOs ----------------------------------------------------------------------------------------------
 
+# FPGA daughterboard I/O
+
 _io = [
     ## 48 MHz clock reference
     ("clk48", 0, Pins("P15"), IOStandard("LVCMOS33")),
@@ -52,7 +54,9 @@ _io = [
     ),
 ]
 
-_sbus_io = [
+# SBusFPGA I/O
+
+_sbus_io_v1_0 = [
     ## leds on the SBus board
     ("user_led", 0, Pins("U8"),  IOStandard("lvcmos33")), #LED0
     ("user_led", 1, Pins("U7"),  IOStandard("lvcmos33")), #LED1
@@ -89,7 +93,39 @@ _sbus_io = [
     ),
 ]
 
-_sbus_sbus = [
+_sbus_io_v1_2 = [
+    ## leds on the SBus board
+    ## serial header for console
+    ("serial", 0,
+     Subsignal("tx", Pins("V9")), # FIXME: might be the other way round
+     Subsignal("rx", Pins("U9")),
+     IOStandard("LVCMOS33")
+    ),
+    ## sdcard connector
+    ("spisdcard", 0,
+        Subsignal("clk",  Pins("R8")),
+        Subsignal("mosi", Pins("T5"), Misc("PULLUP")),
+        Subsignal("cs_n", Pins("V6"), Misc("PULLUP")),
+        Subsignal("miso", Pins("V5"), Misc("PULLUP")),
+        Misc("SLEW=FAST"),
+        IOStandard("LVCMOS33"),
+    ),
+    ("sdcard", 0,
+        Subsignal("data", Pins("V5 V4 V7 V6"), Misc("PULLUP")),
+        Subsignal("cmd",  Pins("T5"), Misc("PULLUP")),
+        Subsignal("clk",  Pins("R8")),
+        #Subsignal("cd",   Pins("V6")),
+        Misc("SLEW=FAST"),
+        IOStandard("LVCMOS33"),
+    ),
+    ## USB
+    ("usb", 0,
+     Subsignal("dp", Pins("U8")), # Serial TX
+     Subsignal("dm", Pins("U7")), # Serial RX
+     IOStandard("LVCMOS33"))
+]
+
+_sbus_sbus_v1_0 = [
     ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
     ("SBUS_3V3_ASs",       0, Pins("T4"),  IOStandard("lvttl")),
     ("SBUS_3V3_BGs",       0, Pins("T6"),  IOStandard("lvttl")),
@@ -108,9 +144,33 @@ _sbus_sbus = [
     ("SBUS_3V3_D",         0, Pins("J18 K16 J17 K15 K13 J15 J13 J14 H14 H17 G14 G17 G16 G18 H16 F18 F16 E18 F15 D18 E17 G13 D17 F13 F14 E16 E15 C17 C16 A18 B18 C15"),  IOStandard("lvttl")),
     ("SBUS_3V3_PA",        0, Pins("B16 B17 D14 C14 D12 A16 A15 B14 B13 B12 C12 A14 A13 B11 A11  M4  R2  M3  P2  M2  N2  K5  N1  L4  M1  L3  L1  K3"),  IOStandard("lvttl")),
 ]
+_sbus_sbus_v1_2 = [
+    ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
+    ("SBUS_3V3_ASs",       0, Pins("T4"),  IOStandard("lvttl")),
+    ("SBUS_3V3_BGs",       0, Pins("R7"),  IOStandard("lvttl")), # moved
+    ("SBUS_3V3_BRs",       0, Pins("R6"),  IOStandard("lvttl")),
+    ("SBUS_3V3_ERRs",      0, Pins("D13"),  IOStandard("lvttl")), # moved
+    ("SBUS_DATA_OE_LED",   0, Pins("U1"),  IOStandard("lvttl")),
+    #("SBUS_DATA_OE_LED_2", 0, Pins("T3"),  IOStandard("lvttl")),
+    ("SBUS_3V3_RSTs",      0, Pins("U2"),  IOStandard("lvttl")),
+    ("SBUS_3V3_SELs",      0, Pins("K6"),  IOStandard("lvttl")),
+    ("SBUS_3V3_INT1s",     0, Pins("R5"),  IOStandard("lvttl")), # moved
+    ("SBUS_3V3_INT2s",     0, Pins("H15"),  IOStandard("lvttl")), # added
+    ("SBUS_3V3_INT3s",     0, Pins("R3"),  IOStandard("lvttl")), # added
+    ("SBUS_3V3_INT4s",     0, Pins("N5"),  IOStandard("lvttl")), # added
+    ("SBUS_3V3_INT5s",     0, Pins("L5"),  IOStandard("lvttl")), # added
+    ("SBUS_3V3_INT6s",     0, Pins("V2"),  IOStandard("lvttl")), # added
+    #("SBUS_3V3_INT7s",     0, Pins("N5"),  IOStandard("lvttl")),
+    ("SBUS_3V3_PPRD",      0, Pins("N6"),  IOStandard("lvttl")),
+    ("SBUS_OE",            0, Pins("P5"),  IOStandard("lvttl")),
+    ("SBUS_3V3_ACKs",      0, Pins("M6 L6 N4"),  IOStandard("lvttl")),
+    ("SBUS_3V3_SIZ",       0, Pins("T6 U3 V1"),  IOStandard("lvttl")), # 0 moved
+    ("SBUS_3V3_D",         0, Pins("J18 K16 J17 K15 K13 J15 J13 J14 H14 H17 G14 G17 G16 G18 H16 F18 F16 E18 F15 D18 E17 G13 D17 F13 F14 E16 E15 C17 C16 A18 B18 C15"),  IOStandard("lvttl")),
+    ("SBUS_3V3_PA",        0, Pins("B16 B17 D14 C14 D12 A16 A15 B14 B13 B12 C12 A14 A13 B11 A11  M4  R2  M3  P2  M2  N2  K5  N1  L4  M1  L3  L1  K3"),  IOStandard("lvttl")),
+]
 
 # reusing the UART pins !!!
-_usb_io = [
+_usb_io_v1_0 = [
     ("usb", 0,
      Subsignal("dp", Pins("V9")), # Serial TX
      Subsignal("dm", Pins("U9")), # Serial RX
@@ -119,7 +179,10 @@ _usb_io = [
 
 # Connectors ---------------------------------------------------------------------------------------
 
-_connectors = [
+_connectors_v1_0 = [
+]
+_connectors_v1_2 = [
+    ("P1", "T8 U6 P3 P4 T1 U4 R1 T3"),
 ]
 
 # Platform -----------------------------------------------------------------------------------------
@@ -128,7 +191,7 @@ class Platform(XilinxPlatform):
     default_clk_name   = "clk48"
     default_clk_period = 1e9/48e6
 
-    def __init__(self, variant="ztex2.13a"):
+    def __init__(self, variant="ztex2.13a", version="V1.0"):
         device = {
             "ztex2.13a":  "xc7a35tcsg324-1",
             "ztex2.13b":  "xc7a50tcsg324-1", #untested
@@ -136,9 +199,22 @@ class Platform(XilinxPlatform):
             "ztex2.13c":  "xc7a75tcsg324-2", #untested
             "ztex2.13d":  "xc7a100tcsg324-2" #untested
         }[variant]
-        XilinxPlatform.__init__(self, device, _io, _connectors, toolchain="vivado")
-        self.add_extension(_sbus_io)
-        self.add_extension(_sbus_sbus)
+        sbus_io = {
+            "V1.0" : _sbus_io_v1_0,
+            "V1.2" : _sbus_io_v1_2,
+        }[version]
+        sbus_sbus = {
+            "V1.0" : _sbus_sbus_v1_0,
+            "V1.2" : _sbus_sbus_v1_2,
+        }[version]
+        connectors = {
+            "V1.0" : _connectors_v1_0,
+            "V1.2" : _connectors_v1_2,
+        }[version]
+        
+        XilinxPlatform.__init__(self, device, _io, connectors, toolchain="vivado")
+        self.add_extension(sbus_io)
+        self.add_extension(sbus_sbus)
         
         self.toolchain.bitstream_commands = \
             ["set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR No [current_design]",
