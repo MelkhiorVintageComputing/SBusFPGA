@@ -941,10 +941,11 @@ static int start_job(struct sbusfpga_curve25519engine_softc *sc) {
 static int wait_job(struct sbusfpga_curve25519engine_softc *sc, uint32_t param) {
 	uint32_t status = curve25519engine_status_read(sc);
 	int count = 0;
-	int max_count = 50;
+	int max_count = 250;
 	int del = 1;
 	const int max_del = 32;
 	static int max_del_seen = 1;
+	static int max_cnt_seen = 0;
 	
 	while ((status & (1<<CSR_CURVE25519ENGINE_STATUS_RUNNING_OFFSET)) && (count < max_count)) {
 		//uint32_t ls_status = curve25519engine_ls_status_read(sc);
@@ -957,6 +958,11 @@ static int wait_job(struct sbusfpga_curve25519engine_softc *sc, uint32_t param) 
 	if (del > max_del_seen) {
 		max_del_seen = del;
 		aprint_normal_dev(sc->sc_dev, "WAIT - new max delay %d after %d count (param was %u)\n", max_del_seen, count, param);
+	}
+	if (count > max_cnt_seen) {
+		max_cnt_seen = count;
+		aprint_normal_dev(sc->sc_dev, "WAIT - new max count %d with %d delay (param was %u)\n", max_cnt_seen, del, param);
+		
 	}
 	
 	//curve25519engine_control_write(sc, 0);
