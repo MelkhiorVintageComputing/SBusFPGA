@@ -30,8 +30,10 @@ opcodes = {  # mnemonic : [bit coding, docstring]
     "GCM_SHRMI":  [15, "Shift A right by imm, insert B LSB as dest MSB; reg-reg or reg-imm; per 128-bits block"], # 
     "GCM_CMPD":   [16, "Compute D:X0 from X1:X0; reg ; per 128-bits block"], # specific
     "GCM_SWAP64": [17, "Swap doubleword (64 bits) ; reg-reg or imm-reg or reg-imm; per 128-bits block ; imm != 0 -> BYTEREV*"], # 
-    "AESESMI" : [18, "AES ; reg-reg ; per 128-bits block; imm[0:2] indicates sub-round (as in rv32's aes32esmi) ; imm[2] is 1 for aesesi (shared opcode)" ],
-    "MAX" : [19, "Maximum opcode number (for bounds checking)"],
+    "AESESMI" :   [18, "AES ; reg-reg ; per 128-bits block; imm[0:2] indicates sub-round (as in rv32's aes32esmi) ; imm[2] is 1 for aesesi (shared opcode)" ],
+    "MEM" :       [19, "MEM ; imm[0] == 0 for LOAD, imm[0] == 1 for STORE (beware, store copy the address in the output reg)" ],
+    "AND" :       [20, "Wd $\gets$ Ra & Rb  // bitwise AND"],
+    "MAX" : [21, "Maximum opcode number (for bounds checking)"],
 }
 
 num_registers = 32
@@ -236,6 +238,8 @@ class Curve25519Const(Module, AutoDoc):
             9: [100, "one hundred", "The number 100 (for pow22501)"],
             10: [254, "two hundred fifty four", "The number 254 (iteration count)"],
             11: [0x00000001_00000000_00000000_00000000_00000001_00000000_00000000_00000000, "increment for GCM counter (LE)", "increment for GCM counter (LE)"],
+            12: [0x00000000_00000000_00000000_00000010_00000000_00000000_00000000_00000010, "sixteen (twice)", "The number 16 (for block-size address increment)"],
+            13: [0x00000000_00000000_00000000_00000001_00000000_00000000_00000000_00000001, "decrement for GCM dual-loops (LE)", "decrement for GCM dual-loops"]
         }
         self.adr = Signal(5)
         self.const = Signal(256)
@@ -316,7 +320,7 @@ Here is an example of how to swap the contents of `ra` and `rb` based on the val
 
 class ExecLogic(ExecUnit):
     def __init__(self, width=256):
-        ExecUnit.__init__(self, width, ["XOR", "NOT", "PSA", "PSB", "XBT", "SHL"])
+        ExecUnit.__init__(self, width, ["XOR", "NOT", "PSA", "PSB", "XBT", "SHL", "AND"])
         self.intro = ModuleDoc(title="Logic ExecUnit Subclass", body=f"""
 This execution unit implements bit-wise logic operations: XOR, NOT, and
 passthrough.
@@ -327,6 +331,7 @@ passthrough.
 * PSB returns the value of B
 * SHL returns A << 1
 * XBT returns the 255th bit of A, reported in the 0th bit of the result
+* AND returns the result of A&B
 
 """)
 
@@ -348,6 +353,8 @@ passthrough.
                 self.q.eq(Cat(self.a[254], zeros))
             ).Elif(self.instruction.opcode == opcodes["SHL"][0],
                 self.q.eq(Cat(0, self.a[:255])),
+            ).Elif(self.instruction.opcode == opcodes["AND"][0],
+                self.q.eq(self.a & self.b),
             ),
         ]
 
@@ -1442,7 +1449,7 @@ class ExecClmul(ExecUnit, AutoDoc):
         clmul64_out = Signal(64)
         clmul64h_out = Signal(64)
         nlane = width // 128
-        clmul_buf = Signal((nlane-1) * 128) ## width must be a multiple of 128...
+        clmul_buf = Signal(nlane * 128) ## width must be a multiple of 128...
         lanec = Signal(log2_int(nlane, False))
         assert(nlane == 2) ## fixme
 
@@ -1460,30 +1467,37 @@ class ExecClmul(ExecUnit, AutoDoc):
         self.submodules.seq = seq = ClockDomainsRenamer("eng_clk")(FSM(reset_state="IDLE"))
         seq.act("IDLE",
                 If(self.start,
+                   NextValue(lanec, 0),
                    Case(self.instruction.immediate[0:2], {
-                       0x0: [ clmul64x_in1.eq(self.a[  0: 64]), clmul64x_in2.eq(self.b[  0: 64]) ],
-                       0x1: [ clmul64x_in1.eq(self.a[  0: 64]), clmul64x_in2.eq(self.b[ 64:128]) ],
-                       0x2: [ clmul64x_in1.eq(self.a[ 64:128]), clmul64x_in2.eq(self.b[  0: 64]) ],
-                       0x3: [ clmul64x_in1.eq(self.a[ 64:128]), clmul64x_in2.eq(self.b[ 64:128]) ],
+                       0x0: [ NextValue(clmul64x_in1, self.a[  0: 64]), NextValue(clmul64x_in2, self.b[  0: 64]) ],
+                       0x1: [ NextValue(clmul64x_in1, self.a[  0: 64]), NextValue(clmul64x_in2, self.b[ 64:128]) ],
+                       0x2: [ NextValue(clmul64x_in1, self.a[ 64:128]), NextValue(clmul64x_in2, self.b[  0: 64]) ],
+                       0x3: [ NextValue(clmul64x_in1, self.a[ 64:128]), NextValue(clmul64x_in2, self.b[ 64:128]) ],
                    }),
                    NextState("NEXT")))
         seq.act("NEXT",
+                Case(self.instruction.immediate[0:2], {
+                    0x0: [ NextValue(clmul64x_in1, self.a[128:192]), NextValue(clmul64x_in2, self.b[128:192]) ],
+                    0x1: [ NextValue(clmul64x_in1, self.a[128:192]), NextValue(clmul64x_in2, self.b[192:256]) ],
+                    0x2: [ NextValue(clmul64x_in1, self.a[192:256]), NextValue(clmul64x_in2, self.b[128:192]) ],
+                    0x3: [ NextValue(clmul64x_in1, self.a[192:256]), NextValue(clmul64x_in2, self.b[192:256]) ],
+                }),
+                NextState("WRITE"))
+        seq.act("WRITE",
                 Case(lanec, {
                     0: [ NextValue(clmul_buf[0:128], Cat(clmul64_out, clmul64h_out)),
-                         Case(self.instruction.immediate[0:2], {
-                             0x0: [ clmul64x_in1.eq(self.a[128:192]), clmul64x_in2.eq(self.b[128:192]) ],
-                             0x1: [ clmul64x_in1.eq(self.a[128:192]), clmul64x_in2.eq(self.b[192:256]) ],
-                             0x2: [ clmul64x_in1.eq(self.a[192:256]), clmul64x_in2.eq(self.b[128:192]) ],
-                             0x3: [ clmul64x_in1.eq(self.a[192:256]), clmul64x_in2.eq(self.b[192:256]) ],
-                         }),
                          NextValue(lanec, 1),
                     ],
-                    1: [ self.q_valid.eq(1),
-                         self.q.eq(Cat(clmul_buf, clmul64_out, clmul64h_out)),
-                         NextValue(lanec, 0),
-                         NextState("IDLE")
+                    1: [ NextValue(clmul_buf[128:256], Cat(clmul64_out, clmul64h_out)),
+                         NextState("OUT"),
                     ],
                 }))
+        seq.act("OUT",
+                self.q_valid.eq(1),
+                self.q.eq(clmul_buf),
+                NextState("IDLE"),
+                );
+                
 
 class ExecGCMShifts(ExecUnit, AutoDoc):
     def __init__(self, width=256):
@@ -1505,13 +1519,13 @@ class ExecGCMShifts(ExecUnit, AutoDoc):
             ).Elif(self.instruction.opcode == opcodes["GCM_SHRMI"][0],
                    Case(self.instruction.immediate[0:3], {
                        0x0: self.q.eq(self.a),
-                       0x1: self.q.eq(Cat(self.a[1:128], self.b[0:1], self.a[129:256], self.b[0:1])),
-                       0x2: self.q.eq(Cat(self.a[2:128], self.b[0:2], self.a[130:256], self.b[0:2])),
-                       0x3: self.q.eq(Cat(self.a[3:128], self.b[0:3], self.a[131:256], self.b[0:3])),
-                       0x4: self.q.eq(Cat(self.a[4:128], self.b[0:4], self.a[132:256], self.b[0:4])),
-                       0x5: self.q.eq(Cat(self.a[5:128], self.b[0:5], self.a[133:256], self.b[0:5])),
-                       0x6: self.q.eq(Cat(self.a[6:128], self.b[0:6], self.a[134:256], self.b[0:6])),
-                       0x7: self.q.eq(Cat(self.a[7:128], self.b[0:7], self.a[135:256], self.b[0:7])),
+                       0x1: self.q.eq(Cat(self.a[1:128], self.b[0:1], self.a[129:256], self.b[128:129])),
+                       0x2: self.q.eq(Cat(self.a[2:128], self.b[0:2], self.a[130:256], self.b[128:130])),
+                       0x3: self.q.eq(Cat(self.a[3:128], self.b[0:3], self.a[131:256], self.b[128:131])),
+                       0x4: self.q.eq(Cat(self.a[4:128], self.b[0:4], self.a[132:256], self.b[128:132])),
+                       0x5: self.q.eq(Cat(self.a[5:128], self.b[0:5], self.a[133:256], self.b[128:133])),
+                       0x6: self.q.eq(Cat(self.a[6:128], self.b[0:6], self.a[134:256], self.b[128:134])),
+                       0x7: self.q.eq(Cat(self.a[7:128], self.b[0:7], self.a[135:256], self.b[128:135])),
                    })
             ).Elif(self.instruction.opcode == opcodes["GCM_SHLMI"][0],
                    Case(self.instruction.immediate[0:3], {
@@ -1525,12 +1539,33 @@ class ExecGCMShifts(ExecUnit, AutoDoc):
                    0x7: self.q.eq(Cat(self.b[121:128], self.a[0:121], self.b[249:256], self.a[128:249])),
                    })
             ).Elif(self.instruction.opcode == opcodes["GCM_SWAP64"][0],
-                   # also gcm_brev*
+                   # also gcm_brev*, gcm_swap32
                    Case(self.instruction.immediate[0:2], {
-                       0: self.q.eq(Cat(self.b[64:128], self.a[0:64], self.b[192:256], self.a[128:192])),
-                       1: self.q.eq(Cat(self.a[8:16], self.a[0:8], self.a[24:32], self.a[16:24], self.a[40:48], self.a[32:40], self.a[56:64], self.a[48:56], self.a[72:80], self.a[64:72], self.a[88:96], self.a[80:88], self.a[104:112], self.a[96:104], self.a[120:128], self.a[112:120], self.a[136:144], self.a[128:136], self.a[152:160], self.a[144:152], self.a[168:176], self.a[160:168], self.a[184:192], self.a[176:184], self.a[200:208], self.a[192:200], self.a[216:224], self.a[208:216], self.a[232:240], self.a[224:232], self.a[248:256], self.a[240:248])),
-                       2: self.q.eq(Cat(self.a[24:32], self.a[16:24], self.a[8:16], self.a[0:8], self.a[56:64], self.a[48:56], self.a[40:48], self.a[32:40], self.a[88:96], self.a[80:88], self.a[72:80], self.a[64:72], self.a[120:128], self.a[112:120], self.a[104:112], self.a[96:104], self.a[152:160], self.a[144:152], self.a[136:144], self.a[128:136], self.a[184:192], self.a[176:184], self.a[168:176], self.a[160:168], self.a[216:224], self.a[208:216], self.a[200:208], self.a[192:200], self.a[248:256], self.a[240:248], self.a[232:240], self.a[224:232])),
-                       3: self.q.eq(Cat(self.a[56:64], self.a[48:56], self.a[40:48], self.a[32:40], self.a[24:32], self.a[16:24], self.a[8:16], self.a[0:8], self.a[120:128], self.a[112:120], self.a[104:112], self.a[96:104], self.a[88:96], self.a[80:88], self.a[72:80], self.a[64:72], self.a[184:192], self.a[176:184], self.a[168:176], self.a[160:168], self.a[152:160], self.a[144:152], self.a[136:144], self.a[128:136], self.a[248:256], self.a[240:248], self.a[232:240], self.a[224:232], self.a[216:224], self.a[208:216], self.a[200:208], self.a[192:200])),
+                       # SWAP64
+                       0: self.q.eq(Cat(self.b[ 64:128], self.a[  0: 64],
+                                        self.b[192:256], self.a[128:192])),
+                       # SWAP32
+                       4: self.q.eq(Cat(self.b[ 32: 64], self.a[  0: 32], self.b[ 96:128], self.a[ 64: 96],
+                                        self.b[160:192], self.a[128:160], self.b[224:256], self.a[192:224])),
+                       # BREV16
+                       1: self.q.eq(Cat(self.a[  8: 16], self.a[  0:  8], self.a[ 24: 32], self.a[ 16: 24], self.a[ 40: 48], self.a[ 32: 40], self.a[ 56: 64], self.a[ 48: 56],
+                                        self.a[ 72: 80], self.a[ 64: 72], self.a[ 88: 96], self.a[ 80: 88], self.a[104:112], self.a[ 96:104], self.a[120:128], self.a[112:120],
+                                        self.a[136:144], self.a[128:136], self.a[152:160], self.a[144:152], self.a[168:176], self.a[160:168], self.a[184:192], self.a[176:184],
+                                        self.a[200:208], self.a[192:200], self.a[216:224], self.a[208:216], self.a[232:240], self.a[224:232], self.a[248:256], self.a[240:248])),
+                       # BREV32
+                       2: self.q.eq(Cat(self.a[ 24: 32], self.a[ 16: 24], self.a[  8: 16], self.a[  0:  8],
+                                        self.a[ 56: 64], self.a[ 48: 56], self.a[ 40: 48], self.a[ 32: 40],
+                                        self.a[ 88: 96], self.a[ 80: 88], self.a[ 72: 80], self.a[ 64: 72],
+                                        self.a[120:128], self.a[112:120], self.a[104:112], self.a[ 96:104],
+                                        self.a[152:160], self.a[144:152], self.a[136:144], self.a[128:136],
+                                        self.a[184:192], self.a[176:184], self.a[168:176], self.a[160:168],
+                                        self.a[216:224], self.a[208:216], self.a[200:208], self.a[192:200],
+                                        self.a[248:256], self.a[240:248], self.a[232:240], self.a[224:232])),
+                       # BREV64
+                       3: self.q.eq(Cat(self.a[ 56: 64], self.a[ 48: 56], self.a[ 40: 48], self.a[ 32: 40], self.a[ 24: 32], self.a[ 16: 24], self.a[  8: 16], self.a[  0:  8],
+                                        self.a[120:128], self.a[112:120], self.a[104:112], self.a[ 96:104], self.a[ 88: 96], self.a[ 80: 88], self.a[ 72: 80], self.a[ 64: 72],
+                                        self.a[184:192], self.a[176:184], self.a[168:176], self.a[160:168], self.a[152:160], self.a[144:152], self.a[136:144], self.a[128:136],
+                                        self.a[248:256], self.a[240:248], self.a[232:240], self.a[224:232], self.a[216:224], self.a[208:216], self.a[200:208], self.a[192:200])),
                    })
             )
         ]
@@ -1543,7 +1578,7 @@ class ExecAES(ExecUnit, AutoDoc):
 
         assert(width == 256) # fixme
         nlane = width // 128
-        aes_buf = Signal((nlane-1) * 128) ## width must be a multiple of 128...
+        aes_buf = Signal(nlane * 128) ## width must be a multiple of 128...
         lanec = Signal(log2_int(nlane, False))
         assert(nlane == 2) ## fixme
         
@@ -1560,120 +1595,278 @@ class ExecAES(ExecUnit, AutoDoc):
         self.submodules.seq = seq = ClockDomainsRenamer("eng_clk")(FSM(reset_state="IDLE"))
         seq.act("IDLE",
                 If(self.start,
+                   NextValue(lanec, 0),
                    Case(self.instruction.immediate[0:2], {
-                       0x0: [ aes_in[0].eq(self.a[  0:  8]), aes_in[1].eq(self.a[ 32: 40]), aes_in[2].eq(self.a[ 64: 72]), aes_in[3].eq(self.a[ 96:104]) ],
-                       0x1: [ aes_in[3].eq(self.a[  8: 16]), aes_in[0].eq(self.a[ 40: 48]), aes_in[1].eq(self.a[ 72: 80]), aes_in[2].eq(self.a[104:112]) ],
-                       0x2: [ aes_in[2].eq(self.a[ 16: 24]), aes_in[3].eq(self.a[ 48: 56]), aes_in[0].eq(self.a[ 80: 88]), aes_in[1].eq(self.a[112:120]) ],
-                       0x3: [ aes_in[1].eq(self.a[ 24: 32]), aes_in[2].eq(self.a[ 56: 64]), aes_in[3].eq(self.a[ 88: 96]), aes_in[0].eq(self.a[120:128]) ],
+                       0x0: [ NextValue(aes_in[0], self.a[  0:  8]), NextValue(aes_in[1], self.a[ 32: 40]), NextValue(aes_in[2], self.a[ 64: 72]), NextValue(aes_in[3], self.a[ 96:104]) ],
+                       0x1: [ NextValue(aes_in[3], self.a[  8: 16]), NextValue(aes_in[0], self.a[ 40: 48]), NextValue(aes_in[1], self.a[ 72: 80]), NextValue(aes_in[2], self.a[104:112]) ],
+                       0x2: [ NextValue(aes_in[2], self.a[ 16: 24]), NextValue(aes_in[3], self.a[ 48: 56]), NextValue(aes_in[0], self.a[ 80: 88]), NextValue(aes_in[1], self.a[112:120]) ],
+                       0x3: [ NextValue(aes_in[1], self.a[ 24: 32]), NextValue(aes_in[2], self.a[ 56: 64]), NextValue(aes_in[3], self.a[ 88: 96]), NextValue(aes_in[0], self.a[120:128]) ],
                    }),
                    NextState("NEXT")))
         seq.act("NEXT",
+                Case(self.instruction.immediate[0:2], {
+                    0x0: [ NextValue(aes_in[0], self.a[128:136]), NextValue(aes_in[1], self.a[160:168]), NextValue(aes_in[2], self.a[192:200]), NextValue(aes_in[3], self.a[224:232]) ],
+                    0x1: [ NextValue(aes_in[3], self.a[136:144]), NextValue(aes_in[0], self.a[168:176]), NextValue(aes_in[1], self.a[200:208]), NextValue(aes_in[2], self.a[232:240]) ],
+                    0x2: [ NextValue(aes_in[2], self.a[144:152]), NextValue(aes_in[3], self.a[176:184]), NextValue(aes_in[0], self.a[208:216]), NextValue(aes_in[1], self.a[240:248]) ],
+                    0x3: [ NextValue(aes_in[1], self.a[152:160]), NextValue(aes_in[2], self.a[184:192]), NextValue(aes_in[3], self.a[216:224]), NextValue(aes_in[0], self.a[248:256]) ],
+                }),
+                NextState("WRITE"))
+        seq.act("WRITE",
                 Case(lanec, {
-                    0: [ Case(self.instruction.immediate[0:2], {
-                             0x0: [ aes_in[0].eq(self.a[128:136]), aes_in[1].eq(self.a[160:168]), aes_in[2].eq(self.a[192:200]), aes_in[3].eq(self.a[224:232]) ],
-                             0x1: [ aes_in[3].eq(self.a[136:144]), aes_in[0].eq(self.a[168:176]), aes_in[1].eq(self.a[200:208]), aes_in[2].eq(self.a[232:240]) ],
-                             0x2: [ aes_in[2].eq(self.a[144:152]), aes_in[3].eq(self.a[176:184]), aes_in[0].eq(self.a[208:216]), aes_in[1].eq(self.a[240:248]) ],
-                             0x3: [ aes_in[1].eq(self.a[152:160]), aes_in[2].eq(self.a[184:192]), aes_in[3].eq(self.a[216:224]), aes_in[0].eq(self.a[248:256]) ],
-                         }),
-                         Case(self.instruction.immediate[2:3], {
-                             0: Case(self.instruction.immediate[0:2], {
-                                 0x0: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 0:16], aes_out[0][ 8:24],
-                                                                      aes_out[1][ 0:16], aes_out[1][ 8:24],
-                                                                      aes_out[2][ 0:16], aes_out[2][ 8:24],
-                                                                      aes_out[3][ 0:16], aes_out[3][ 8:24])),
-                                 ],
-                                 0x1: [ NextValue(aes_buf[0:128], Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
-                                                                      aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
-                                                                      aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
-                                                                      aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
-                                 ],
-                                 0x2: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:24], aes_out[0][ 0:16],
-                                                                      aes_out[1][ 8:24], aes_out[1][ 0:16],
-                                                                      aes_out[2][ 8:24], aes_out[2][ 0:16],
-                                                                      aes_out[3][ 8:24], aes_out[3][ 0:16])),
-                                 ],
-                                 0x3: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
-                                                                      aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
-                                                                      aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
-                                                                      aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
-                                 ],
-                             }),
-                             1: Case(self.instruction.immediate[0:2], {
-                                 0x0: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:16], Signal(24, reset = 0),
-                                                                      aes_out[1][ 8:16], Signal(24, reset = 0),
-                                                                      aes_out[2][ 8:16], Signal(24, reset = 0),
-                                                                      aes_out[3][ 8:16], Signal(24, reset = 0))),
-                                 ],
-                                 0x1: [ NextValue(aes_buf[0:128], Cat(Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0),
-                                                                      Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0),
-                                                                      Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0),
-                                                                      Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0))),
-                                 ],
-                                 0x2: [ NextValue(aes_buf[0:128], Cat(Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0),
-                                                                      Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0),
-                                                                      Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0),
-                                                                      Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0))),
-                                 ],
-                                 0x3: [ NextValue(aes_buf[0:128], Cat(Signal(24, reset = 0), aes_out[0][ 8:16],
-                                                                      Signal(24, reset = 0), aes_out[1][ 8:16],
-                                                                      Signal(24, reset = 0), aes_out[2][ 8:16],
-                                                                      Signal(24, reset = 0), aes_out[3][ 8:16])),
-                                 ],
-                                 }),
-                         }),
-                         NextValue(lanec, 1),
-                    ],
-                    1: [ self.q_valid.eq(1),
-                         Case(self.instruction.immediate[2:3], {
-                             0: Case(self.instruction.immediate[0:2], {
-                                 0x0: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][ 0:16], aes_out[0][ 8:24],
-                                                               aes_out[1][ 0:16], aes_out[1][ 8:24],
-                                                               aes_out[2][ 0:16], aes_out[2][ 8:24],
-                                                               aes_out[3][ 0:16], aes_out[3][ 8:24])),
-                                 ],
-                                 0x1: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
-                                                               aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
-                                                               aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
-                                                               aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
-                                ],
-                                 0x2: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][ 8:24], aes_out[0][ 0:16],
-                                                               aes_out[1][ 8:24], aes_out[1][ 0:16],
-                                                               aes_out[2][ 8:24], aes_out[2][ 0:16],
-                                                               aes_out[3][ 8:24], aes_out[3][ 0:16])),
-                                 ],
-                                 0x3: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
-                                                               aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
-                                                               aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
-                                                               aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
-                                 ],
-                             }),
-                             1: Case(self.instruction.immediate[0:2], {
-                                 0x0: [ self.q.eq(self.b ^ Cat(aes_buf, aes_out[0][ 8:16], Signal(24, reset = 0),
-                                                               aes_out[1][ 8:16], Signal(24, reset = 0),
-                                                               aes_out[2][ 8:16], Signal(24, reset = 0),
-                                                               aes_out[3][ 8:16], Signal(24, reset = 0))),
-                                 ],
-                                 0x1: [ self.q.eq(self.b ^ Cat(aes_buf, Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0),
-                                                               Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0),
-                                                               Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0),
-                                                               Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0))),
-                                 ],
-                                 0x2: [ self.q.eq(self.b ^ Cat(aes_buf, Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0),
-                                                               Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0),
-                                                               Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0),
-                                                               Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0))),
-                                 ],
-                                 0x3: [ self.q.eq(self.b ^ Cat(aes_buf, Signal(24, reset = 0), aes_out[0][ 8:16],
-                                                               Signal(24, reset = 0), aes_out[1][ 8:16],
-                                                               Signal(24, reset = 0), aes_out[2][ 8:16],
-                                                               Signal(24, reset = 0), aes_out[3][ 8:16])),
-                                 ],
-                             }),
-                         }),
-                         NextValue(lanec, 0),
-                         NextState("IDLE")
+                    0: [ Case(self.instruction.immediate[2:3], {
+                        0: Case(self.instruction.immediate[0:2], {
+                            0x0: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 0:16], aes_out[0][ 8:24],
+                                                                 aes_out[1][ 0:16], aes_out[1][ 8:24],
+                                                                 aes_out[2][ 0:16], aes_out[2][ 8:24],
+                                                                 aes_out[3][ 0:16], aes_out[3][ 8:24])),
+                            ],
+                            0x1: [ NextValue(aes_buf[0:128], Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
+                                                                 aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
+                                                                 aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
+                                                                 aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
+                            ],
+                            0x2: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:24], aes_out[0][ 0:16],
+                                                                 aes_out[1][ 8:24], aes_out[1][ 0:16],
+                                                                 aes_out[2][ 8:24], aes_out[2][ 0:16],
+                                                                 aes_out[3][ 8:24], aes_out[3][ 0:16])),
+                            ],
+                            0x3: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
+                                                                 aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
+                                                                 aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
+                                                                 aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
+                            ],
+                        }),
+                        1: Case(self.instruction.immediate[0:2], {
+                            0x0: [ NextValue(aes_buf[0:128], Cat(aes_out[0][ 8:16], Signal(24, reset = 0),
+                                                                 aes_out[1][ 8:16], Signal(24, reset = 0),
+                                                                 aes_out[2][ 8:16], Signal(24, reset = 0),
+                                                                 aes_out[3][ 8:16], Signal(24, reset = 0))),
+                            ],
+                            0x1: [ NextValue(aes_buf[0:128], Cat(Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0),
+                                                                 Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0),
+                                                                 Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0),
+                                                                 Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0))),
+                            ],
+                            0x2: [ NextValue(aes_buf[0:128], Cat(Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0),
+                                                                 Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0),
+                                                                 Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0),
+                                                                 Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0))),
+                            ],
+                            0x3: [ NextValue(aes_buf[0:128], Cat(Signal(24, reset = 0), aes_out[0][ 8:16],
+                                                                 Signal(24, reset = 0), aes_out[1][ 8:16],
+                                                                 Signal(24, reset = 0), aes_out[2][ 8:16],
+                                                                 Signal(24, reset = 0), aes_out[3][ 8:16])),
+                            ],
+                        }),
+                    }),
+                         NextValue(lanec, 1)],
+                    1: [ Case(self.instruction.immediate[2:3], {
+                        0: Case(self.instruction.immediate[0:2], {
+                            0x0: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 0:16], aes_out[0][ 8:24],
+                                                                   aes_out[1][ 0:16], aes_out[1][ 8:24],
+                                                                   aes_out[2][ 0:16], aes_out[2][ 8:24],
+                                                                   aes_out[3][ 0:16], aes_out[3][ 8:24])),
+                            ],
+                            0x1: [ NextValue(aes_buf[128:256], Cat(aes_out[0][16:24], aes_out[0][ 0:16], aes_out[0][ 8:16],
+                                                                   aes_out[1][16:24], aes_out[1][ 0:16], aes_out[1][ 8:16],
+                                                                   aes_out[2][16:24], aes_out[2][ 0:16], aes_out[2][ 8:16],
+                                                                   aes_out[3][16:24], aes_out[3][ 0:16], aes_out[3][ 8:16])),
+                            ],
+                            0x2: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 8:24], aes_out[0][ 0:16],
+                                                                   aes_out[1][ 8:24], aes_out[1][ 0:16],
+                                                                   aes_out[2][ 8:24], aes_out[2][ 0:16],
+                                                                   aes_out[3][ 8:24], aes_out[3][ 0:16])),
+                            ],
+                            0x3: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 8:16], aes_out[0][ 8:24], aes_out[0][ 0: 8],
+                                                                   aes_out[1][ 8:16], aes_out[1][ 8:24], aes_out[1][ 0: 8],
+                                                                   aes_out[2][ 8:16], aes_out[2][ 8:24], aes_out[2][ 0: 8],
+                                                                   aes_out[3][ 8:16], aes_out[3][ 8:24], aes_out[3][ 0: 8])),
+                            ],
+                        }),
+                        1: Case(self.instruction.immediate[0:2], {
+                            0x0: [ NextValue(aes_buf[128:256], Cat(aes_out[0][ 8:16], Signal(24, reset = 0),
+                                                                   aes_out[1][ 8:16], Signal(24, reset = 0),
+                                                                   aes_out[2][ 8:16], Signal(24, reset = 0),
+                                                                   aes_out[3][ 8:16], Signal(24, reset = 0))),
+                        ],
+                            0x1: [ NextValue(aes_buf[128:256], Cat(Signal(8, reset = 0), aes_out[0][ 8:16], Signal(16, reset = 0),
+                                                                   Signal(8, reset = 0), aes_out[1][ 8:16], Signal(16, reset = 0),
+                                                                   Signal(8, reset = 0), aes_out[2][ 8:16], Signal(16, reset = 0),
+                                                                   Signal(8, reset = 0), aes_out[3][ 8:16], Signal(16, reset = 0))),
+                            ],
+                            0x2: [ NextValue(aes_buf[128:256], Cat(Signal(16, reset = 0), aes_out[0][ 8:16], Signal(8, reset = 0),
+                                                                   Signal(16, reset = 0), aes_out[1][ 8:16], Signal(8, reset = 0),
+                                                                   Signal(16, reset = 0), aes_out[2][ 8:16], Signal(8, reset = 0),
+                                                                   Signal(16, reset = 0), aes_out[3][ 8:16], Signal(8, reset = 0))),
+                            ],
+                            0x3: [ NextValue(aes_buf[128:256], Cat(Signal(24, reset = 0), aes_out[0][ 8:16],
+                                                                   Signal(24, reset = 0), aes_out[1][ 8:16],
+                                                                   Signal(24, reset = 0), aes_out[2][ 8:16],
+                                                                   Signal(24, reset = 0), aes_out[3][ 8:16])),
+                            ],
+                        }),
+                    }),
+                         NextState("OUT")
                     ],
                 }))
+        seq.act("OUT",
+                self.q_valid.eq(1),
+                self.q.eq(self.b ^ aes_buf),
+                NextState("IDLE"))
+
+class ExecLS(ExecUnit, AutoDoc):
+    def __init__(self, width=256, interface=None):
+        ExecUnit.__init__(self, width, ["MEM"])
+        
+        self.notes = ModuleDoc(title=f"Load/Store ExecUnit Subclass", body=f"""
+        """)
+
+        self.sync.eng_clk += [ # pipeline the instruction
+            self.instruction_out.eq(self.instruction_in),
+        ]
+
+        assert(width == 256) # fixme
+        assert(len(interface.sel) == 16) # 128 bits Wishbone
+
+        start_pipe = Signal()
+        self.sync.mul_clk += start_pipe.eq(self.start) # break critical path of instruction decode -> SETUP_A state muxes
+        self.submodules.lsseq = lsseq = ClockDomainsRenamer("mul_clk")(FSM(reset_state="IDLE"))
+        cpar = Signal() # to keep track of the odd-ness of our cycle, so we can align 2 mul_clk cycles of output on 1 eng_clk cycle
+        lbuf = Signal(width)
+        timeout = Signal(11)
+        #tries = Signal()
+        self.has_failure = Signal(2)
+        self.has_timeout = Signal(2)
+
+        self.sync.mul_clk += If(timeout > 0, timeout.eq(timeout - 1))
+
+        lsseq.act("IDLE",
+                  If(start_pipe,
+                     #NextValue(lbuf, 0xF00FF00F_0FF00FF0_F00FF00F_0FF00FF0_F00FF00F_0FF00FF0_F00FF00F_0FF00FF0),
+                     NextValue(cpar, 0),
+                     NextValue(self.has_timeout, 0),
+                     NextValue(self.has_failure, 0),
+                     NextValue(interface.cyc, 1),
+                     NextValue(interface.stb, 1),
+                     NextValue(interface.sel, 2**len(interface.sel)-1),
+                     NextValue(interface.adr, self.a[4:32]),
+                     NextValue(interface.we, self.instruction.immediate[0]),
+                     NextValue(timeout, 2047),
+                     If(self.instruction.immediate[0], # do we need those tests or could we always update dat_w/dat_r ?
+                        NextValue(interface.dat_w, self.b[0:128])),
+                     NextState("MEMl") # MEMl
+                  )
+        )
+        lsseq.act("MEMl",
+                  NextValue(cpar, cpar ^ 1),
+                  If(interface.ack,
+                     If(~self.instruction.immediate[0],
+                        NextValue(lbuf[0:128], interface.dat_r)),
+                     NextValue(interface.cyc, 0),
+                     NextValue(interface.stb, 0),
+                     NextState("MEMl2")
+                  ).Elif(interface.err,
+                         NextValue(self.has_failure[0], 1),
+                         NextValue(interface.cyc, 0),
+                         NextValue(interface.stb, 0),
+                         NextState("ERR"),
+                  ).Elif(timeout == 0,
+                         NextValue(self.has_timeout[0], 1),
+                         NextValue(interface.cyc, 0),
+                         NextValue(interface.stb, 0),
+                         NextState("ERR"),
+                  ))
+        lsseq.act("MEMl2",
+                  NextValue(cpar, cpar ^ 1),
+                  If(~interface.ack,
+                     NextValue(interface.cyc, 1),
+                     NextValue(interface.stb, 1),
+                     NextValue(interface.sel, 2**len(interface.sel)-1),
+                     NextValue(interface.adr, self.a[132:160]),
+                     NextValue(interface.we, self.instruction.immediate[0]),
+                     NextValue(timeout, 2047),
+                     If(self.instruction.immediate[0],
+                        NextValue(interface.dat_w, self.b[128:256])),
+                     NextState("MEMh")
+                  ))
+        lsseq.act("MEMh",
+                  NextValue(cpar, cpar ^ 1),
+                  If(interface.ack,
+                     If(~self.instruction.immediate[0],
+                        NextValue(lbuf[128:256], interface.dat_r)),
+                     NextValue(interface.cyc, 0),
+                     NextValue(interface.stb, 0),
+                     NextState("MEMh2")
+                  ).Elif(interface.err,
+                         NextValue(self.has_failure[1], 1),
+                         NextValue(interface.cyc, 0),
+                         NextValue(interface.stb, 0),
+                         NextState("ERR"),
+                  ).Elif(timeout == 0,
+                         NextValue(self.has_timeout[1], 1),
+                         NextValue(interface.cyc, 0),
+                         NextValue(interface.stb, 0),
+                         NextState("ERR"),
+                  ))
+        lsseq.act("MEMh2",
+                  NextValue(cpar, cpar ^ 1),
+                  If(~interface.ack,
+                     #NextValue(tries, 0),
+                     If(cpar, ## checkme
+                        NextState("MEM_ODD")
+                     ).Else(
+                        NextState("MEM_EVEN1")
+                     )
+                  ))
+        lsseq.act("MEM_ODD", # clock alignement cycle
+                  NextState("MEM_EVEN1"))
+        lsseq.act("MEM_EVEN1",
+                  NextState("MEM_EVEN2"))
+        lsseq.act("MEM_EVEN2",
+                  NextValue(cpar, 0),
+                  NextValue(self.has_failure, 0),
+                  NextValue(self.has_timeout, 0),
+                  NextState("IDLE"))
+        lsseq.act("ERR",
+                  #If(~tries, # second attempt
+                  #   NextValue(cpar, 0),
+                  #   NextValue(tries, 1),
+                  #   NextState("IDLE")
+                  #).Else(NextValue(tries, 0), # no third attempt, give up
+                         If(cpar, ## checkme
+                            NextState("MEM_ODD")
+                         ).Else(
+                             NextState("MEM_EVEN1")
+                         )
+                  #)
+        )
+        self.sync.mul_clk += [
+            If(lsseq.ongoing("MEM_EVEN1") | lsseq.ongoing("MEM_EVEN2"),
+                self.q_valid.eq(1),
+               If(~self.instruction.immediate[0],
+                  self.q.eq(lbuf),
+               ).Else(
+                   #    self.q.eq(Cat((self.a[0:32] + 16)[0:32], self.a[32:128],
+                   #                  (self.a[128:160] + 16)[0:32], self.a[160:256])),
+                   self.q.eq(self.a),
+               ),
+            ).Else(
+                self.q_valid.eq(0),
+            )
+        ]
+
+        self.state = Signal(32)
+        self.sync.mul_clk += self.state[0].eq(lsseq.ongoing("IDLE"))
+        self.sync.mul_clk += self.state[1].eq(lsseq.ongoing("MEMl"))
+        self.sync.mul_clk += self.state[2].eq(lsseq.ongoing("MEMl2"))
+        self.sync.mul_clk += self.state[3].eq(lsseq.ongoing("MEMh"))
+        self.sync.mul_clk += self.state[4].eq(lsseq.ongoing("MEMh2"))
+        self.sync.mul_clk += self.state[5].eq(lsseq.ongoing("MEM_ODD"))
+        self.sync.mul_clk += self.state[6].eq(lsseq.ongoing("MEM_EVEN1"))
+        self.sync.mul_clk += self.state[7].eq(lsseq.ongoing("MEM_EVEN2"))
+        self.sync.mul_clk += self.state[8].eq(lsseq.ongoing("MEM_ERR"))
+        self.sync.mul_clk += self.state[28:30].eq((self.state[28:30] & Replicate(~start_pipe, 2)) | self.has_timeout)
+        self.sync.mul_clk += self.state[30:32].eq((self.state[30:32] & Replicate(~start_pipe, 2)) | self.has_failure)
 
         
 class Engine(Module, AutoCSR, AutoDoc):
@@ -1764,6 +1957,7 @@ Here are the currently implemented opcodes for The Engine:
 
         instruction = Record(instruction_layout) # current instruction to execute
         illegal_opcode = Signal()
+        abort = Signal();
 
         ### register file
         rf_depth_raw = 512
@@ -1824,6 +2018,7 @@ Here are the currently implemented opcodes for The Engine:
             CSRField("mpc", size=log2_int(microcode_depth), description="Current location of the microcode program counter. Mostly for debug."),
             CSRField("pause_gnt", size=1, description="When set, the engine execution has been paused, and the RF & microcode ROM can be read out for suspend/resume"),
             CSRField("sigill", size=1, description="Illegal Instruction"),
+            CSRField("abort", size=1, description="Abort from failure"),
             CSRField("finished", size=1, description="Finished"),
         ])
         pause_gnt = Signal()
@@ -1834,6 +2029,7 @@ Here are the currently implemented opcodes for The Engine:
             self.status.fields.pause_gnt.eq(pause_gnt),
             self.status.fields.mpc.eq(mpc),
             self.status.fields.sigill.eq(illegal_opcode),
+            self.status.fields.abort.eq(abort),
             self.status.fields.finished.eq(((~running & running_r) | self.status.fields.finished) & (~(running & ~running_r))),
         ]
 
@@ -1873,6 +2069,8 @@ Here are the currently implemented opcodes for The Engine:
         self.comb += [
             self.instruction.status.eq(micro_runport.dat_r)
         ]
+
+        self.ls_status = CSRStatus(32, description="Status of the L/S unit")
 
         ### wishbone bus interface: decode the two address spaces and dispatch accordingly
         self.bus = bus = wishbone.Interface()
@@ -2120,7 +2318,10 @@ Here are the currently implemented opcodes for The Engine:
                     NextValue(running, 0),
                 )
             ).Else(
-                If(mpc < mpc_stop,
+                If(abort,
+                    NextState("IDLE"),
+                    NextValue(running, 0),
+                ).Elif(mpc < mpc_stop,
                     NextState("FETCH"),
                     NextValue(mpc, mpc + 1),
                 ).Else(
@@ -2136,6 +2337,7 @@ Here are the currently implemented opcodes for The Engine:
             )
         )
 
+        self.busls = wishbone.Interface(data_width = 128, adr_width = 28)
         exec_units = {
             "exec_mask"      : ExecMask(width=rf_width_raw),
             "exec_logic"     : ExecLogic(width=rf_width_raw),
@@ -2145,6 +2347,7 @@ Here are the currently implemented opcodes for The Engine:
             "exec_clmul"     : ExecClmul(width=rf_width_raw),
             "exec_gcmshifts" : ExecGCMShifts(width=rf_width_raw),
             "exec_aes"       : ExecAES(width=rf_width_raw),
+            "exec_ls"        : ExecLS(width=rf_width_raw,interface=self.busls)
         }
         index = 0
         for name, unit in exec_units.items():
@@ -2190,6 +2393,9 @@ Here are the currently implemented opcodes for The Engine:
         self.comb += [
             rf_write.eq(done),
         ]
+        
+        self.sync += abort.eq((abort & ~engine_go) | (self.exec_ls.has_failure[0] | self.exec_ls.has_failure[1] | self.exec_ls.has_timeout[0] | self.exec_ls.has_timeout[1]))
+        self.comb += self.ls_status.status.eq(self.exec_ls.state)
 
         ##### TIMING CONSTRAINTS -- you want these. Trust me.
 

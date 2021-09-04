@@ -693,19 +693,25 @@ fn main() -> std::io::Result<()> {
 
 					fin
     );
-	let gcm_ad_code = assemble_engine25519!(
+	let gcm_pfx_code = assemble_engine25519!(
     start:
-					// Input: rkeys in %31-%17 (backward)
+					// Input: rkeys in %31-%17 (backward, LE)
+					//        pub in %16 (0-11, 12-15 are ctr so 0, LE)
+					//        RD_PTR in %3
+					//		  ADLEN in %12 (in 16-byte-blocks)
 					// Transient:
 					//  %0, %1, %2 are tmp
-					//  init counter in %16
-					//  H will go in %15
-					//  T will go in %14
-					psa %16, #0
+					// Output:
+					//    all inputs preserved
+					//    H will go in %15 (byte-reverted)
+					//    T will go in %14
+					//    accum (0) will go in %13
+					gcm_brev32 %16, %16
 					// use %2 as a flag
 					psa %2, #1
+					psa %1, #0
 	genht:
-					xor %0, %16, %31
+					xor %0, %1, %31
 
 					aesesmi %1, %0, %30, #0
 					aesesmi %1, %0, %1, #1
@@ -788,23 +794,479 @@ fn main() -> std::io::Result<()> {
 					gcm_brev32 %16, %16
 					// clear flag & go encrypt t
 					psa %2, #0
+					psa %1, %16
 					brz genht, #0
 					
 		afterht:
 					// store T in %14
 					psa %14, %0
 					
-					// fully byte-revert H (first byte-in-dword, then dword-in-128bit)
+					// fully byte-revert H (first byte-in-dword, then dword-in-64bit)
 					gcm_brev64 %15, %15
 					gcm_swap64 %15, %15, %15
+
+					psa %13, #0
 					
-					fin
+					// no fin; we fall directly into the AD code
+					//fin
     );
+	let gcm_ad_code = assemble_engine25519!(
+	// Input: rkeys in %31-%17 (backward, LE)
+					//        pub in %16 (0-11, 12-15 are ctr so 0, LE)
+					//        RD_PTR in %3
+					//		  ADLEN in %12 (in 16-byte-blocks)
+					//        H in %15 (byte-reverted)
+					//        T in %14
+					//        accum in %13
+					// Transient:
+					//  %0, %1, %4, %5, %6, %7 are tmp
+					// Output:
+					//    all inputs preserved except ADLEN (%12) & RD_PTR (%3)
+					//    Updated accum is in %13
+					
+					// if no ad, finish
+					brz done, %12
+					// do one block, repeat
+		do_ad:		load %0, %3
+				gcm_brev64 %0, %0
+				gcm_swap64 %0, %0, %0
+				
+					xor %0, %0, %13
+					add %3, %3, #12 // #12 is 16 in both 128 bits halves
+					// #13 is 1 in both 128 bits halves
+					sub %12, %12, #13
+
+					// // poly mult accum = ((accum^ad) * H)
+					// C
+					clmul %4, %0, %15, #0
+					// E
+					clmul %5, %0, %15, #1
+					// F
+					clmul %6, %0, %15, #2
+					// D
+					clmul %7, %0, %15, #3
+					// E ^ F
+					xor %6, %5, %6
+					// put low64 of E^F in high64
+					gcm_swap64 %5, %6, #0
+					// put high64 of E^F in low64
+					gcm_swap64 %6, #0, %6
+					// D xor low
+					xor %7, %7, %6
+					// C xor high
+					xor %4, %4, %5
+					
+					// // reduction
+					// X1:X0 in %4
+					// X3:X2 in %7
+					// shift everybody by 1 to the left
+					// high shifting in 1 bit from low
+					gcm_shlmi %1, %7, %4, #1
+					// low
+					gcm_shlmi %0, %4, #0, #1
+					// post-shift
+					// X1:X0 in %0
+					// X3:X2 in %1
+					// compute D
+					gcm_cmpd %2, %0
+					// compute E, F, G
+					gcm_shrmi %6, %2, #0, #1
+					gcm_shrmi %4, %2, #0, #2
+					gcm_shrmi %5, %2, #0, #7
+					// XOR everybody
+					xor %2, %2, %6
+					xor %4, %4, %5
+					xor %2, %2, %4
+					xor %13, %2, %1
+						
+					brz done, %12
+					brz do_ad, #0
+					
+		done:
+					fin
+	);
+	let gcm_aes_code = assemble_engine25519!(
+					//        pub in %16 (0-11, 12-15 are ctr so 0, LE)
+					//        RD_PTR in %3
+					//        WR_PTR in %11
+					//		  MLEN in %12 (in *complete* 16-byte-blocks)
+					//        H in %15 (byte-reverted)
+					//        T in %14
+					//        accum in %13
+					// Transient:
+					//  %0, %1, %4, %5, %6, %7 are tmp
+					// Output:
+					//    all inputs preserved except RD_PTR (%3), WR_PTR (%11), MLEN (%12)
+					//    accum is in %13
+					
+					// if no msg, finish
+					brz done, %12
+					// do one block, repeat
+		do_msg:
+					// increment counter
+					gcm_brev32 %16, %16
+					add %16, %16, #11
+					gcm_brev32 %16, %16
+					
+					xor %0, %16, %31
+
+					aesesmi %1, %0, %30, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %29, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %28, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %27, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %26, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %25, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %24, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %23, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %22, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %21, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %20, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %19, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %18, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesi %0, %1, %17, #0
+					aesesi %0, %1, %0, #1
+					aesesi %0, %1, %0, #2
+					aesesi %1, %1, %0, #3
+					
+					//gcm_brev64 %1, %0
+					//gcm_swap64 %1, %1, %1
+
+					load %0, %3
+					xor %0, %0, %1
+					store %11, %11, %0
+					
+				gcm_brev64 %0, %0
+				gcm_swap64 %0, %0, %0
+
+					xor %0, %0, %13
+					add %3, %3, #12 // #12 is 16 in both 128 bits halves
+					add %11, %11, #12 // #12 is 16 in both 128 bits halves
+					// #13 is 1 in both 128 bits halves
+					sub %12, %12, #13
+					
+					// // poly mult accum = ((accum^ad) * H)
+					// C
+					clmul %4, %0, %15, #0
+					// E
+					clmul %5, %0, %15, #1
+					// F
+					clmul %6, %0, %15, #2
+					// D
+					clmul %7, %0, %15, #3
+					// E ^ F
+					xor %6, %5, %6
+					// put low64 of E^F in high64
+					gcm_swap64 %5, %6, #0
+					// put high64 of E^F in low64
+					gcm_swap64 %6, #0, %6
+					// D xor low
+					xor %7, %7, %6
+					// C xor high
+					xor %4, %4, %5
+					
+					// // reduction
+					// X1:X0 in %4
+					// X3:X2 in %7
+					// shift everybody by 1 to the left
+					// high shifting in 1 bit from low
+					gcm_shlmi %1, %7, %4, #1
+					// low
+					gcm_shlmi %0, %4, #0, #1
+					// post-shift
+					// X1:X0 in %0
+					// X3:X2 in %1
+					// compute D
+					gcm_cmpd %2, %0
+					// compute E, F, G
+					gcm_shrmi %6, %2, #0, #1
+					gcm_shrmi %4, %2, #0, #2
+					gcm_shrmi %5, %2, #0, #7
+					// XOR everybody
+					xor %2, %2, %6
+					xor %4, %4, %5
+					xor %2, %2, %4
+					xor %13, %2, %1
+						
+					brz done, %12
+					brz do_msg, #0
+		done:
+					fin
+					
+	);
+	let gcm_finish_code = assemble_engine25519!(
+					//        pub in %16 (0-11, 12-15 are ctr so 0, LE)
+					//        RD_PTR in %3
+					//        WR_PTR in %11
+					//		  MLEN in %12 (do one *partial* 16-byte-blocks, so 0 or non-zero)
+					//		  MMASK in %10 (could be computed from MLEN%16 but we don't have an instruction for it yet)
+					// 		  finalblock in %9 (could be computed but we'd need to know the exact value of adlen)
+					//        H in %15 (byte-reverted)
+					//        T in %14
+					//        accum in %13
+					// Transient:
+					//  %0, %1, %4, %5, %6, %7 are tmp
+					// Output:
+					//    all inputs preserved except RD_PTR (%3), WR_PTR (%11), MLEN (%12)
+					//    accum is in %13
+					//    accum ^ T is in %8
+					brz last, %12
+					
+		finish_mlen:
+					// increment counter
+					gcm_brev32 %16, %16
+					add %16, %16, #11
+					gcm_brev32 %16, %16
+					
+					xor %0, %16, %31
+
+					aesesmi %1, %0, %30, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %29, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %28, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %27, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %26, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %25, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %24, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %23, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %22, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %21, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+					
+					aesesmi %1, %0, %20, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesmi %0, %1, %19, #0
+					aesesmi %0, %1, %0, #1
+					aesesmi %0, %1, %0, #2
+					aesesmi %0, %1, %0, #3
+
+					aesesmi %1, %0, %18, #0
+					aesesmi %1, %0, %1, #1
+					aesesmi %1, %0, %1, #2
+					aesesmi %1, %0, %1, #3
+					
+					aesesi %0, %1, %17, #0
+					aesesi %0, %1, %0, #1
+					aesesi %0, %1, %0, #2
+					aesesi %1, %1, %0, #3
+					
+					//gcm_brev64 %1, %0
+					//gcm_swap64 %1, %1, %1
+
+					and %1, %1, %10
+					load %0, %3
+					xor %0, %0, %1
+					
+					store %11, %11, %0
+					
+				gcm_brev64 %0, %0
+				gcm_swap64 %0, %0, %0
+
+					xor %0, %0, %13
+					//add %3, %3, #12 // #12 is 16 in both 128 bits halves
+					//add %11, %11, #12 // #12 is 16 in both 128 bits halves
+					// #13 is 1 in both 128 bits halves
+					//sub %12, %12, #13
+					
+					// // poly mult accum = ((accum^ad) * H)
+					// C
+					clmul %4, %0, %15, #0
+					// E
+					clmul %5, %0, %15, #1
+					// F
+					clmul %6, %0, %15, #2
+					// D
+					clmul %7, %0, %15, #3
+					// E ^ F
+					xor %6, %5, %6
+					// put low64 of E^F in high64
+					gcm_swap64 %5, %6, #0
+					// put high64 of E^F in low64
+					gcm_swap64 %6, #0, %6
+					// D xor low
+					xor %7, %7, %6
+					// C xor high
+					xor %4, %4, %5
+					
+					// // reduction
+					// X1:X0 in %4
+					// X3:X2 in %7
+					// shift everybody by 1 to the left
+					// high shifting in 1 bit from low
+					gcm_shlmi %1, %7, %4, #1
+					// low
+					gcm_shlmi %0, %4, #0, #1
+					// post-shift
+					// X1:X0 in %0
+					// X3:X2 in %1
+					// compute D
+					gcm_cmpd %2, %0
+					// compute E, F, G
+					gcm_shrmi %6, %2, #0, #1
+					gcm_shrmi %4, %2, #0, #2
+					gcm_shrmi %5, %2, #0, #7
+					// XOR everybody
+					xor %2, %2, %6
+					xor %4, %4, %5
+					xor %2, %2, %4
+					xor %13, %2, %1
+		last:
+					// addmul of finalblock
+					
+				gcm_brev64 %9, %9
+				gcm_swap64 %9, %9, %9
+					xor %0, %9, %13
+					//add %3, %3, #12 // #12 is 16 in both 128 bits halves
+					//add %11, %11, #12 // #12 is 16 in both 128 bits halves
+					// #13 is 1 in both 128 bits halves
+					//sub %12, %12, #13
+					
+					// // poly mult accum = ((accum^ad) * H)
+					// C
+					clmul %4, %0, %15, #0
+					// E
+					clmul %5, %0, %15, #1
+					// F
+					clmul %6, %0, %15, #2
+					// D
+					clmul %7, %0, %15, #3
+					// E ^ F
+					xor %6, %5, %6
+					// put low64 of E^F in high64
+					gcm_swap64 %5, %6, #0
+					// put high64 of E^F in low64
+					gcm_swap64 %6, #0, %6
+					// D xor low
+					xor %7, %7, %6
+					// C xor high
+					xor %4, %4, %5
+					
+					// // reduction
+					// X1:X0 in %4
+					// X3:X2 in %7
+					// shift everybody by 1 to the left
+					// high shifting in 1 bit from low
+					gcm_shlmi %1, %7, %4, #1
+					// low
+					gcm_shlmi %0, %4, #0, #1
+					// post-shift
+					// X1:X0 in %0
+					// X3:X2 in %1
+					// compute D
+					gcm_cmpd %2, %0
+					// compute E, F, G
+					gcm_shrmi %6, %2, #0, #1
+					gcm_shrmi %4, %2, #0, #2
+					gcm_shrmi %5, %2, #0, #7
+					// XOR everybody
+					xor %2, %2, %6
+					xor %4, %4, %5
+					xor %2, %2, %4
+					xor %13, %2, %1
+					
+				gcm_brev64 %13, %13
+				gcm_swap64 %13, %13, %13
+
+					xor %8, %13, %14
+
+					fin
+	);
 
 
     let mut pos = 0;
-    while pos < gcm_ad_code.len() {
-		  println!("0x{:08x},", gcm_ad_code[pos]);
+    while pos < gcm_finish_code.len() {
+		  println!("0x{:08x},", gcm_finish_code[pos]);
 		  pos = pos + 1;
     }
 	Ok(())

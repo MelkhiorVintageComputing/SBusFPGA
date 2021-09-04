@@ -139,9 +139,9 @@ class _CRG(Module):
         self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
         
 class SBusFPGA(SoCCore):
-    def __init__(self, **kwargs):
-        self.version = "V1.0";
-
+    def __init__(self, version, **kwargs):
+        print(f"Building SBusFPGA for board version {version}")
+        
         kwargs["cpu_type"] = "None"
         kwargs["integrated_sram_size"] = 0
         kwargs["with_uart"] = False
@@ -149,9 +149,9 @@ class SBusFPGA(SoCCore):
         
         self.sys_clk_freq = sys_clk_freq = 100e6 ## 25e6
     
-        self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a", version = self.version)
+        self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a", version = version)
 
-        if (self.version == "V1.0"):
+        if (version == "V1.0"):
             self.platform.add_extension(ztex213_sbus._usb_io_v1_0)
         
         SoCCore.__init__(self,
@@ -183,7 +183,7 @@ class SBusFPGA(SoCCore):
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
         self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
-        if (self.version == "V1.0"):
+        if (version == "V1.0"):
             self.submodules.leds = LedChaser(
                 pads         = platform.request("SBUS_DATA_OE_LED_2"), #platform.request("user_led", 7),
                 sys_clk_freq = sys_clk_freq)
@@ -299,6 +299,7 @@ class SBusFPGA(SoCCore):
         #self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
         #self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
         self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
+        self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
         #self.submodules.curve25519_on_sync = BusSynchronizer(width = 1, idomain = "clk100", odomain = "sys")
         #self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
         #self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
@@ -307,17 +308,20 @@ class SBusFPGA(SoCCore):
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
+    parser.add_argument("--version", default="V1.0", help="SBusFPGA board version (default V1.0)")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
     
-    soc = SBusFPGA(**soc_core_argdict(args))
+    soc = SBusFPGA(**soc_core_argdict(args),
+                   version=args.version)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
     
     builder = Builder(soc, **builder_argdict(args))
     builder.build(**vivado_build_argdict(args), run=args.build)
 
     # Generate modified CSR registers definitions/access functions to netbsd_csr.h.
+    # should be split per-device (and without base) to still work if we have identical devices in different configurations on multiple boards
     csr_contents = sbus_to_fpga_export.get_csr_header(
         regions   = soc.csr_regions,
         constants = soc.constants,
@@ -325,6 +329,9 @@ def main():
     write_to_file(os.path.join("netbsd_csr.h"), csr_contents)
 
     # tells the prom where to find what
+    # just one, as that is board-specific
+    # BEWARE! then need to run 'forth_to_migen_rom.sh' *and* regenerate the bitstream with the proper PROM built-in!
+    # (there's surely a better way...)
     csr_forth_contents = sbus_to_fpga_export.get_csr_forth_header(
         csr_regions   = soc.csr_regions,
         mem_regions   = soc.mem_regions,
