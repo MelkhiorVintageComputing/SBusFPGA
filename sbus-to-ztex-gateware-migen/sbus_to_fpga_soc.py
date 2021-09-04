@@ -32,7 +32,7 @@ import sbus_to_fpga_export;
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(Module):
-    def __init__(self, platform, sys_clk_freq):
+    def __init__(self, platform, sys_clk_freq, usb=True):
         self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
         self.clock_domains.cd_sys4x     = ClockDomain(reset_less=True)
         self.clock_domains.cd_sys4x_dqs = ClockDomain(reset_less=True)
@@ -41,7 +41,8 @@ class _CRG(Module):
         self.clock_domains.cd_native    = ClockDomain(reset_less=True) # 48MHz native, non-reset'ed (for power-on long delay, never reset, we don't want the delay after a warm reset)
         self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
-        self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
+        if (usb):
+            self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
         self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
         #self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
         self.clock_domains.cd_clk100_gated = ClockDomain() # 100 MHz (gated) for curve25519engine -> mul_clk
@@ -121,14 +122,15 @@ class _CRG(Module):
 #        self.comb += pll.reset.eq(~por_done | ~rst_sbus)
 
         # USB
-        self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=-1)
-        #usb_pll.register_clkin(clk48, 48e6)
-        usb_pll.register_clkin(self.clk48_bufg, 48e6)
-        usb_pll.create_clkout(self.cd_usb, 48e6, margin = 0)
-        platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{MMCME2_ADV_2/CLKOUT0}}]")
-        self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
-        platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk)
-
+        if (usb):
+            self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=-1)
+            #usb_pll.register_clkin(clk48, 48e6)
+            usb_pll.register_clkin(self.clk48_bufg, 48e6)
+            usb_pll.create_clkout(self.cd_usb, 48e6, margin = 0)
+            platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{MMCME2_ADV_2/CLKOUT0}}]")
+            self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
+            platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk)
+        
         self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=-1)
         #pll_idelay.register_clkin(clk48, 48e6)
         pll_idelay.register_clkin(self.clk48_bufg, 48e6)
@@ -139,7 +141,7 @@ class _CRG(Module):
         self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
         
 class SBusFPGA(SoCCore):
-    def __init__(self, version, **kwargs):
+    def __init__(self, version, usb, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -180,7 +182,7 @@ class SBusFPGA(SoCCore):
             "usb_fake_dma":     0xfc000000,
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb)
         self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         if (version == "V1.0"):
@@ -188,18 +190,18 @@ class SBusFPGA(SoCCore):
                 pads         = platform.request("SBUS_DATA_OE_LED_2"), #platform.request("user_led", 7),
                 sys_clk_freq = sys_clk_freq)
             self.add_csr("leds")
-        
-        self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
-        #self.comb += self.cpu.interrupt[16].eq(self.usb_host.interrupt) #fixme: need to deal with interrupts
 
-        # self.add_ram(name="usb_shared_mem", origin=self.mem_map["usb_shared_mem"], size=2**16)
-        
-        pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
-        SBUS_3V3_INT1s_o = Signal(reset=1)
-        # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
-        self.comb += pad_SBUS_3V3_INT1s.eq(SBUS_3V3_INT1s_o)
-        self.comb += SBUS_3V3_INT1s_o.eq(~self.usb_host.interrupt) ##
-        
+        if (usb):
+            self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
+            if (version == "V1.0"):
+                pad_usb_interrupt = platform.request("SBUS_3V3_INT1s") ## only one usable
+            elif (version == "V1.2"):
+                pad_usb_interrupt = platform.request("SBUS_3V3_INT3s") ## can be 1-6, beware others
+            sig_usb_interrupt = Signal(reset=1)
+            # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
+            self.comb += pad_usb_interrupt.eq(sig_usb_interrupt)
+            self.comb += sig_usb_interrupt.eq(~self.usb_host.interrupt) ##
+            
         
         #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
         #SBUS_DATA_OE_LED_o = Signal()
@@ -284,7 +286,9 @@ class SBusFPGA(SoCCore):
         self.submodules.sbus_bus_stat = SBusFPGABusStat(sbus_bus = self.sbus_bus)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
-        self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
+
+        if (usb):
+            self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
         #self.bus.add_master(name="mem_read_master", master=self.exchange_with_mem.wishbone_r_slave)
         #self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_slave)
         
@@ -295,6 +299,7 @@ class SBusFPGA(SoCCore):
         # beware the naming, as 'clk50' 'sysclk' 'clk200' are used in the original platform constraints
         # the local engine.py was slightly modified to have configurable names, so we can have 'clk50', 'clk100', 'clk200'
         # Beware that Engine implicitely runs in 'sys' by default, need to rename that one as well
+        # Actually renaming 'sys' doesn't work - unless we can CDC the CSRs as well
         self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None))) # , "sys":"clk100"
         #self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
         #self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
@@ -309,12 +314,14 @@ def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
     parser.add_argument("--version", default="V1.0", help="SBusFPGA board version (default V1.0)")
+    parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
     
     soc = SBusFPGA(**soc_core_argdict(args),
-                   version=args.version)
+                   version=args.version,
+                   usb=args.usb)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
     
     builder = Builder(soc, **builder_argdict(args))
