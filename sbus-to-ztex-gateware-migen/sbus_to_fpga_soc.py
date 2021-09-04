@@ -140,6 +140,7 @@ class _CRG(Module):
         
 class SBusFPGA(SoCCore):
     def __init__(self, **kwargs):
+        self.version = "V1.0";
 
         kwargs["cpu_type"] = "None"
         kwargs["integrated_sram_size"] = 0
@@ -148,9 +149,11 @@ class SBusFPGA(SoCCore):
         
         self.sys_clk_freq = sys_clk_freq = 100e6 ## 25e6
     
-        self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a")
+        self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a", version = self.version)
+
+        if (self.version == "V1.0"):
+            self.platform.add_extension(ztex213_sbus._usb_io_v1_0)
         
-        self.platform.add_extension(ztex213_sbus._usb_io)
         SoCCore.__init__(self,
                          platform=platform,
                          sys_clk_freq=sys_clk_freq,
@@ -166,11 +169,12 @@ class SBusFPGA(SoCCore):
         # Anything at 0x10000000 is therefore unreachable directly
         # The position of the 'usb_fake_dma' is so it overlaps
         # the virtual address space used by NetBSD DMA allocators
+        # (themselves constrained by the SBus MMU capabilities)
         self.wb_mem_map = wb_mem_map = {
             "prom":             0x00000000,
             "csr" :             0x00040000,
             "usb_host":         0x00080000,
-            "usb_shared_mem":   0x00090000,
+            "usb_shared_mem":   0x00090000, # unused
             "curve25519engine": 0x000a0000,
             "main_ram":         0x80000000,
             "usb_fake_dma":     0xfc000000,
@@ -179,10 +183,11 @@ class SBusFPGA(SoCCore):
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq)
         self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
-        self.submodules.leds = LedChaser(
-            pads         = platform.request("SBUS_DATA_OE_LED_2"), #platform.request("user_led", 7),
-            sys_clk_freq = sys_clk_freq)
-        self.add_csr("leds")
+        if (self.version == "V1.0"):
+            self.submodules.leds = LedChaser(
+                pads         = platform.request("SBUS_DATA_OE_LED_2"), #platform.request("user_led", 7),
+                sys_clk_freq = sys_clk_freq)
+            self.add_csr("leds")
         
         self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
         #self.comb += self.cpu.interrupt[16].eq(self.usb_host.interrupt) #fixme: need to deal with interrupts
