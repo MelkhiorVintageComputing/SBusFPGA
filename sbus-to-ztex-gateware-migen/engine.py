@@ -25,14 +25,17 @@ opcodes = {  # mnemonic : [bit coding, docstring]
     "FIN" : [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
     "SHL" : [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
     "XBT" : [12, "Wd[0] $\gets$ Ra[254]  // extract the 255th bit of Ra and put it into the 0th bit of Wd"],
+    "AND" :       [20, "Wd $\gets$ Ra & Rb  // bitwise AND"],
+    # for CLMUL, bit #31 indicates both lanes are needed; currently same speed
     "CLMUL":      [13, "carry-less multiplication; reg-reg only; per 128-bits block"], # basically 256-bits form of vpclmulqdq
     "GCM_SHLMI":  [14, "Shift A left by imm, insert B MSB as dest LSB; reg-reg or reg-imm; per 128-bits block"], # make SHL redundant: SHL %rd, %ra == GCM_SHLMI %rd, %ra, #0, #1
     "GCM_SHRMI":  [15, "Shift A right by imm, insert B LSB as dest MSB; reg-reg or reg-imm; per 128-bits block"], # 
     "GCM_CMPD":   [16, "Compute D:X0 from X1:X0; reg ; per 128-bits block"], # specific
     "GCM_SWAP64": [17, "Swap doubleword (64 bits) ; reg-reg or imm-reg or reg-imm; per 128-bits block ; imm != 0 -> BYTEREV*"], # 
+    # for AESESMI, bit #31 indicates both lanes are needed; currently same speed
     "AESESMI" :   [18, "AES ; reg-reg ; per 128-bits block; imm[0] is 1 for aesesi (shared opcode)" ],
+    # for MEM, bit #31 indicates both lanes are needed; b[31] == 0 faster as the second access is not done
     "MEM" :       [19, "MEM ; imm[0] == 0 for LOAD, imm[0] == 1 for STORE (beware, store copy the address in the output reg)" ],
-    "AND" :       [20, "Wd $\gets$ Ra & Rb  // bitwise AND"],
     "MAX" : [21, "Maximum opcode number (for bounds checking)"],
 }
 
@@ -239,7 +242,10 @@ class Curve25519Const(Module, AutoDoc):
             10: [254, "two hundred fifty four", "The number 254 (iteration count)"],
             11: [0x00000001_00000000_00000000_00000000_00000001_00000000_00000000_00000000, "increment for GCM counter (LE)", "increment for GCM counter (LE)"],
             12: [0x00000000_00000000_00000000_00000010_00000000_00000000_00000000_00000010, "sixteen (twice)", "The number 16 (for block-size address increment)"],
-            13: [0x00000000_00000000_00000000_00000001_00000000_00000000_00000000_00000001, "decrement for GCM dual-loops (LE)", "decrement for GCM dual-loops"]
+            13: [0x00000000_00000000_00000000_00000001_00000000_00000000_00000000_00000001, "decrement for GCM dual-loops (LE)", "decrement for GCM dual-loops"],
+            # 14
+            # 15
+            16: [16, "sixteen", "The number 16"],
         }
         self.adr = Signal(5)
         self.const = Signal(256)
@@ -1462,7 +1468,6 @@ class ExecClmul(ExecUnit, AutoDoc):
             #self.q_valid.eq(self.start),
             self.instruction_out.eq(self.instruction_in),
         ]
-
         
         self.submodules.seq = seq = ClockDomainsRenamer("eng_clk")(FSM(reset_state="IDLE"))
         seq.act("IDLE",
@@ -1494,9 +1499,12 @@ class ExecClmul(ExecUnit, AutoDoc):
                 }))
         seq.act("OUT",
                 self.q_valid.eq(1),
-                self.q.eq(clmul_buf),
-                NextState("IDLE"),
-                );
+                If(self.instruction.immediate[8:9],
+                    self.q.eq(clmul_buf),
+                ).Else(
+                    self.q.eq(Cat(clmul_buf[0:128], Signal(128, reset = 0)))
+                ),
+                NextState("IDLE"));
                 
 
 class ExecGCMShifts(ExecUnit, AutoDoc):
@@ -1753,7 +1761,11 @@ class ExecAES(ExecUnit, AutoDoc):
         self.sync.mul_clk += [
             If(seq.ongoing("AES_EVEN1") | seq.ongoing("AES_EVEN2"),
                 self.q_valid.eq(1),
-                self.q.eq(aes_buf),
+               If(self.instruction.immediate[8:9],
+                  self.q.eq(aes_buf),
+               ).Else(
+                   self.q.eq(Cat(aes_buf[0:128], Signal(128, reset = 0))),
+               )
             ).Else(
                 self.q_valid.eq(0),
             )
@@ -1824,15 +1836,24 @@ class ExecLS(ExecUnit, AutoDoc):
         lsseq.act("MEMl2",
                   NextValue(cpar, cpar ^ 1),
                   If(~interface.ack,
-                     NextValue(interface.cyc, 1),
-                     NextValue(interface.stb, 1),
-                     NextValue(interface.sel, 2**len(interface.sel)-1),
-                     NextValue(interface.adr, self.a[132:160]),
-                     NextValue(interface.we, self.instruction.immediate[0]),
-                     NextValue(timeout, 2047),
-                     If(self.instruction.immediate[0],
-                        NextValue(interface.dat_w, self.b[128:256])),
-                     NextState("MEMh")
+                     If(self.instruction.immediate[8:9],
+                        NextValue(interface.cyc, 1),
+                        NextValue(interface.stb, 1),
+                        NextValue(interface.sel, 2**len(interface.sel)-1),
+                        NextValue(interface.adr, self.a[132:160]),
+                        NextValue(interface.we, self.instruction.immediate[0]),
+                        NextValue(timeout, 2047),
+                        If(self.instruction.immediate[0],
+                           NextValue(interface.dat_w, self.b[128:256])),
+                        NextState("MEMh")
+                     ).Else(
+                         NextValue(lbuf[128:256], 0),
+                         If(cpar, ## checkme
+                            NextState("MEM_ODD")
+                         ).Else(
+                             NextState("MEM_EVEN1")
+                         )
+                     )
                   ))
         lsseq.act("MEMh",
                   NextValue(cpar, cpar ^ 1),

@@ -173,9 +173,9 @@ static const uint32_t program_aes[16] = {0x0001f003,0x0005e012,0x0001d052,0x0005
 
 static const uint32_t program_gcm_pfx[30] = {0x01400411,0x00080840,0x00040800,0x0001f043,0x0005e012,0x0001d052,0x0005c012,0x0001b052,0x0005a012,0x00019052,0x00058012,0x00017052,0x00056012,0x00015052,0x00054012,0x00013052,0x00052012,0x00811052,0x03800089,0x003c0000,0x01400411,0x0042b405,0x01400411,0x00080800,0x00040400,0xf4800809,0x00380000,0x01bc03d1,0x003cf3d1,0x00340800 };
 
-static const uint32_t program_gcm_ad[29] = {0x0d800309,0x000000d3,0x01800011,0x00000011,0x0000d003,0x000ec0c5,0x0032d306,0x0010f00d,0x0094f00d,0x0118f00d,0x019cf00d,0x00186143,0x00160191,0x00186811,0x001c61c3,0x00105103,0x008441ce,0x0082010e,0x00080010,0x009a008f,0x0112008f,0x0396008f,0x00086083,0x00105103,0x00084083,0x00341083,0x00800309,0xf2800809,0x0000000a };
+static const uint32_t program_gcm_ad[29] = {0x0d800309,0x000000d3,0x01800011,0x00000011,0x0000d003,0x000f00c5,0x00321306,0x0010f00d,0x0094f00d,0x0118f00d,0x019cf00d,0x00186143,0x00160191,0x00186811,0x001c61c3,0x00105103,0x008441ce,0x0082010e,0x00080010,0x009a008f,0x0112008f,0x0396008f,0x00086083,0x00105103,0x00084083,0x00341083,0x00800309,0xf2800809,0x0000000a };
 
-static const uint32_t program_gcm_aes[50] = {0x18000309,0x01400411,0x0042b405,0x01400411,0x0001f403,0x0005e012,0x0001d052,0x0005c012,0x0001b052,0x0005a012,0x00019052,0x00058012,0x00017052,0x00056012,0x00015052,0x00054012,0x00013052,0x00052012,0x00851052,0x000000d3,0x00001003,0x00ac02d3,0x01800011,0x00000011,0x0000d003,0x000ec0c5,0x002ec2c5,0x0032d306,0x0010f00d,0x0094f00d,0x0118f00d,0x019cf00d,0x00186143,0x00160191,0x00186811,0x001c61c3,0x00105103,0x008441ce,0x0082010e,0x00080010,0x009a008f,0x0112008f,0x0396008f,0x00086083,0x00105103,0x00084083,0x00341083,0x00800309,0xe8000809,0x0000000a };
+static const uint32_t program_gcm_aes[50] = {0x18000309,0x01400411,0x0042b405,0x01400411,0x0001f403,0x0005e012,0x0001d052,0x0005c012,0x0001b052,0x0005a012,0x00019052,0x00058012,0x00017052,0x00056012,0x00015052,0x00054012,0x00013052,0x00052012,0x00851052,0x000000d3,0x00001003,0x00ac02d3,0x01800011,0x00000011,0x0000d003,0x000f00c5,0x002f02c5,0x00321306,0x0010f00d,0x0094f00d,0x0118f00d,0x019cf00d,0x00186143,0x00160191,0x00186811,0x001c61c3,0x00105103,0x008441ce,0x0082010e,0x00080010,0x009a008f,0x0112008f,0x0396008f,0x00086083,0x00105103,0x00084083,0x00341083,0x00800309,0xe8000809,0x0000000a };
 
 static const uint32_t program_gcm_finish[71] = {0x16000309,0x01400411,0x0042b405,0x01400411,0x0001f403,0x0005e012,0x0001d052,0x0005c012,0x0001b052,0x0005a012,0x00019052,0x00058012,0x00017052,0x00056012,0x00015052,0x00054012,0x00013052,0x00052012,0x00851052,0x0004a054,0x000000d3,0x00001003,0x00ac02d3,0x01800011,0x00000011,0x0000d003,0x0010f00d,0x0094f00d,0x0118f00d,0x019cf00d,0x00186143,0x00160191,0x00186811,0x001c61c3,0x00105103,0x008441ce,0x0082010e,0x00080010,0x009a008f,0x0112008f,0x0396008f,0x00086083,0x00105103,0x00084083,0x00341083,0x01a40251,0x00249251,0x0000d243,0x0010f00d,0x0094f00d,0x0118f00d,0x019cf00d,0x00186143,0x00160191,0x00186811,0x001c61c3,0x00105103,0x008441ce,0x0082010e,0x00080010,0x009a008f,0x0112008f,0x0396008f,0x00086083,0x00105103,0x00084083,0x00341083,0x01b40351,0x0034d351,0x0020e343,0x0000000a };
 
@@ -532,25 +532,20 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		curve25519engine_window_write(sc, unit); /* to each session its own register file */
 
 		/* read_addr */
-		for (i = 0 ; i < 8 ; i ++) {
-			/* bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0); */
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0);
+		for (i = 0 ; i < 4 ; i ++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), (i == 0) ? ((uint32_t)rd_ptr) : 0);
 		}
-		/* write_addr */
-		/* for (i = 0 ; i < 8 ; i ++) { */
-		/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,i), ((i & 3) == 0) ? ((uint32_t)wr_ptr) : 0); */
-		/* } */
 		/* write_len */
-		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), ((i&3) == 0) ? ((uint32_t)job->len) : 0);
+		for (i = 0 ; i < 8 ; i ++) { // all the way to 8 to make sure we have zero in every bit checked by BRZ
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), (i == 0) ? ((uint32_t)job->len) : 0);
 		}
 		/* data */
-		for (i = 0 ; i < 8 ; i ++) {
+		for (i = 0 ; i < 4 ; i ++) {
 			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(16,i), job->data[i]);
 		}
 		for (reg = 31 ; reg > 16 ; reg--) {
-			for (i = 0 ; i < 8 ; i ++) {
-				bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i), job->keys[(i&3)+4*(31-reg)]);
+			for (i = 0 ; i < 4 ; i ++) {
+				bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(reg,i), job->keys[i+4*(31-reg)]);
 			}
 		}
 		
@@ -597,13 +592,12 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		curve25519engine_window_write(sc, unit); /* to each session its own register file */
 
 		/* read_addr */
-		for (i = 0 ; i < 8 ; i ++) {
-			/* bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0); */
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0);
+		for (i = 0 ; i < 4 ; i ++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), (i == 0) ? ((uint32_t)rd_ptr) : 0);
 		}
 		/* write_len */
-		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), ((i & 3) == 0) ? ((uint32_t)job->len) : 0);
+		for (i = 0 ; i < 8 ; i ++) { // all the way to 8 to make sure we have zero in every bit checked by BRZ
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), (i == 0) ? ((uint32_t)job->len) : 0);
 		}
 		
 		err = start_job(sc);
@@ -650,17 +644,16 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		curve25519engine_window_write(sc, unit); /* to each session its own register file */
 
 		/* read_addr */
-		for (i = 0 ; i < 8 ; i ++) {
-			/* bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0); */
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0);
+		for (i = 0 ; i < 4 ; i ++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), (i == 0) ? ((uint32_t)rd_ptr) : 0);
 		}
 		/* write_addr */
-		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(11,i), ((i & 3) == 0) ? ((uint32_t)wr_ptr) : 0);
+		for (i = 0 ; i < 4 ; i ++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(11,i), (i == 0) ? ((uint32_t)wr_ptr) : 0);
 		}
 		/* write_len */
-		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), ((i & 3) == 0) ? ((uint32_t)job->len) : 0);
+		for (i = 0 ; i < 8 ; i ++) { // all the way to 8 to make sure we have zero in every bit checked by BRZ
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), (i == 0) ? ((uint32_t)job->len) : 0);
 		}
 		
 		err = start_job(sc);
@@ -707,22 +700,20 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 		curve25519engine_window_write(sc, unit); /* to each session its own register file */
 
 		/* read_addr */
-		for (i = 0 ; i < 8 ; i ++) {
-			/* bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0); */
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), ((i & 3) == 0) ? ((uint32_t)rd_ptr) : 0);
+		for (i = 0 ; i < 4 ; i ++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), (i == 0) ? ((uint32_t)rd_ptr) : 0);
 		}
 		/* write_addr */
-		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(11,i), ((i & 3) == 0) ? ((uint32_t)wr_ptr) : 0);
+		for (i = 0 ; i < 4 ; i ++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(11,i), (i == 0) ? ((uint32_t)wr_ptr) : 0);
 		}
 		/* write_len */
-		for (i = 0 ; i < 8 ; i ++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), ((i & 3) == 0) ? ((uint32_t)job->len) : 0);
+		for (i = 0 ; i < 8 ; i ++) { // all the way to 8 to make sure we have zero in every bit checked by BRZ
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(12,i), (i == 0) ? ((uint32_t)job->len) : 0);
 		}
 		/* final block */
 		for (i = 0 ; i < 4 ; i ++) {
 			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(9,i), job->data[i]);
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(9,i+4), job->data[i]);
 		}
 		/* create and generate MMASK */
 		for (i = 0 ; i < 4 ; i ++) {
@@ -736,7 +727,6 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 				mask = 0xFFFFFFFF >> (8*(4-(job->len%4)));
 			}
 			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(10,i), mask);
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(10,(i+4)), mask);
 		}
 		
 		
@@ -749,7 +739,7 @@ sbusfpga_curve25519engine_ioctl (dev_t dev, u_long cmd, void *data, int flag, st
 			return err;
 
 		/* final accum */
-		for (i = 0 ; i < 8 ; i ++) {
+		for (i = 0 ; i < 4 ; i ++) {
 			job->data[i] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(8,i));
 		}
 

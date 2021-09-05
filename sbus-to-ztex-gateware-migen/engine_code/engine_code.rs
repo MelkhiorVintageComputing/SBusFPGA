@@ -748,9 +748,8 @@ fn main() -> std::io::Result<()> {
 				gcm_swap64 %0, %0, %0
 				
 					xor %0, %0, %13
-					add %3, %3, #12 // #12 is 16 in both 128 bits halves
-					// #13 is 1 in both 128 bits halves
-					sub %12, %12, #13
+					add %3, %3, #16
+					sub %12, %12, #1
 
 					// // poly mult accum = ((accum^ad) * H)
 					// C
@@ -865,10 +864,10 @@ fn main() -> std::io::Result<()> {
 				gcm_swap64 %0, %0, %0
 
 					xor %0, %0, %13
-					add %3, %3, #12 // #12 is 16 in both 128 bits halves
-					add %11, %11, #12 // #12 is 16 in both 128 bits halves
-					// #13 is 1 in both 128 bits halves
-					sub %12, %12, #13
+					add %3, %3, #16
+					add %11, %11, #16
+					
+					sub %12, %12, #1
 					
 					// // poly mult accum = ((accum^ad) * H)
 					// C
@@ -986,10 +985,10 @@ fn main() -> std::io::Result<()> {
 				gcm_swap64 %0, %0, %0
 
 					xor %0, %0, %13
-					//add %3, %3, #12 // #12 is 16 in both 128 bits halves
-					//add %11, %11, #12 // #12 is 16 in both 128 bits halves
-					// #13 is 1 in both 128 bits halves
-					//sub %12, %12, #13
+					//add %3, %3, #16
+					//add %11, %11, #16
+					
+					//sub %12, %12, #1
 					
 					// // poly mult accum = ((accum^ad) * H)
 					// C
@@ -1039,10 +1038,9 @@ fn main() -> std::io::Result<()> {
 				gcm_brev64 %9, %9
 				gcm_swap64 %9, %9, %9
 					xor %0, %9, %13
-					//add %3, %3, #12 // #12 is 16 in both 128 bits halves
-					//add %11, %11, #12 // #12 is 16 in both 128 bits halves
-					// #13 is 1 in both 128 bits halves
-					//sub %12, %12, #13
+					//add %3, %3, #16
+					//add %11, %11, #16
+					//sub %12, %12, #1
 					
 					// // poly mult accum = ((accum^ad) * H)
 					// C
