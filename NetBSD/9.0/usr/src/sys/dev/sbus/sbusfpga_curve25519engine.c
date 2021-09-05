@@ -897,7 +897,7 @@ static int write_inputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusf
 	int err = 0;
 	if (status & (1<<CSR_CURVE25519ENGINE_STATUS_RUNNING_OFFSET)) {
 		aprint_error_dev(sc->sc_dev, "WRITE - Curve25519Engine status: 0x%08x, still running?\n", status);
-		return -ENXIO;
+		return ENXIO;
 	}
 	for (i = 0 ; i < 8 ; i ++) {
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(24,i), job->affine_u[i]);
@@ -930,7 +930,7 @@ static int start_job(struct sbusfpga_curve25519engine_softc *sc) {
 	uint32_t status = curve25519engine_status_read(sc);
 	if (status & (1<<CSR_CURVE25519ENGINE_STATUS_RUNNING_OFFSET)) {
 		aprint_error_dev(sc->sc_dev, "START - Curve25519Engine status: 0x%08x, still running?\n", status);
-		return -ENXIO;
+		return ENXIO;
 	}
 	curve25519engine_control_write(sc, 1);
 	//aprint_normal_dev(sc->sc_dev, "START - Curve25519Engine status: 0x%08x\n", curve25519engine_status_read(sc));
@@ -968,13 +968,13 @@ static int wait_job(struct sbusfpga_curve25519engine_softc *sc, uint32_t param) 
 	//curve25519engine_control_write(sc, 0);
 	if (status & (1<<CSR_CURVE25519ENGINE_STATUS_RUNNING_OFFSET)) {
 		aprint_error_dev(sc->sc_dev, "WAIT - Curve25519Engine status: 0x%08x, did not finish in time? [inst: 0x%08x ls_status: 0x%08x]\n", status, curve25519engine_instruction_read(sc),  curve25519engine_ls_status_read(sc));
-		return -ENXIO;
+		return ENXIO;
 	} else if (status & (1<<CSR_CURVE25519ENGINE_STATUS_SIGILL_OFFSET)) {
 		aprint_error_dev(sc->sc_dev, "WAIT - Curve25519Engine status: 0x%08x, sigill [inst: 0x%08x ls_status: 0x%08x]\n", status, curve25519engine_instruction_read(sc),  curve25519engine_ls_status_read(sc));
-		return -ENXIO;
+		return ENXIO;
 	} else if (status & (1<<CSR_CURVE25519ENGINE_STATUS_ABORT_OFFSET)) {
 		aprint_error_dev(sc->sc_dev, "WAIT - Curve25519Engine status: 0x%08x, aborted [inst: 0x%08x ls_status: 0x%08x]\n", status, curve25519engine_instruction_read(sc),  curve25519engine_ls_status_read(sc));
-		return -ENXIO;
+		return ENXIO;
 	} else {
 		//aprint_normal_dev(sc->sc_dev, "WAIT - Curve25519Engine status: 0x%08x [%d] ls_status: 0x%08x\n", status, count, curve25519engine_ls_status_read(sc));
 	}
@@ -988,7 +988,7 @@ static int read_outputs(struct sbusfpga_curve25519engine_softc *sc, struct sbusf
 	uint32_t status = curve25519engine_status_read(sc);
 	if (status & (1<<CSR_CURVE25519ENGINE_STATUS_RUNNING_OFFSET)) {
 		aprint_error_dev(sc->sc_dev, "READ - Curve25519Engine status: 0x%08x, still running?\n", status);
-		return -ENXIO;
+		return ENXIO;
 	}
 	
 	for (i = 0 ; i < 8 ; i ++) {
