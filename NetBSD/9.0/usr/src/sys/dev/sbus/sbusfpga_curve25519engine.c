@@ -298,32 +298,7 @@ sbusfpga_curve25519engine_attach(device_t parent, device_t self, void *aux)
 }
 
 #define CONFIG_CSR_DATA_WIDTH 32
-// define CSR_LEDS_BASE & others to avoid defining the CSRs of HW we don't handle
-#define CSR_LEDS_BASE
-//#define CSR_CURVE25519ENGINE_BASE
-#define CSR_DDRPHY_BASE
-#define CSR_EXCHANGE_WITH_MEM_BASE
-#define CSR_SBUS_BUS_STAT_BASE
-#define CSR_SDRAM_BASE
-#define CSR_SDBLOCK2MEM_BASE
-#define CSR_SDCORE_BASE
-#define CSR_SDIRQ_BASE
-#define CSR_SDMEM2BLOCK_BASE
-#define CSR_SDPHY_BASE
-#define CSR_TRNG_BASE
-#include "dev/sbus/litex_csr.h"
-#undef CSR_LEDS_BASE
-//#undef CSR_CURVE25519ENGINE_BASE
-#undef CSR_DDRPHY_BASE
-#undef CSR_EXCHANGE_WITH_MEM_BASE
-#undef CSR_SBUS_BUS_STAT_BASE
-#undef CSR_SDRAM_BASE
-#undef CSR_SDBLOCK2MEM_BASE
-#undef CSR_SDCORE_BASE
-#undef CSR_SDIRQ_BASE
-#undef CSR_SDMEM2BLOCK_BASE
-#undef CSR_SDPHY_BASE
-#undef CSR_TRNG_BASE
+#include "dev/sbus/sbusfpga_csr_curve25519engine.h"
 
 #define REG_BASE(reg) (base + (reg * 32))
 #define SUBREG_ADDR(reg, off) (REG_BASE(reg) + (off)*4)

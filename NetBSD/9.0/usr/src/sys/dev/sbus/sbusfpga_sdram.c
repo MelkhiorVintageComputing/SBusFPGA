@@ -540,37 +540,12 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 
 
 #define CONFIG_CSR_DATA_WIDTH 32
-// define CSR_LEDS_BASE & others to avoid defining the CSRs of HW we don't handle
-#define CSR_LEDS_BASE
-#define CSR_CURVE25519ENGINE_BASE
-//#define CSR_DDRPHY_BASE
-//#define CSR_SDRAM_BASE
-//#define CSR_EXCHANGE_WITH_MEM_BASE
-#define CSR_SBUS_BUS_STAT_BASE
-#define CSR_SDBLOCK2MEM_BASE
-#define CSR_SDCORE_BASE
-#define CSR_SDIRQ_BASE
-#define CSR_SDMEM2BLOCK_BASE
-#define CSR_SDPHY_BASE
-#define CSR_TRNG_BASE
-
 /* grrr */
 #define sbusfpga_exchange_with_mem_softc sbusfpga_sdram_softc
 #define sbusfpga_ddrphy_softc sbusfpga_sdram_softc
-
-#include "dev/sbus/litex_csr.h"
-#undef CSR_LEDS_BASE
-#undef CSR_CURVE25519ENGINE_BASE
-//#undef CSR_DDRPHY_BASE
-//#undef CSR_SDRAM_BASE
-//#undef CSR_EXCHANGE_WITH_MEM_BASE
-#undef CSR_SBUS_BUS_STAT_BASE
-#undef CSR_SDBLOCK2MEM_BASE
-#undef CSR_SDCORE_BASE
-#undef CSR_SDIRQ_BASE
-#undef CSR_SDMEM2BLOCK_BASE
-#undef CSR_SDPHY_BASE
-#undef CSR_TRNG_BASE
+#include "dev/sbus/sbusfpga_csr_exchange_with_mem.h"
+#include "dev/sbus/sbusfpga_csr_ddrphy.h"
+#include "dev/sbus/sbusfpga_csr_sdram.h"
 
 /* not yet generated */
 static inline void exchange_with_mem_checksum_read(struct sbusfpga_sdram_softc *sc, uint32_t* data) {

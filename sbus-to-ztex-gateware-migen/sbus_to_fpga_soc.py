@@ -349,6 +349,14 @@ def main():
         csr_base  = soc.mem_regions['csr'].origin)
     write_to_file(os.path.join("netbsd_csr.h"), csr_contents)
 
+    csr_contents_dict = sbus_to_fpga_export.get_csr_header_split(
+        regions   = soc.csr_regions,
+        constants = soc.constants,
+        csr_base  = soc.mem_regions['csr'].origin)
+    for name in csr_contents_dict.keys():
+        write_to_file(os.path.join("sbusfpga_csr_{}.h".format(name)), csr_contents_dict[name])
+    
+
     # tells the prom where to find what
     # just one, as that is board-specific
     # BEWARE! then need to run 'forth_to_migen_rom.sh' *and* regenerate the bitstream with the proper PROM built-in!
