@@ -153,8 +153,21 @@ class SBusFPGA(SoCCore):
     
         self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a", version = version)
 
+        xdc_timings_filename = None;
         if (version == "V1.0"):
+            xdc_timings_filename = "/home/dolbeau/SBusFPGA/sbus-to-ztex-gateware/sbus-to-ztex-timings.xdc"
             self.platform.add_extension(ztex213_sbus._usb_io_v1_0)
+        elif (version == "V1.2"):
+            xdc_timings_filename = "/home/dolbeau/SBusFPGA/sbus-to-ztex-gateware/sbus-to-ztex-timings-V1_2.xdc"
+
+        if (xdc_timings_filename != None):
+            xdc_timings_file = open(xdc_timings_filename)
+            xdc_timings_lines = xdc_timings_file.readlines()
+            for line in xdc_timings_lines:
+                if (line[0:3] == "set"):
+                    fix_line = line.strip().replace("{", "{{").replace("}", "}}")
+                    print(fix_line)
+                    platform.add_platform_command(fix_line)
         
         SoCCore.__init__(self,
                          platform=platform,
@@ -187,7 +200,7 @@ class SBusFPGA(SoCCore):
 
         if (version == "V1.0"):
             self.submodules.leds = LedChaser(
-                pads         = platform.request("SBUS_DATA_OE_LED_2"), #platform.request("user_led", 7),
+                pads         = platform.request("SBUS_DATA_OE_LED_2"),
                 sys_clk_freq = sys_clk_freq)
             self.add_csr("leds")
 
@@ -280,6 +293,7 @@ class SBusFPGA(SoCCore):
                                 tosbus_fifo=self.tosbus_fifo,
                                 fromsbus_fifo=self.fromsbus_fifo,
                                 fromsbus_req_fifo=self.fromsbus_req_fifo,
+                                version=version,
                                 burst_size=burst_size)
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)

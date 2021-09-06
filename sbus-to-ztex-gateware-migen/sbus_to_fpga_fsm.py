@@ -175,7 +175,7 @@ LED_M_READ = 0x20
 LED_M_CACHE = 0x40
         
 class SBusFPGABus(Module):
-    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, burst_size = 8):
+    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8):
         self.platform = platform
         self.hold_reset = hold_reset
 
@@ -217,8 +217,24 @@ class SBusFPGABus(Module):
         pad_SBUS_3V3_ERRs = platform.request("SBUS_3V3_ERRs")
         #pad_SBUS_3V3_RSTs = platform.request("SBUS_3V3_RSTs")
         pad_SBUS_3V3_SELs = platform.request("SBUS_3V3_SELs")
-        #pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
-        pad_SBUS_3V3_INT7s = platform.request("SBUS_3V3_INT7s")
+        if (version == "V1.0"):
+            #pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
+            pad_SBUS_3V3_INT7s = platform.request("SBUS_3V3_INT7s")
+            #sbus_oe_int1 = Signal(reset=0)
+            sbus_oe_int7 = Signal(reset=0)
+        elif (version == "V1.2"):
+            pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
+            pad_SBUS_3V3_INT2s = platform.request("SBUS_3V3_INT2s")
+            #pad_SBUS_3V3_INT3s = platform.request("SBUS_3V3_INT3s")
+            pad_SBUS_3V3_INT4s = platform.request("SBUS_3V3_INT4s")
+            pad_SBUS_3V3_INT5s = platform.request("SBUS_3V3_INT5s")
+            pad_SBUS_3V3_INT6s = platform.request("SBUS_3V3_INT6s")
+            sbus_oe_int1 = Signal(reset=0)
+            sbus_oe_int2 = Signal(reset=0)
+            #sbus_oe_int3 = Signal(reset=0)
+            sbus_oe_int4 = Signal(reset=0)
+            sbus_oe_int5 = Signal(reset=0)
+            sbus_oe_int6 = Signal(reset=0)
         pad_SBUS_3V3_PPRD = platform.request("SBUS_3V3_PPRD")
         pad_SBUS_OE = platform.request("SBUS_OE")
         pad_SBUS_3V3_ACKs = platform.request("SBUS_3V3_ACKs")
@@ -231,8 +247,6 @@ class SBusFPGABus(Module):
         sbus_oe_data = Signal(reset=0)
         sbus_oe_slave_in = Signal(reset=0)
         sbus_oe_master_in = Signal(reset=0)
-        #sbus_oe_int1 = Signal(reset=0)
-        sbus_oe_int7 = Signal(reset=0)
         #sbus_oe_master_br = Signal(reset=0)
 
         sbus_last_pa = Signal(28)
@@ -254,10 +268,24 @@ class SBusFPGABus(Module):
         #SBUS_3V3_RSTs = Signal()
         SBUS_3V3_SELs_i = Signal(reset=1)
         self.comb += SBUS_3V3_SELs_i.eq(pad_SBUS_3V3_SELs)
-        #SBUS_3V3_INT1s_o = Signal(reset=1)
-        #self.specials += Tristate(pad_SBUS_3V3_INT1s, SBUS_3V3_INT1s_o, sbus_oe_int1, None)
-        SBUS_3V3_INT7s_o = Signal(reset=1)
-        self.specials += Tristate(pad_SBUS_3V3_INT7s, SBUS_3V3_INT7s_o, sbus_oe_int7, None)
+        if (version == "V1.0"):
+            #SBUS_3V3_INT1s_o = Signal(reset=1)
+            #self.specials += Tristate(pad_SBUS_3V3_INT1s, SBUS_3V3_INT1s_o, sbus_oe_int1, None)
+            SBUS_3V3_INT7s_o = Signal(reset=1)
+            self.specials += Tristate(pad_SBUS_3V3_INT7s, SBUS_3V3_INT7s_o, sbus_oe_int7, None)
+        elif (version == "V1.2"):
+            SBUS_3V3_INT1s_o = Signal(reset=1)
+            self.specials += Tristate(pad_SBUS_3V3_INT1s, SBUS_3V3_INT1s_o, sbus_oe_int1, None)
+            SBUS_3V3_INT2s_o = Signal(reset=1)
+            self.specials += Tristate(pad_SBUS_3V3_INT2s, SBUS_3V3_INT2s_o, sbus_oe_int2, None)
+            #SBUS_3V3_INT3s_o = Signal(reset=1)
+            #self.specials += Tristate(pad_SBUS_3V3_INT3s, SBUS_3V3_INT3s_o, sbus_oe_int3, None)
+            SBUS_3V3_INT4s_o = Signal(reset=1)
+            self.specials += Tristate(pad_SBUS_3V3_INT4s, SBUS_3V3_INT4s_o, sbus_oe_int4, None)
+            SBUS_3V3_INT5s_o = Signal(reset=1)
+            self.specials += Tristate(pad_SBUS_3V3_INT5s, SBUS_3V3_INT5s_o, sbus_oe_int5, None)
+            SBUS_3V3_INT6s_o = Signal(reset=1)
+            self.specials += Tristate(pad_SBUS_3V3_INT6s, SBUS_3V3_INT6s_o, sbus_oe_int6, None)
         SBUS_3V3_PPRD_i = Signal()
         SBUS_3V3_PPRD_o = Signal()
         self.specials += Tristate(pad_SBUS_3V3_PPRD, SBUS_3V3_PPRD_o, sbus_oe_slave_in, SBUS_3V3_PPRD_i)
