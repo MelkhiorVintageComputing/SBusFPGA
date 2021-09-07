@@ -797,8 +797,8 @@ Potential corner case
 There is a potential corner case where if the carry-propagated result going into
 "normalize" is between
 
-  0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFDA and
-  0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFEC
+  0x7FFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFDA and
+  0x7FFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFEC
 
 In this case, the top bit would be wrapped around, multiplied by 19, and added to
 the LSB, but the result would not be a member of $2^{{255}}-19$ (it would be one
@@ -1434,7 +1434,7 @@ carries that have already been propagated. If we fail to do this, then we re-pro
                 self.dsp_match3 &
                 self.dsp_match2 &
                 self.dsp_match1 &
-                (self.dsp_p0 >= 0x1_ffed)
+                (self.dsp_p0[:17] >= 0x1_ffed)
             )
         ]
 
