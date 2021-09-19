@@ -27,16 +27,22 @@ from engine import Engine;
 from migen.genlib.cdc import BusSynchronizer
 from migen.genlib.resetsync import AsyncResetSynchronizer;
 
+# betrusted-io/gateware
+from gateware import i2c;
+
 import sbus_to_fpga_export;
+
+import cg3;
 
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(Module):
-    def __init__(self, platform, sys_clk_freq, usb=True):
+    def __init__(self, platform, sys_clk_freq, usb=False, sdram=False):
         self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
-        self.clock_domains.cd_sys4x     = ClockDomain(reset_less=True)
-        self.clock_domains.cd_sys4x_dqs = ClockDomain(reset_less=True)
-        self.clock_domains.cd_idelay    = ClockDomain()
+        if (sdram):
+            self.clock_domains.cd_sys4x     = ClockDomain(reset_less=True)
+            self.clock_domains.cd_sys4x_dqs = ClockDomain(reset_less=True)
+            self.clock_domains.cd_idelay    = ClockDomain()
 ##        self.clock_domains.cd_sys       = ClockDomain() #  16.67-25 MHz SBus, reset'ed by SBus, native SBus & SYS clock domain
         self.clock_domains.cd_native    = ClockDomain(reset_less=True) # 48MHz native, non-reset'ed (for power-on long delay, never reset, we don't want the delay after a warm reset)
         self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
@@ -71,26 +77,37 @@ class _CRG(Module):
         
         self.curve25519_on = Signal()
 
+        num_adv = 1
+        num_clk = 0
+
         self.submodules.pll = pll = S7MMCM(speedgrade=-1)
         #pll.register_clkin(clk48, 48e6)
         pll.register_clkin(self.clk48_bufg, 48e6)
         pll.create_clkout(self.cd_sys,       sys_clk_freq, gated_replicas={self.cd_clk100_gated : pll.locked & self.curve25519_on})
-        platform.add_platform_command("create_generated_clock -name sysclk [get_pins {{MMCME2_ADV/CLKOUT0}}]")
-        pll.create_clkout(self.cd_sys4x,     4*sys_clk_freq)
-        platform.add_platform_command("create_generated_clock -name sys4xclk [get_pins {{MMCME2_ADV/CLKOUT1}}]")
-        pll.create_clkout(self.cd_sys4x_dqs, 4*sys_clk_freq, phase=90)
-        platform.add_platform_command("create_generated_clock -name sys4x90clk [get_pins {{MMCME2_ADV/CLKOUT2}}]")
+        platform.add_platform_command("create_generated_clock -name sysclk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+        num_clk = num_clk + 1
+        if (sdram):
+            pll.create_clkout(self.cd_sys4x,     4*sys_clk_freq)
+            platform.add_platform_command("create_generated_clock -name sys4xclk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+            num_clk = num_clk + 1
+            pll.create_clkout(self.cd_sys4x_dqs, 4*sys_clk_freq, phase=90)
+            platform.add_platform_command("create_generated_clock -name sys4x90clk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+            num_clk = num_clk + 1
         self.comb += pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
         platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
         #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
-        
         pll.create_clkout(self.cd_clk50, sys_clk_freq/2, ce=pll.locked & self.curve25519_on)
-        platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{MMCME2_ADV/CLKOUT3}}]")
+        platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+        num_clk = num_clk + 1
         pll.create_clkout(self.cd_clk200, sys_clk_freq*2, ce=pll.locked & self.curve25519_on)
-        platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{MMCME2_ADV/CLKOUT4}}]")
+        platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+        num_clk = num_clk + 1
+
+        num_adv = num_adv + 1
+        num_clk = 0
         
         #self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=-1)
         #curve25519_clk_freq = 90e6
@@ -127,21 +144,28 @@ class _CRG(Module):
             #usb_pll.register_clkin(clk48, 48e6)
             usb_pll.register_clkin(self.clk48_bufg, 48e6)
             usb_pll.create_clkout(self.cd_usb, 48e6, margin = 0)
-            platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{MMCME2_ADV_2/CLKOUT0}}]")
+            platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
+            num_clk = num_clk + 1
             self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
             platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk)
-        
-        self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=-1)
-        #pll_idelay.register_clkin(clk48, 48e6)
-        pll_idelay.register_clkin(self.clk48_bufg, 48e6)
-        pll_idelay.create_clkout(self.cd_idelay, 200e6, margin = 0)
-        platform.add_platform_command("create_generated_clock -name idelayclk [get_pins {{MMCME2_ADV_3/CLKOUT0}}]")
-        self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done
+            num_adv = num_adv + 1
+            num_clk = 0
 
-        self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
+        if (sdram):
+            self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=-1)
+            #pll_idelay.register_clkin(clk48, 48e6)
+            pll_idelay.register_clkin(self.clk48_bufg, 48e6)
+            pll_idelay.create_clkout(self.cd_idelay, 200e6, margin = 0)
+            platform.add_platform_command("create_generated_clock -name idelayclk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
+            num_clk = num_clk + 1
+            self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done
+            self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
+            num_adv = num_adv + 1
+            num_clk = 0
+        
         
 class SBusFPGA(SoCCore):
-    def __init__(self, version, usb, **kwargs):
+    def __init__(self, version, usb, sdram, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -195,7 +219,7 @@ class SBusFPGA(SoCCore):
             "usb_fake_dma":     0xfc000000,
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb)
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, sdram=sdram)
         self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         if (version == "V1.0"):
@@ -207,9 +231,10 @@ class SBusFPGA(SoCCore):
         if (usb):
             self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
             if (version == "V1.0"):
-                pad_usb_interrupt = platform.request("SBUS_3V3_INT1s") ## only one usable
-            elif (version == "V1.2"):
-                pad_usb_interrupt = platform.request("SBUS_3V3_INT3s") ## can be 1-6, beware others
+                print(" ***** WARNING ***** USB on SBusFPGA V1.0 is an ugly hack\n");
+            pad_usb_interrupt = platform.get_irq(irq_req=5, device="usb_host", next_down=True, next_up=True)
+            if (pad_usb_interrupt is None):
+                print(" ***** ERROR ***** USB requires an interrupt")
             sig_usb_interrupt = Signal(reset=1)
             # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
             self.comb += pad_usb_interrupt.eq(sig_usb_interrupt)
@@ -235,15 +260,16 @@ class SBusFPGA(SoCCore):
         #getattr(self,"prom").mem.init = prom_data
         #getattr(self,"prom").mem.depth = 2**14
 
-        self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
-                                                   memtype        = "DDR3",
-                                                   nphases        = 4,
-                                                   sys_clk_freq   = sys_clk_freq)
-        self.add_sdram("sdram",
-                       phy           = self.ddrphy,
-                       module        = MT41J128M16(sys_clk_freq, "1:4"),
-                       l2_cache_size = 0,
-        )
+        if (sdram):
+            self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
+                                                       memtype        = "DDR3",
+                                                       nphases        = 4,
+                                                       sys_clk_freq   = sys_clk_freq)
+            self.add_sdram("sdram",
+                           phy           = self.ddrphy,
+                           module        = MT41J128M16(sys_clk_freq, "1:4"),
+                           l2_cache_size = 0,
+            )
         # don't enable anything on the SBus side for 20 seconds after power up
         # this avoids FPGA initialization messing with the cold boot process
         # requires us to reset the SPARCstation afterward so the FPGA board
@@ -265,26 +291,30 @@ class SBusFPGA(SoCCore):
         # burst_size=16 should work on Ultra systems, but then they probably should go for 64-bits ET as well...
         # Older systems are probably limited to burst_size=4, (it should always be available)
         burst_size=8
-        self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=burst_size))
-        self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=burst_size))
-        self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=burst_size))
+        if (sdram):
+            self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=burst_size))
+            self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=burst_size))
+            self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=burst_size))
+            self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=burst_size*32),
+                                                                fifo_depth=4,
+                                                                fifo_buffered=True)
+            
+            self.submodules.dram_dma_reader = LiteDRAMDMAReader(port=self.sdram.crossbar.get_port(mode="read", data_width=burst_size*32),
+                                                                fifo_depth=4,
+                                                                fifo_buffered=True)
 
-        self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=burst_size*32),
-                                                            fifo_depth=4,
-                                                            fifo_buffered=True)
-
-        self.submodules.dram_dma_reader = LiteDRAMDMAReader(port=self.sdram.crossbar.get_port(mode="read", data_width=burst_size*32),
-                                                            fifo_depth=4,
-                                                            fifo_buffered=True)
-
-        self.submodules.exchange_with_mem = ExchangeWithMem(soc=self,
-                                                            tosbus_fifo=self.tosbus_fifo,
-                                                            fromsbus_fifo=self.fromsbus_fifo,
-                                                            fromsbus_req_fifo=self.fromsbus_req_fifo,
-                                                            dram_dma_writer=self.dram_dma_writer,
-                                                            dram_dma_reader=self.dram_dma_reader,
-                                                            burst_size=burst_size,
-                                                            do_checksum = True)
+            self.submodules.exchange_with_mem = ExchangeWithMem(soc=self,
+                                                                tosbus_fifo=self.tosbus_fifo,
+                                                                fromsbus_fifo=self.fromsbus_fifo,
+                                                                fromsbus_req_fifo=self.fromsbus_req_fifo,
+                                                                dram_dma_writer=self.dram_dma_writer,
+                                                                dram_dma_reader=self.dram_dma_reader,
+                                                                burst_size=burst_size,
+                                                                do_checksum = True)
+        else:
+            self.submodules.tosbus_fifo = None
+            self.submodules.fromsbus_fifo = None
+            self.submodules.fromsbus_req_fifo = None
         
         _sbus_bus = SBusFPGABus(platform=self.platform,
                                 hold_reset=hold_reset,
@@ -323,18 +353,31 @@ class SBusFPGA(SoCCore):
         #self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
         #self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
         self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
+
+        #self.submodules.i2c = i2c.RTLI2C(platform, pads=platform.request("i2c"))
+
+        print("IRQ to Device map:\n")
+        print(platform.irq_device_map)
+        print("Device to IRQ map:\n")
+        print(platform.device_irq_map)
         
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
     parser.add_argument("--version", default="V1.0", help="SBusFPGA board version (default V1.0)")
+    parser.add_argument("--sdram", action="store_true", help="add a SDRAM controller (mandatory)")
     parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
+
+    if (args.sdram == False):
+        print(" ***** ERROR ***** : disabling the SDRAM doesn't actually work (too integrated in the SBus FSM...)")
+        assert(False)
     
     soc = SBusFPGA(**soc_core_argdict(args),
                    version=args.version,
+                   sdram=args.sdram,
                    usb=args.usb)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
     
@@ -364,6 +407,7 @@ def main():
     csr_forth_contents = sbus_to_fpga_export.get_csr_forth_header(
         csr_regions   = soc.csr_regions,
         mem_regions   = soc.mem_regions,
+        device_irq_map = soc.platform.device_irq_map,
         constants = soc.constants,
         csr_base  = soc.mem_regions['csr'].origin)
     write_to_file(os.path.join("prom_csr.fth"), csr_forth_contents)

@@ -124,12 +124,15 @@ def get_csr_header(regions, constants, csr_base=None, with_access_functions=True
     return r
 
 
-def get_csr_forth_header(csr_regions, mem_regions, constants, csr_base=None):
+def get_csr_forth_header(csr_regions, mem_regions, device_irq_map, constants, csr_base=None):
     r = "\\ auto-generated base regions for CSRs in the PROM\n"
     for name, region in csr_regions.items():
         r += "h# " + hex(region.origin).replace("0x", "") + " constant " + "sbusfpga_csraddr_{}".format(name) + "\n"
     for name, region in mem_regions.items():
         r += "h# " + hex(region.origin).replace("0x", "") + " constant " + "sbusfpga_regionaddr_{}".format(name) + "\n"
+    for device, irq in device_irq_map.items():
+        if ((irq < 7) and (irq > 0)):
+            r += "h# " + hex(irq).replace("0x", "") + " constant " + "sbusfpga_irq_{}".format(device) + "\n"
     return r
 
 

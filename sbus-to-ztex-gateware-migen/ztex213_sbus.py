@@ -185,11 +185,51 @@ _connectors_v1_2 = [
     ("P1", "T8 U6 P3 P4 T1 U4 R1 T3"),
 ]
 
+# I2C ----------------------------------------------------------------------------------------------
+
+# reusing the UART pins !!!
+_i2c_v1_0 = [
+    ("i2c", 0,
+    Subsignal("scl", Pins("V9")),
+    Subsignal("sda", Pins("U9")),
+    IOStandard("LVCMOS33"))
+]
+# reusing the UART pins !!!
+_i2c_v1_2 = [
+    ("i2c", 0,
+    Subsignal("scl", Pins("V9")),
+    Subsignal("sda", Pins("U9")),
+    IOStandard("LVCMOS33"))
+]
+   
 # Platform -----------------------------------------------------------------------------------------
 
 class Platform(XilinxPlatform):
     default_clk_name   = "clk48"
     default_clk_period = 1e9/48e6
+
+    def get_irq(self, device, irq_req, next_down=True, next_up=False):
+        irq = irq_req
+        if (irq in self.avail_irqs):
+            self.avail_irqs.remove(irq)
+            self.irq_device_map[irq] = device
+            self.device_irq_map[device] = irq
+            return self.request("SBUS_3V3_INT{}s".format(irq))
+        if (next_down):
+            for irq in range(irq_req, 0, -1):
+                if (irq in self.avail_irqs):
+                    self.avail_irqs.remove(irq)
+                    self.irq_device_map[irq] = device
+                    self.device_irq_map[device] = irq
+                    return self.request("SBUS_3V3_INT{}s".format(irq))
+        if (next_up):
+            for irq in range(irq_req, 7, 1):
+                if (irq in self.avail_irqs):
+                    self.avail_irqs.remove(irq)
+                    self.irq_device_map[irq] = device
+                    self.device_irq_map[device] = irq
+                    return self.request("SBUS_3V3_INT{}s".format(irq))
+        return None
 
     def __init__(self, variant="ztex2.13a", version="V1.0"):
         device = {
@@ -211,10 +251,21 @@ class Platform(XilinxPlatform):
             "V1.0" : _connectors_v1_0,
             "V1.2" : _connectors_v1_2,
         }[version]
+        i2c = {
+            "V1.0" : _i2c_v1_0,
+            "V1.2" : _i2c_v1_2,
+        }[version]
+        self.avail_irqs = {
+            "V1.0" : { 1 }, # don't add 7 here, too risky
+            "V1.2" : { 1, 2, 3, 4, 5, 6 },
+        }[version]
+        self.irq_device_map = dict()
+        self.device_irq_map = dict()
         
         XilinxPlatform.__init__(self, device, _io, connectors, toolchain="vivado")
         self.add_extension(sbus_io)
         self.add_extension(sbus_sbus)
+        self.add_extension(i2c)
         
         self.toolchain.bitstream_commands = \
             ["set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR No [current_design]",

@@ -12,3 +12,4 @@ h# 80000000 constant sbusfpga_regionaddr_main_ram
 h# fc000000 constant sbusfpga_regionaddr_usb_fake_dma
 h# a0000 constant sbusfpga_regionaddr_curve25519engine
 h# 40000 constant sbusfpga_regionaddr_csr
+h# 1 constant sbusfpga_irq_usb_host
