@@ -160,7 +160,7 @@ _sbus_sbus_v1_2 = [
     ("SBUS_3V3_INT4s",     0, Pins("N5"),  IOStandard("lvttl")), # added
     ("SBUS_3V3_INT5s",     0, Pins("L5"),  IOStandard("lvttl")), # added
     ("SBUS_3V3_INT6s",     0, Pins("V2"),  IOStandard("lvttl")), # added
-    #("SBUS_3V3_INT7s",     0, Pins("N5"),  IOStandard("lvttl")),
+    #("SBUS_3V3_INT7s",     0, Pins(""),  IOStandard("lvttl")), # removed
     ("SBUS_3V3_PPRD",      0, Pins("N6"),  IOStandard("lvttl")),
     ("SBUS_OE",            0, Pins("P5"),  IOStandard("lvttl")),
     ("SBUS_3V3_ACKs",      0, Pins("M6 L6 N4"),  IOStandard("lvttl")),
@@ -182,7 +182,8 @@ _usb_io_v1_0 = [
 _connectors_v1_0 = [
 ]
 _connectors_v1_2 = [
-    ("P1", "T8 U6 P3 P4 T1 U4 R1 T3"),
+    # ("P1", "T8 U6 P3 P4 T1 U4 R1 T3"),
+    ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"),
 ]
 
 # I2C ----------------------------------------------------------------------------------------------
@@ -201,6 +202,21 @@ _i2c_v1_2 = [
     Subsignal("sda", Pins("U9")),
     IOStandard("LVCMOS33"))
 ]
+
+# VGA ----------------------------------------------------------------------------------------------
+
+def vga_rgb222_pmod_io(pmod):
+    return [
+        ("vga", 0,
+            Subsignal("hsync", Pins(f"{pmod}:7")),
+            Subsignal("vsync", Pins(f"{pmod}:3")),
+            Subsignal("r", Pins(f"{pmod}:0 {pmod}:4")),
+            Subsignal("g", Pins(f"{pmod}:1 {pmod}:5")),
+            Subsignal("b", Pins(f"{pmod}:2 {pmod}:6")),
+            IOStandard("LVCMOS33"),
+        ),
+]
+_vga_pmod_io_v1_2 = vga_rgb222_pmod_io("P1")
    
 # Platform -----------------------------------------------------------------------------------------
 
@@ -214,6 +230,7 @@ class Platform(XilinxPlatform):
             self.avail_irqs.remove(irq)
             self.irq_device_map[irq] = device
             self.device_irq_map[device] = irq
+            print("~~~~~ A Requesting SBUS_3V3_INT{}s".format(irq))
             return self.request("SBUS_3V3_INT{}s".format(irq))
         if (next_down):
             for irq in range(irq_req, 0, -1):
@@ -221,6 +238,7 @@ class Platform(XilinxPlatform):
                     self.avail_irqs.remove(irq)
                     self.irq_device_map[irq] = device
                     self.device_irq_map[device] = irq
+                    print("~~~~~ B Requesting SBUS_3V3_INT{}s".format(irq))
                     return self.request("SBUS_3V3_INT{}s".format(irq))
         if (next_up):
             for irq in range(irq_req, 7, 1):
@@ -228,6 +246,7 @@ class Platform(XilinxPlatform):
                     self.avail_irqs.remove(irq)
                     self.irq_device_map[irq] = device
                     self.device_irq_map[device] = irq
+                    print("~~~~~ C Requesting SBUS_3V3_INT{}s".format(irq))
                     return self.request("SBUS_3V3_INT{}s".format(irq))
         return None
 

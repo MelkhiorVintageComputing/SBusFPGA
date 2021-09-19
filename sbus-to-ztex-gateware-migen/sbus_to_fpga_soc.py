@@ -32,12 +32,19 @@ from gateware import i2c;
 
 import sbus_to_fpga_export;
 
-import cg3;
+from litex.soc.cores.video import VideoVGAPHY
+import cg3_fb;
 
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(Module):
-    def __init__(self, platform, sys_clk_freq, usb=False, sdram=False):
+    def __init__(self, platform, sys_clk_freq,
+                 usb=False,
+                 sdram=True,
+                 engine=False,
+                 i2c=False,
+                 cg3=False,
+                 pix_clk=0):
         self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
         if (sdram):
             self.clock_domains.cd_sys4x     = ClockDomain(reset_less=True)
@@ -49,10 +56,13 @@ class _CRG(Module):
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         if (usb):
             self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
-        self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
-        #self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
-        self.clock_domains.cd_clk100_gated = ClockDomain() # 100 MHz (gated) for curve25519engine -> mul_clk
-        self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
+        if (engine):
+            self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
+            #self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
+            self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
+        self.clock_domains.cd_clk100_gated = ClockDomain() # 100 MHz (gated) for curve25519engine -> mul_clk # aways created, along sysclk
+        if (cg3):
+            self.clock_domains.cd_vga       = ClockDomain(reset_less=True)
 
         # # #
         clk48 = platform.request("clk48")
@@ -69,15 +79,19 @@ class _CRG(Module):
         #self.cd_native.clk = clk48
         
         clk_sbus = platform.request("SBUS_3V3_CLK")
+        if (clk_sbus is None):
+            print(" ***** ERROR ***** Can't find the SBus Clock !!!!\n");
+            assert(false)
         self.cd_sbus.clk = clk_sbus
         rst_sbus = platform.request("SBUS_3V3_RSTs")
         self.comb += self.cd_sbus.rst.eq(~rst_sbus)
+        platform.add_platform_command("create_clock -name SBUS_3V3_CLK -period 40.0 [get_nets SBUS_3V3_CLK]")
         ##self.cd_sys.clk = clk_sbus
         ##self.comb += self.cd_sys.rst.eq(~rst_sbus)
         
         self.curve25519_on = Signal()
 
-        num_adv = 1
+        num_adv = 0
         num_clk = 0
 
         self.submodules.pll = pll = S7MMCM(speedgrade=-1)
@@ -99,12 +113,13 @@ class _CRG(Module):
         #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
-        pll.create_clkout(self.cd_clk50, sys_clk_freq/2, ce=pll.locked & self.curve25519_on)
-        platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
-        num_clk = num_clk + 1
-        pll.create_clkout(self.cd_clk200, sys_clk_freq*2, ce=pll.locked & self.curve25519_on)
-        platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
-        num_clk = num_clk + 1
+        if (engine):
+            pll.create_clkout(self.cd_clk50, sys_clk_freq/2, ce=pll.locked & self.curve25519_on)
+            platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+            num_clk = num_clk + 1
+            pll.create_clkout(self.cd_clk200, sys_clk_freq*2, ce=pll.locked & self.curve25519_on)
+            platform.add_platform_command("create_generated_clock -name clk200 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+            num_clk = num_clk + 1
 
         num_adv = num_adv + 1
         num_clk = 0
@@ -162,10 +177,21 @@ class _CRG(Module):
             self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
             num_adv = num_adv + 1
             num_clk = 0
+
+        if (cg3):
+            self.submodules.video_pll = video_pll = S7MMCM(speedgrade=-1)
+            video_pll.register_clkin(self.clk48_bufg, 48e6)
+            video_pll.create_clkout(self.cd_vga, pix_clk, margin = 0)
+            platform.add_platform_command("create_generated_clock -name vga_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
+            num_clk = num_clk + 1
+            self.comb += video_pll.reset.eq(~rst_sbus)
+            num_adv = num_adv + 1
+            num_clk = 0
+            
         
         
 class SBusFPGA(SoCCore):
-    def __init__(self, version, usb, sdram, **kwargs):
+    def __init__(self, version, usb, sdram, engine, i2c, cg3, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -177,21 +203,8 @@ class SBusFPGA(SoCCore):
     
         self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a", version = version)
 
-        xdc_timings_filename = None;
-        if (version == "V1.0"):
-            xdc_timings_filename = "/home/dolbeau/SBusFPGA/sbus-to-ztex-gateware/sbus-to-ztex-timings.xdc"
-            self.platform.add_extension(ztex213_sbus._usb_io_v1_0)
-        elif (version == "V1.2"):
-            xdc_timings_filename = "/home/dolbeau/SBusFPGA/sbus-to-ztex-gateware/sbus-to-ztex-timings-V1_2.xdc"
-
-        if (xdc_timings_filename != None):
-            xdc_timings_file = open(xdc_timings_filename)
-            xdc_timings_lines = xdc_timings_file.readlines()
-            for line in xdc_timings_lines:
-                if (line[0:3] == "set"):
-                    fix_line = line.strip().replace("{", "{{").replace("}", "}}")
-                    print(fix_line)
-                    platform.add_platform_command(fix_line)
+        if (cg3 and (version == "V1.2")):
+            platform.add_extension(ztex213_sbus._vga_pmod_io_v1_2)
         
         SoCCore.__init__(self,
                          platform=platform,
@@ -215,12 +228,31 @@ class SBusFPGA(SoCCore):
             "usb_host":         0x00080000,
             "usb_shared_mem":   0x00090000, # unused
             "curve25519engine": 0x000a0000,
+            "cg3_registers":    0x00400000, # required for compatibility
+            "cg3_pixels":       0x00800000, # required for compatibility
             "main_ram":         0x80000000,
             "usb_fake_dma":     0xfc000000,
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, sdram=sdram)
-        self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, sdram=sdram, engine=engine, cg3=cg3, pix_clk=108e6) # FIXME: pix_clk
+        #self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
+
+        ## add our custom timings after the clocks have been defined
+        xdc_timings_filename = None;
+        if (version == "V1.0"):
+            xdc_timings_filename = "/home/dolbeau/SBusFPGA/sbus-to-ztex-gateware/sbus-to-ztex-timings.xdc"
+            self.platform.add_extension(ztex213_sbus._usb_io_v1_0)
+        elif (version == "V1.2"):
+            xdc_timings_filename = "/home/dolbeau/SBusFPGA/sbus-to-ztex-gateware/sbus-to-ztex-timings-V1_2.xdc"
+
+        if (xdc_timings_filename != None):
+            xdc_timings_file = open(xdc_timings_filename)
+            xdc_timings_lines = xdc_timings_file.readlines()
+            for line in xdc_timings_lines:
+                if (line[0:3] == "set"):
+                    fix_line = line.strip().replace("{", "{{").replace("}", "}}")
+                    #print(fix_line)
+                    platform.add_platform_command(fix_line)
 
         if (version == "V1.0"):
             self.submodules.leds = LedChaser(
@@ -230,9 +262,7 @@ class SBusFPGA(SoCCore):
 
         if (usb):
             self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
-            if (version == "V1.0"):
-                print(" ***** WARNING ***** USB on SBusFPGA V1.0 is an ugly hack\n");
-            pad_usb_interrupt = platform.get_irq(irq_req=5, device="usb_host", next_down=True, next_up=True)
+            pad_usb_interrupt = platform.get_irq(irq_req=3, device="usb_host", next_down=True, next_up=True)
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
             sig_usb_interrupt = Signal(reset=1)
@@ -344,17 +374,25 @@ class SBusFPGA(SoCCore):
         # the local engine.py was slightly modified to have configurable names, so we can have 'clk50', 'clk100', 'clk200'
         # Beware that Engine implicitely runs in 'sys' by default, need to rename that one as well
         # Actually renaming 'sys' doesn't work - unless we can CDC the CSRs as well
-        self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None))) # , "sys":"clk100"
-        #self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
-        #self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
-        self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
-        self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
-        #self.submodules.curve25519_on_sync = BusSynchronizer(width = 1, idomain = "clk100", odomain = "sys")
-        #self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
-        #self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
-        self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
+        if (engine):
+            self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None))) # , "sys":"clk100"
+            #self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
+            #self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
+            self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
+            self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
+            #self.submodules.curve25519_on_sync = BusSynchronizer(width = 1, idomain = "clk100", odomain = "sys")
+            #self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
+            #self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
+            self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
 
-        #self.submodules.i2c = i2c.RTLI2C(platform, pads=platform.request("i2c"))
+        if (i2c):
+            self.submodules.i2c = i2c.RTLI2C(platform, pads=platform.request("i2c"))
+
+        if (cg3):
+            litex.soc.cores.video.video_timings.update(cg3_fb.cg3_timings)
+            self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
+            self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings="1152x900@76Hz", clock_domain="vga")
+            self.bus.add_slave("cg3_registers", self.cg3.bus, SoCRegion(origin=self.mem_map.get("cg3_registers", None), size=0x1000, cached=False))
 
         print("IRQ to Device map:\n")
         print(platform.irq_device_map)
@@ -365,21 +403,36 @@ def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
     parser.add_argument("--version", default="V1.0", help="SBusFPGA board version (default V1.0)")
-    parser.add_argument("--sdram", action="store_true", help="add a SDRAM controller (mandatory)")
-    parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller")
+    parser.add_argument("--sdram", action="store_true", help="add a SDRAM controller (mandatory) [all]")
+    parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
+    parser.add_argument("--engine", action="store_true", help="add a Engine crypto core [all]")
+    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [none]")
+    parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod]")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
 
     if (args.sdram == False):
-        print(" ***** ERROR ***** : disabling the SDRAM doesn't actually work (too integrated in the SBus FSM...)")
+        print(" ***** ERROR ***** : disabling the SDRAM doesn't actually work (too integrated in the SBus FSM...)\n")
+        assert(False)
+    if (args.usb and (args.version == "V1.0")):
+        print(" ***** WARNING ***** : USB on V1.0 is an ugly hack \n");
+    if (args.i2c):
+        print(" ***** WARNING ***** : I2C on V1.x is for testing the core \n");
+    if (args.cg3 and (args.version == "V1.0")):
+        print(" ***** ERROR ***** : VGA not supported on V.10\n")
         assert(False)
     
     soc = SBusFPGA(**soc_core_argdict(args),
                    version=args.version,
                    sdram=args.sdram,
-                   usb=args.usb)
+                   usb=args.usb,
+                   engine=args.engine,
+                   i2c=args.i2c,
+                   cg3=args.cg3)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
+
+    soc.platform.name += "_" + args.version.replace(".", "_")
     
     builder = Builder(soc, **builder_argdict(args))
     builder.build(**vivado_build_argdict(args), run=args.build)
