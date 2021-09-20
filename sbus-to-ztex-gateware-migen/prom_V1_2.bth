@@ -1,0 +1,13 @@
+purpose: Load file for SBusFPGA
+
+command: &builder &this
+
+build-now
+
+\ silent on
+
+begin-tokenizing prom_V1_2.fc
+
+fload prom_V1_2.fth
+
+end-tokenizing

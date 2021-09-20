@@ -31,6 +31,7 @@ from migen.genlib.resetsync import AsyncResetSynchronizer;
 from gateware import i2c;
 
 import sbus_to_fpga_export;
+import sbus_to_fpga_prom;
 
 from litex.soc.cores.video import VideoVGAPHY
 import cg3_fb;
@@ -181,10 +182,11 @@ class _CRG(Module):
         if (cg3):
             self.submodules.video_pll = video_pll = S7MMCM(speedgrade=-1)
             video_pll.register_clkin(self.clk48_bufg, 48e6)
-            video_pll.create_clkout(self.cd_vga, pix_clk, margin = 0)
+            video_pll.create_clkout(self.cd_vga, pix_clk, margin = 0.0005)
             platform.add_platform_command("create_generated_clock -name vga_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
             num_clk = num_clk + 1
             self.comb += video_pll.reset.eq(~rst_sbus)
+            platform.add_false_path_constraints(self.cd_sys.clk, self.cd_vga.clk)
             num_adv = num_adv + 1
             num_clk = 0
             
@@ -279,7 +281,7 @@ class SBusFPGA(SoCCore):
         #self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
         #self.comb += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_INT1s_o)
 
-        prom_file = "prom_migen.fc"
+        prom_file = "prom_{}.fc".format(version.replace(".", "_"))
         prom_data = soc_core.get_mem_data(prom_file, "big")
         # prom = Array(prom_data)
         #print("\n****************************************\n")
@@ -391,8 +393,9 @@ class SBusFPGA(SoCCore):
         if (cg3):
             litex.soc.cores.video.video_timings.update(cg3_fb.cg3_timings)
             self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
-            self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings="1152x900@76Hz", clock_domain="vga")
+            self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings="1152x900@76Hz", clock_domain="vga") # clock_domain for the VGA side, cg3 is running in cd_sys
             self.bus.add_slave("cg3_registers", self.cg3.bus, SoCRegion(origin=self.mem_map.get("cg3_registers", None), size=0x1000, cached=False))
+            #self.add_video_framebuffer(phy=self.videophy, timings="1152x900@76Hz", clock_domain="vga")
 
         print("IRQ to Device map:\n")
         print(platform.irq_device_map)
@@ -432,18 +435,21 @@ def main():
                    cg3=args.cg3)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
 
-    soc.platform.name += "_" + args.version.replace(".", "_")
+    version_for_filename = args.version.replace(".", "_")
+
+    soc.platform.name += "_" + version_for_filename
     
     builder = Builder(soc, **builder_argdict(args))
     builder.build(**vivado_build_argdict(args), run=args.build)
 
     # Generate modified CSR registers definitions/access functions to netbsd_csr.h.
     # should be split per-device (and without base) to still work if we have identical devices in different configurations on multiple boards
-    csr_contents = sbus_to_fpga_export.get_csr_header(
-        regions   = soc.csr_regions,
-        constants = soc.constants,
-        csr_base  = soc.mem_regions['csr'].origin)
-    write_to_file(os.path.join("netbsd_csr.h"), csr_contents)
+    # now it is split
+    #csr_contents = sbus_to_fpga_export.get_csr_header(
+    #    regions   = soc.csr_regions,
+    #    constants = soc.constants,
+    #    csr_base  = soc.mem_regions['csr'].origin)
+    #write_to_file(os.path.join("netbsd_csr.h"), csr_contents)
 
     csr_contents_dict = sbus_to_fpga_export.get_csr_header_split(
         regions   = soc.csr_regions,
@@ -452,7 +458,6 @@ def main():
     for name in csr_contents_dict.keys():
         write_to_file(os.path.join("sbusfpga_csr_{}.h".format(name)), csr_contents_dict[name])
     
-
     # tells the prom where to find what
     # just one, as that is board-specific
     # BEWARE! then need to run 'forth_to_migen_rom.sh' *and* regenerate the bitstream with the proper PROM built-in!
@@ -463,7 +468,16 @@ def main():
         device_irq_map = soc.platform.device_irq_map,
         constants = soc.constants,
         csr_base  = soc.mem_regions['csr'].origin)
-    write_to_file(os.path.join("prom_csr.fth"), csr_forth_contents)
+    write_to_file(os.path.join(f"prom_csr_{version_for_filename}.fth"), csr_forth_contents)
+
+    prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, 
+                   usb=args.usb,
+                   sdram=args.sdram,
+                   engine=args.engine,
+                   i2c=args.i2c,
+                   cg3=args.cg3)
+    write_to_file(os.path.join(f"prom_{version_for_filename}.fth"), prom_content)
+    
     
 if __name__ == "__main__":
     main()
