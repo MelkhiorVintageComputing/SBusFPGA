@@ -10,22 +10,24 @@ def get_header_map_stuff(name, size, type="csr"):
     r  = f"my-address sbusfpga_{type}addr_{name} + my-space h# {size:x} reg\n"
     r += "h# 7f xdrint \" slave-burst-sizes\" attribute\n" # fixme: burst-sizes
     r += "h# 7f xdrint \" burst-sizes\" attribute\n" # fixme: burst-sizes
-    r += f"headers\n-1 instance value {name}-virt\nmy-address constant my-sbus-address\nmy-space constant my-sbus-space\n"
+    r += "headers\n"
+    r += f"-1 instance value {name}-virt\nmy-address constant my-sbus-address\nmy-space constant my-sbus-space\n"
     r += ": map-in ( adr space size -- virt ) \" map-in\" $call-parent ;\n: map-out ( virt size -- ) \" map-out\" $call-parent ;\n";
     r += f": map-in-{name} ( -- ) my-sbus-address sbusfpga_{type}addr_{name} + my-sbus-space h# {size:x} map-in is {name}-virt ;\n"
     r += f": map-out-{name} ( -- ) {name}-virt h# {size:x} map-out ;\n"
     return r
 
 def get_header_map3_stuff(gname, name1, name2, name3, size1, size2, size3, type1="csr", type2="csr", type3="csr"):
-    r  = f"my-address sbusfpga_{type1}addr_{name1} + my-space xdrphys h# {size1:x} xdrint xdr+\n"
-    r += f"my-address sbusfpga_{type2}addr_{name2} + my-space xdrphys h# {size2:x} xdrint xdr+\n"
-    r += f"my-address sbusfpga_{type3}addr_{name3} + my-space xdrphys h# {size3:x} xdrint xdr+\n"
+    r  = f"my-address sbusfpga_{type1}addr_{name1} + my-space xdrphys      h# {size1:x} xdrint xdr+\n"
+    r += f"my-address sbusfpga_{type2}addr_{name2} + my-space xdrphys xdr+ h# {size2:x} xdrint xdr+\n"
+    r += f"my-address sbusfpga_{type3}addr_{name3} + my-space xdrphys xdr+ h# {size3:x} xdrint xdr+\n"
     r += "\" reg\" attribute\n"
     r += "h# 7f xdrint \" slave-burst-sizes\" attribute\n" # fixme: burst-sizes
     r += "h# 7f xdrint \" burst-sizes\" attribute\n" # fixme: burst-sizes
-    r += f"headers\n-1 instance value {name1}-virt\n"
-    r += f"headers\n-1 instance value {name2}-virt\n"
-    r += f"headers\n-1 instance value {name3}-virt\n"
+    r += "headers\n"
+    r += f"-1 instance value {name1}-virt\n"
+    r += f"-1 instance value {name2}-virt\n"
+    r += f"-1 instance value {name3}-virt\n"
     r += "my-address constant my-sbus-address\nmy-space constant my-sbus-space\n"
     r += ": map-in ( adr space size -- virt ) \" map-in\" $call-parent ;\n: map-out ( virt size -- ) \" map-out\" $call-parent ;\n";
     r += f": map-in-{gname} ( -- )\n"
