@@ -48,7 +48,8 @@ def get_prom(soc,
              sdram=True,
              engine=False,
              i2c=False,
-             cg3=False):
+             cg3=False,
+             cg3_res=None):
     
     r = "fcode-version2\nfload prom_csr_{}.fth\n".format(version.replace(".", "_"))
 
@@ -114,10 +115,14 @@ def get_prom(soc,
             r += "finish-device\nnew-device\n"
         
     if (cg3):
+        hres = int(cg3_res.split("@")[0].split("x")[0])
+        vres = int(cg3_res.split("@")[0].split("x")[1])
+        hres_h=(f"{hres:x}").replace("0x", "")
+        vres_h=(f"{vres:x}").replace("0x", "")
         cg3_file = open("cg3.fth")
         cg3_lines = cg3_file.readlines()
         for line in cg3_lines:
-            r += line
+            r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h)
          
     r += "end0\n"
 

@@ -193,7 +193,7 @@ class _CRG(Module):
         
         
 class SBusFPGA(SoCCore):
-    def __init__(self, version, usb, sdram, engine, i2c, cg3, **kwargs):
+    def __init__(self, version, usb, sdram, engine, i2c, cg3, cg3_res, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -207,6 +207,17 @@ class SBusFPGA(SoCCore):
 
         if (cg3 and (version == "V1.2")):
             platform.add_extension(ztex213_sbus._vga_pmod_io_v1_2)
+
+        if (cg3):
+            hres = int(cg3_res.split("@")[0].split("x")[0])
+            vres = int(cg3_res.split("@")[0].split("x")[1])
+            cg3_fb_size = int(1048576 * ceil((hres * vres) / 1048576))
+            print(f"Reserving {cg3_fb_size} bytes ({cg3_fb_size//1048576} MiB) for the CG3")
+        else:
+            hres = 0
+            vres = 0
+            cg3_fb_size = 0
+        litex.soc.cores.video.video_timings.update(cg3_fb.cg3_timings)
         
         SoCCore.__init__(self,
                          platform=platform,
@@ -215,7 +226,7 @@ class SBusFPGA(SoCCore):
                          csr_paging=0x1000, #  default is 0x800
                          **kwargs)
 
-        # This mem-map is also exposed in the FSM (matched prefixes)
+        # *** This mem-map is also exposed in the FSM (matched prefixes) ***
         # and in the PROM (to tell NetBSD where everything is)
         # Currently it is a straight mapping between the two:
         # the physical address here are used as offset in the SBus
@@ -225,18 +236,18 @@ class SBusFPGA(SoCCore):
         # the virtual address space used by NetBSD DMA allocators
         # (themselves constrained by the SBus MMU capabilities)
         self.wb_mem_map = wb_mem_map = {
-            "prom":             0x00000000,
+            "prom":             0x00000000, # 256 Kib ought to be enough for anybody (we're using < 2.5 Kib now...)
             "csr" :             0x00040000,
-            "usb_host":         0x00080000,
-            "usb_shared_mem":   0x00090000, # unused
-            "curve25519engine": 0x000a0000,
+            "usb_host":         0x00080000, # OHCI registers are here, not in CSR
+            "usb_shared_mem":   0x00090000, # unused ATM
+            "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
             "cg3_registers":    0x00400000, # required for compatibility
-            "cg3_pixels":       0x00800000, # required for compatibility
-            "main_ram":         0x80000000,
-            "usb_fake_dma":     0xfc000000,
+            "cg3_pixels":       0x00800000, # required for compatibility 
+            "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible)
+            "usb_fake_dma":     0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, sdram=sdram, engine=engine, cg3=cg3, pix_clk=108e6) # FIXME: pix_clk
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, sdram=sdram, engine=engine, cg3=cg3, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
         #self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         ## add our custom timings after the clocks have been defined
@@ -302,6 +313,17 @@ class SBusFPGA(SoCCore):
                            module        = MT41J128M16(sys_clk_freq, "1:4"),
                            l2_cache_size = 0,
             )
+            avail_sdram = self.bus.regions["main_ram"].size
+        else:
+            avail_sdram = 0
+
+        if (cg3):
+            if (avail_sdram >= cg3_fb_size):
+                avail_sdram = avail_sdram - cg3_fb_size
+            else:
+                print("***** ERROR ***** Can't have a FrameBuffer without main ram\n")
+                assert(False)
+    
         # don't enable anything on the SBus side for 20 seconds after power up
         # this avoids FPGA initialization messing with the cold boot process
         # requires us to reset the SPARCstation afterward so the FPGA board
@@ -341,6 +363,7 @@ class SBusFPGA(SoCCore):
                                                                 fromsbus_req_fifo=self.fromsbus_req_fifo,
                                                                 dram_dma_writer=self.dram_dma_writer,
                                                                 dram_dma_reader=self.dram_dma_reader,
+                                                                mem_size=avail_sdram//1048576,
                                                                 burst_size=burst_size,
                                                                 do_checksum = True)
         else:
@@ -356,7 +379,8 @@ class SBusFPGA(SoCCore):
                                 fromsbus_fifo=self.fromsbus_fifo,
                                 fromsbus_req_fifo=self.fromsbus_req_fifo,
                                 version=version,
-                                burst_size=burst_size)
+                                burst_size=burst_size,
+                                cg3_fb_size=cg3_fb_size)
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
         self.submodules.sbus_bus_stat = SBusFPGABusStat(sbus_bus = self.sbus_bus)
@@ -391,9 +415,8 @@ class SBusFPGA(SoCCore):
             self.submodules.i2c = i2c.RTLI2C(platform, pads=platform.request("i2c"))
 
         if (cg3):
-            litex.soc.cores.video.video_timings.update(cg3_fb.cg3_timings)
             self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
-            self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings="1152x900@76Hz", clock_domain="vga") # clock_domain for the VGA side, cg3 is running in cd_sys
+            self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg3 is running in cd_sys 
             self.bus.add_slave("cg3_registers", self.cg3.bus, SoCRegion(origin=self.mem_map.get("cg3_registers", None), size=0x1000, cached=False))
             #self.add_video_framebuffer(phy=self.videophy, timings="1152x900@76Hz", clock_domain="vga")
 
@@ -409,8 +432,9 @@ def main():
     parser.add_argument("--sdram", action="store_true", help="add a SDRAM controller (mandatory) [all]")
     parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
     parser.add_argument("--engine", action="store_true", help="add a Engine crypto core [all]")
-    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [none]")
+    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [none, placeholder]")
     parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod]")
+    parser.add_argument("--cg3-res", default="1152x900@76Hz", help="Specify the CG3 resolution")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
@@ -432,7 +456,8 @@ def main():
                    usb=args.usb,
                    engine=args.engine,
                    i2c=args.i2c,
-                   cg3=args.cg3)
+                   cg3=args.cg3,
+                   cg3_res=args.cg3_res)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
 
     version_for_filename = args.version.replace(".", "_")
@@ -471,11 +496,12 @@ def main():
     write_to_file(os.path.join(f"prom_csr_{version_for_filename}.fth"), csr_forth_contents)
 
     prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, 
-                   usb=args.usb,
-                   sdram=args.sdram,
-                   engine=args.engine,
-                   i2c=args.i2c,
-                   cg3=args.cg3)
+                                              usb=args.usb,
+                                            sdram=args.sdram,
+                                              engine=args.engine,
+                                              i2c=args.i2c,
+                                              cg3=args.cg3,
+                                              cg3_res=args.cg3_res)
     write_to_file(os.path.join(f"prom_{version_for_filename}.fth"), prom_content)
     
     
