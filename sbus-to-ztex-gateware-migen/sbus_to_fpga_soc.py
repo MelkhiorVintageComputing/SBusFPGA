@@ -1,6 +1,9 @@
 import os
 import argparse
 from migen import *
+from migen.genlib.fifo import *
+from migen.fhdl.specials import Tristate
+
 import litex
 from litex.build.generic_platform import *
 from litex.build.xilinx.vivado import vivado_build_args, vivado_build_argdict
@@ -11,7 +14,6 @@ from litex.soc.interconnect import wishbone
 from litex.soc.cores.clock import *
 from litex.soc.cores.led import LedChaser
 import ztex213_sbus
-from migen.genlib.fifo import *
 
 from litedram.modules import MT41J128M16
 from litedram.phy import s7ddrphy
@@ -42,6 +44,7 @@ import cg3_fb;
 class _CRG(Module):
     def __init__(self, platform, sys_clk_freq,
                  usb=False,
+                 usb_clk_freq=48e6,
                  sdram=True,
                  engine=False,
                  i2c=False,
@@ -160,7 +163,7 @@ class _CRG(Module):
             self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=-1)
             #usb_pll.register_clkin(clk48, 48e6)
             usb_pll.register_clkin(self.clk48_bufg, 48e6)
-            usb_pll.create_clkout(self.cd_usb, 48e6, margin = 0)
+            usb_pll.create_clkout(self.cd_usb, usb_clk_freq, margin = 0)
             platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
             num_clk = num_clk + 1
             self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
@@ -194,7 +197,18 @@ class _CRG(Module):
         
         
 class SBusFPGA(SoCCore):
-    def __init__(self, version, usb, sdram, engine, i2c, cg3, cg3_res, **kwargs):
+    # Add USB Host
+    def add_usb_host_custom(self, name="usb_host", pads=None, usb_clk_freq=48e6):
+        from litex.soc.cores.usb_ohci import USBOHCI
+        self.submodules.usb_host = USBOHCI(platform=self.platform, pads=pads, usb_clk_freq=usb_clk_freq, dma_data_width=32)
+        usb_host_region_size = 0x10000
+        usb_host_region = SoCRegion(origin=self.mem_map.get(name, None), size=usb_host_region_size, cached=False)
+        self.bus.add_slave("usb_host_ctrl", self.usb_host.wb_ctrl, region=usb_host_region)
+        self.bus.add_master("usb_host_dma", master=self.usb_host.wb_dma)
+        #if self.irq.enabled:
+            #self.irq.add(name, use_loc_if_exists=True)
+            
+    def __init__(self, version, sys_clk_freq, usb, sdram, engine, i2c, cg3, cg3_res, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -202,7 +216,7 @@ class SBusFPGA(SoCCore):
         kwargs["with_uart"] = False
         kwargs["with_timer"] = False
         
-        self.sys_clk_freq = sys_clk_freq = 100e6 ## 25e6
+        self.sys_clk_freq = sys_clk_freq
     
         self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a", version = version)
 
@@ -249,7 +263,7 @@ class SBusFPGA(SoCCore):
             "usb_fake_dma":     0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, sdram=sdram, engine=engine, cg3=cg3, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, sdram=sdram, engine=engine, cg3=cg3, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
         #self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         ## add our custom timings after the clocks have been defined
@@ -276,8 +290,8 @@ class SBusFPGA(SoCCore):
             self.add_csr("leds")
 
         if (usb):
-            self.add_usb_host(pads=platform.request("usb"), usb_clk_freq=48e6)
-            pad_usb_interrupt = platform.get_irq(irq_req=3, device="usb_host", next_down=True, next_up=True)
+            self.add_usb_host_custom(pads=platform.request("usb"), usb_clk_freq=48e6)
+            pad_usb_interrupt = platform.get_irq(irq_req=5, device="usb_host", next_down=True, next_up=True)
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
             sig_usb_interrupt = Signal(reset=1)
@@ -427,11 +441,22 @@ class SBusFPGA(SoCCore):
         print(platform.irq_device_map)
         print("Device to IRQ map:\n")
         print(platform.device_irq_map)
+
+        #disable remaining IRQs
+        if (version == "V1.0"):
+            platform.avail_irqs.add(7)
+            
+        for irq in platform.avail_irqs:
+            pad_int = platform.request(f"SBUS_3V3_INT{irq}s")
+            oe_int = Signal(reset = 0)
+            val_int = Signal(reset = 1)
+            self.specials += Tristate(pad_int, val_int, oe_int, None)
         
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
     parser.add_argument("--version", default="V1.0", help="SBusFPGA board version (default V1.0)")
+    parser.add_argument("--sys-clk-freq", default=100e6, help="SBusFPGA system clock (default 100e6 = 100 MHz)")
     parser.add_argument("--sdram", action="store_true", help="add a SDRAM controller (mandatory) [all]")
     parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
     parser.add_argument("--engine", action="store_true", help="add a Engine crypto core [all]")
@@ -455,6 +480,7 @@ def main():
     
     soc = SBusFPGA(**soc_core_argdict(args),
                    version=args.version,
+                   sys_clk_freq=int(float(args.sys_clk_freq)),
                    sdram=args.sdram,
                    usb=args.usb,
                    engine=args.engine,

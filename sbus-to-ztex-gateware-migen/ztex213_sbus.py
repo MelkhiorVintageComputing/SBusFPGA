@@ -144,6 +144,7 @@ _sbus_sbus_v1_0 = [
     ("SBUS_3V3_D",         0, Pins("J18 K16 J17 K15 K13 J15 J13 J14 H14 H17 G14 G17 G16 G18 H16 F18 F16 E18 F15 D18 E17 G13 D17 F13 F14 E16 E15 C17 C16 A18 B18 C15"),  IOStandard("lvttl")),
     ("SBUS_3V3_PA",        0, Pins("B16 B17 D14 C14 D12 A16 A15 B14 B13 B12 C12 A14 A13 B11 A11  M4  R2  M3  P2  M2  N2  K5  N1  L4  M1  L3  L1  K3"),  IOStandard("lvttl")),
 ]
+
 _sbus_sbus_v1_2 = [
     ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
     ("SBUS_3V3_ASs",       0, Pins("T4"),  IOStandard("lvttl")),
