@@ -6,6 +6,8 @@ from sysconfig import get_platform
 
 from migen import *
 
+from math import ceil
+
 def get_header_map_stuff(name, size, type="csr"):
     r  = f"my-address sbusfpga_{type}addr_{name} + my-space h# {size:x} reg\n"
     r += "h# 7f xdrint \" slave-burst-sizes\" attribute\n" # fixme: burst-sizes
@@ -121,8 +123,9 @@ def get_prom(soc,
         vres_h=(f"{vres:x}").replace("0x", "")
         cg3_file = open("cg3.fth")
         cg3_lines = cg3_file.readlines()
+        buf_size=int(ceil(hres*vres)/1048576)
         for line in cg3_lines:
-            r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h)
+            r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size}")
          
     r += "end0\n"
 

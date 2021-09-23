@@ -35,6 +35,7 @@ import sbus_to_fpga_prom;
 
 from litex.soc.cores.video import VideoVGAPHY
 import cg3_fb;
+#import cgtrois;
 
 # CRG ----------------------------------------------------------------------------------------------
 
@@ -57,7 +58,7 @@ class _CRG(Module):
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         if (usb):
             self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
-        if (engine):
+        if (engine): # also used for cgtrois
             self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
             #self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
             self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
@@ -114,7 +115,7 @@ class _CRG(Module):
         #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
-        if (engine):
+        if (engine): # also used for cgtrois
             pll.create_clkout(self.cd_clk50, sys_clk_freq/2, ce=pll.locked & self.curve25519_on)
             platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
             num_clk = num_clk + 1
@@ -239,8 +240,9 @@ class SBusFPGA(SoCCore):
             "prom":             0x00000000, # 256 Kib ought to be enough for anybody (we're using < 2.5 Kib now...)
             "csr" :             0x00040000,
             "usb_host":         0x00080000, # OHCI registers are here, not in CSR
-            "usb_shared_mem":   0x00090000, # unused ATM
+            #"usb_shared_mem":   0x00090000, # unused ATM
             "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
+            #"cgtroisengine":    0x000c0000, # includes microcode (4 KiB@0) and registers (?? KiB @ 64 KiB)
             "cg3_registers":    0x00400000, # required for compatibility
             "cg3_pixels":       0x00800000, # required for compatibility 
             "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible)
@@ -380,7 +382,8 @@ class SBusFPGA(SoCCore):
                                 fromsbus_req_fifo=self.fromsbus_req_fifo,
                                 version=version,
                                 burst_size=burst_size,
-                                cg3_fb_size=cg3_fb_size)
+                                cg3_fb_size=cg3_fb_size,
+                                cg3_base=(self.wb_mem_map["main_ram"] + avail_sdram))
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
         self.submodules.sbus_bus_stat = SBusFPGABusStat(sbus_bus = self.sbus_bus)
@@ -418,7 +421,7 @@ class SBusFPGA(SoCCore):
             self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
             self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg3 is running in cd_sys 
             self.bus.add_slave("cg3_registers", self.cg3.bus, SoCRegion(origin=self.mem_map.get("cg3_registers", None), size=0x1000, cached=False))
-            #self.add_video_framebuffer(phy=self.videophy, timings="1152x900@76Hz", clock_domain="vga")
+            #self.submodules.cgtrois = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(cgtrois.CGTrois(platform=platform,prefix=self.mem_map.get("curve25519engine", None), hres=hres, vres=vres, base=(self.wb_mem_map["main_ram"] + avail_sdram)))
 
         print("IRQ to Device map:\n")
         print(platform.irq_device_map)
@@ -497,7 +500,7 @@ def main():
 
     prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, 
                                               usb=args.usb,
-                                            sdram=args.sdram,
+                                              sdram=args.sdram,
                                               engine=args.engine,
                                               i2c=args.i2c,
                                               cg3=args.cg3,

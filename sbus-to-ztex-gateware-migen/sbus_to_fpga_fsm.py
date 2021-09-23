@@ -176,7 +176,7 @@ LED_M_READ = 0x20
 LED_M_CACHE = 0x40
         
 class SBusFPGABus(Module):
-    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8, cg3_fb_size = 0 ):
+    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8, cg3_fb_size = 0, cg3_base=0x8ff00000 ):
         self.platform = platform
         self.hold_reset = hold_reset
 
@@ -188,18 +188,17 @@ class SBusFPGABus(Module):
         self.fromsbus_req_fifo = fromsbus_req_fifo
 
         if (cg3_fb_size <= 1048576): #round up to 1 MiB
-            CG3_REMAPPED_BASE=0x8FF
             CG3_UPPER_BITS=12
             CG3_KEPT_UPPER_BIT=20
         elif (cg3_fb_size == (2*1048576)):
-            CG3_REMAPPED_BASE=0x47F
             CG3_UPPER_BITS=11
             CG3_KEPT_UPPER_BIT=21
         else:
             print(f"CG3 configuration ({cg3_fb_size//1048576} MiB) not yet supported\n")
             assert(False)
+        CG3_REMAPPED_BASE=cg3_base >> CG3_KEPT_UPPER_BIT
 
-        print(f"CG3 remapping: {cg3_fb_size//1048576} Mib starting at prefix {CG3_REMAPPED_BASE:x}")
+        print(f"CG3 remapping: {cg3_fb_size//1048576} Mib starting at prefix {CG3_REMAPPED_BASE:x} ({(CG3_REMAPPED_BASE<<CG3_KEPT_UPPER_BIT):x})")
         
         data_width = burst_size * 4
         data_width_bits = burst_size * 32
