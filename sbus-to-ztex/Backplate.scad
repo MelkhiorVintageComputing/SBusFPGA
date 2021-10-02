@@ -84,8 +84,8 @@ primary ()
     MY_OVERLAP_LENGTH = MY_BOARD_OVERLAP_LENGTH + MY_BACKPLATE_OVERLAP_LENGTH;
 
     FIXHOLE_X_OFFSET = 13;
-    FIXHOLE1_Y_OFFSET = 80.82;
-    FIXHOLE2_Y_OFFSET = 70.82;
+    FIXHOLE1_Y_OFFSET = SBUS_WIDTH - 16.3;
+    FIXHOLE2_Y_OFFSET = SBUS_WIDTH - 66.82;
     FIXHOLE3_Y_OFFSET = 32;
 
     FIXHOLE_RAD = 1.55;
@@ -93,6 +93,21 @@ primary ()
     SERIAL_HOLLOWOUT_WIDTH = 18;
     SERIAL_HOLLOWOUT_LENGTH = 5;
     SERIAL_HOLLOWOUT_OFFSET = 3;
+
+    PMOD_HOLLOWOUT_WIDTH = 18;
+    PMOD_HOLLOWOUT_LENGTH = 8;
+    PMOD_HOLLOWOUT_OFFSETX = -59.12 -7 + 16.3 / 2 + PMOD_HOLLOWOUT_WIDTH / 2;
+    PMOD_HOLLOWOUT_OFFSETY = 9;
+
+    USB_HOLLOWOUT_WIDTH = 10;
+    USB_HOLLOWOUT_LENGTH = 10;
+    USB_HOLLOWOUT_OFFSETX = -USB_HOLLOWOUT_WIDTH/2+0.001;
+    USB_HOLLOWOUT_OFFSETY = 0;
+
+    SDCARD_HOLLOWOUT_WIDTH = 3;
+    SDCARD_HOLLOWOUT_LENGTH = 3;
+    SDCARD_HOLLOWOUT_OFFSETX = -36+SDCARD_HOLLOWOUT_WIDTH/2+0.001;
+    SDCARD_HOLLOWOUT_OFFSETY = 2.501;
 
 
     JTAG_HOLLOWOUT_WIDTH = 5;
@@ -116,14 +131,38 @@ primary ()
 	translate ([-SBUS_WIDTH / 2 + FIXHOLE2_Y_OFFSET, MY_FULL_LENGTH / 2 + FIXHOLE_X_OFFSET, 0]) {
 	  color ("yellow") cylinder (h = 50, r1 = FIXHOLE_RAD, r2 = FIXHOLE_RAD, center = true);
 	}
+    /*
 	translate ([-SBUS_WIDTH / 2 + FIXHOLE3_Y_OFFSET, MY_FULL_LENGTH / 2 + FIXHOLE_X_OFFSET, 0]) {
 	  color ("yellow") cylinder (h = 50, r1 = FIXHOLE_RAD, r2 = FIXHOLE_RAD, center = true);
 	}
+    */
+    /*
 	translate ([SBUS_WIDTH / 2 - SERIAL_HOLLOWOUT_WIDTH / 2 + 5, MY_FULL_LENGTH / 2 + SERIAL_HOLLOWOUT_OFFSET + SERIAL_HOLLOWOUT_LENGTH / 2, 0]) {
 	  color ("yellow")
 	    cube ([SERIAL_HOLLOWOUT_WIDTH + 10, SERIAL_HOLLOWOUT_LENGTH, 50], center = true);
 	}
-	translate ([-SBUS_WIDTH / 2 + JTAG_HOLLOWOUT_WIDTH / 2 + JTAG_HOLLOWOUT_OFFSET, MY_FULL_LENGTH / 2 + JTAG_HOLLOWOUT_LENGTH / 2, 0]) {
+    */
+	translate ([SBUS_WIDTH / 2 - PMOD_HOLLOWOUT_WIDTH / 2 + 5+ PMOD_HOLLOWOUT_OFFSETX,
+                MY_FULL_LENGTH / 2 + PMOD_HOLLOWOUT_LENGTH / 2 + PMOD_HOLLOWOUT_OFFSETY,
+                0]) {
+	  color ("yellow")
+	    cube ([PMOD_HOLLOWOUT_WIDTH, PMOD_HOLLOWOUT_LENGTH, 50], center = true);
+	}
+	translate ([SBUS_WIDTH / 2 - USB_HOLLOWOUT_WIDTH / 2 + 5+ USB_HOLLOWOUT_OFFSETX,
+                MY_FULL_LENGTH / 2 + USB_HOLLOWOUT_LENGTH / 2 + USB_HOLLOWOUT_OFFSETY,
+                0]) {
+	  color ("yellow")
+	    cube ([USB_HOLLOWOUT_WIDTH, USB_HOLLOWOUT_LENGTH, 50], center = true);
+	}
+	translate ([SBUS_WIDTH / 2 - SDCARD_HOLLOWOUT_WIDTH / 2 + 5+ SDCARD_HOLLOWOUT_OFFSETX,
+                MY_FULL_LENGTH / 2 + SDCARD_HOLLOWOUT_LENGTH / 2 + SDCARD_HOLLOWOUT_OFFSETY,
+                0]) {
+	  color ("yellow")
+	    cube ([SDCARD_HOLLOWOUT_WIDTH, SDCARD_HOLLOWOUT_LENGTH, 50], center = true);
+	}
+	translate ([-SBUS_WIDTH / 2 + JTAG_HOLLOWOUT_WIDTH / 2 + JTAG_HOLLOWOUT_OFFSET,
+                MY_FULL_LENGTH / 2 + JTAG_HOLLOWOUT_LENGTH / 2,
+              0]) {
 	  color ("yellow")
 	    cube ([JTAG_HOLLOWOUT_WIDTH, JTAG_HOLLOWOUT_LENGTH, 50], center = true);
 	}
@@ -139,40 +178,46 @@ extra_holes ()
   EXTRA_RAD = 2;
   union ()
   {
+      /* border line (fan side) */
   for (i =[-8: 16:8]) {
     for (j =[-4: 1:5]) {
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = 1.5, r2 = 1.5, center = true);
       }
     }
-  for (i =[-8: 5000:8]) {
+    /* border line (JTAG side) */
+  for (i =[-8: 16:8]) {
     for (j =[6: 1:8]) {
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = 1.5, r2 = 1.5, center = true);
       }
     }
 
+/* holes in extension */
   for (i =[-6: 2:6]) {
     for (j =[-4: 1:5]) {
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = EXTRA_RAD, r2 = EXTRA_RAD, center = true);
       }
     }
+/* holes in extension */
   for (i =[-7: 2:7]) {
     for (j =[-4.5: 1:4.5]) {
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = EXTRA_RAD, r2 = EXTRA_RAD, center = true);
       }
     }
-  for (i =[-4: 2:4]) {
+/* holes in support */
+  for (i =[-4: 2:6]) {
     for (j =[5: 1:8]) {
-	if (!((i == -2) && (j >= 7)))
 	  translate ([i * 5, j * 5, 0])
 	    color ("pink") cylinder (h = 50, r1 = EXTRA_RAD, r2 = EXTRA_RAD, center = true);
       }
     }
-  for (i =[-5: 2:3]) {
+/* holes in support */
+  for (i =[-5: 2:7]) {
     for (j =[5.5: 1:8.5]) {
+      if (!((i==5) && (j > 7)) && !((i==-5) && (j > 7))) // fixation holes are there
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = EXTRA_RAD, r2 = EXTRA_RAD, center = true);
       }
@@ -246,8 +291,8 @@ difference ()
   }
 }
 
-fan_25mm_support();
+//fan_25mm_support();
 }
 
-fan_25mm_carveout();
+//fan_25mm_carveout();
 }
