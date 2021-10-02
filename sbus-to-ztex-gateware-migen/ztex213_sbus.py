@@ -183,8 +183,7 @@ _usb_io_v1_0 = [
 _connectors_v1_0 = [
 ]
 _connectors_v1_2 = [
-    # ("P1", "T8 U6 P3 P4 T1 U4 R1 T3"),
-    ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"),
+    ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"), # swapped line?
 ]
 
 # I2C ----------------------------------------------------------------------------------------------
@@ -209,11 +208,11 @@ _i2c_v1_2 = [
 def vga_rgb222_pmod_io(pmod):
     return [
         ("vga", 0,
-            Subsignal("hsync", Pins(f"{pmod}:7")),
-            Subsignal("vsync", Pins(f"{pmod}:3")),
-            Subsignal("r", Pins(f"{pmod}:0 {pmod}:4")),
+            Subsignal("hsync_n", Pins(f"{pmod}:3")),
+            Subsignal("vsync_n", Pins(f"{pmod}:7")),
+            Subsignal("b", Pins(f"{pmod}:0 {pmod}:4")),
             Subsignal("g", Pins(f"{pmod}:1 {pmod}:5")),
-            Subsignal("b", Pins(f"{pmod}:2 {pmod}:6")),
+            Subsignal("r", Pins(f"{pmod}:2 {pmod}:6")),
             IOStandard("LVCMOS33"),
         ),
 ]

@@ -258,7 +258,10 @@ class SBusFPGA(SoCCore):
             "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
             #"cgtroisengine":    0x000c0000, # includes microcode (4 KiB@0) and registers (?? KiB @ 64 KiB)
             "cg3_registers":    0x00400000, # required for compatibility
-            "cg3_pixels":       0x00800000, # required for compatibility 
+            "fb_accel_rom":     0x00410000,
+            "fb_accel_ram":     0x00420000,
+            "cg6_fbc":          0x00700000, # required for compatibility
+            "cg3_pixels":       0x00800000, # required for compatibility
             "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible)
             "usb_fake_dma":     0xfc000000, # required to match DVMA virtual addresses
         }
@@ -291,7 +294,7 @@ class SBusFPGA(SoCCore):
 
         if (usb):
             self.add_usb_host_custom(pads=platform.request("usb"), usb_clk_freq=48e6)
-            pad_usb_interrupt = platform.get_irq(irq_req=5, device="usb_host", next_down=True, next_up=True)
+            pad_usb_interrupt = platform.get_irq(irq_req=1, device="usb_host", next_down=True, next_up=True)
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
             sig_usb_interrupt = Signal(reset=1)

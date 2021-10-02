@@ -125,7 +125,7 @@ def get_prom(soc,
         cg3_lines = cg3_file.readlines()
         buf_size=int(ceil(hres*vres)/1048576)
         for line in cg3_lines:
-            r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size}")
+            r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size*1048576:x}")
          
     r += "end0\n"
 
