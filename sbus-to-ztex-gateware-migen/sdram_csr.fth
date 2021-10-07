@@ -1,228 +1,228 @@
 : dphy_rst_rd ( -- csr_value )
-	mregs-virt h# 1000 + l@
+	ddrphy-virt h# 0000 + l@
 ;
 : dphy_half_sys8x_taps_rd ( -- csr_value )
-	mregs-virt h# 1004 + l@
+	ddrphy-virt h# 0004 + l@
 ;
 : dphy_wlevel_en_rd ( -- csr_value )
-	mregs-virt h# 1008 + l@
+	ddrphy-virt h# 0008 + l@
 ;
 : dphy_wlevel_strobe_rd ( -- csr_value )
-	mregs-virt h# 100c + l@
+	ddrphy-virt h# 000c + l@
 ;
 : dphy_dly_sel_rd ( -- csr_value )
-	mregs-virt h# 1010 + l@
+	ddrphy-virt h# 0010 + l@
 ;
 : dphy_rdly_dq_rst_rd ( -- csr_value )
-	mregs-virt h# 1014 + l@
+	ddrphy-virt h# 0014 + l@
 ;
 : dphy_rdly_dq_inc_rd ( -- csr_value )
-	mregs-virt h# 1018 + l@
+	ddrphy-virt h# 0018 + l@
 ;
 : dphy_rdly_dq_bitslip_rst_rd ( -- csr_value )
-	mregs-virt h# 101c + l@
+	ddrphy-virt h# 001c + l@
 ;
 : dphy_rdly_dq_bitslip_rd ( -- csr_value )
-	mregs-virt h# 1020 + l@
+	ddrphy-virt h# 0020 + l@
 ;
 : dphy_wdly_dq_bitslip_rst_rd ( -- csr_value )
-	mregs-virt h# 1024 + l@
+	ddrphy-virt h# 0024 + l@
 ;
 : dphy_wdly_dq_bitslip_rd ( -- csr_value )
-	mregs-virt h# 1028 + l@
+	ddrphy-virt h# 0028 + l@
 ;
 : dphy_rdphase_rd ( -- csr_value )
-	mregs-virt h# 102c + l@
+	ddrphy-virt h# 002c + l@
 ;
 : dphy_wrphase_rd ( -- csr_value )
-	mregs-virt h# 1030 + l@
+	ddrphy-virt h# 0030 + l@
 ;
 : sdr_dfii_control_rd ( -- csr_value )
-	mregs-virt h# 2000 + l@
+	sdram-virt h# 0000 + l@
 ;
 : sdr_dfii_pi0_command_rd ( -- csr_value )
-	mregs-virt h# 2004 + l@
+	sdram-virt h# 0004 + l@
 ;
 : sdr_dfii_pi0_command_issue_rd ( -- csr_value )
-	mregs-virt h# 2008 + l@
+	sdram-virt h# 0008 + l@
 ;
 : sdr_dfii_pi0_address_rd ( -- csr_value )
-	mregs-virt h# 200c + l@
+	sdram-virt h# 000c + l@
 ;
 : sdr_dfii_pi0_baddress_rd ( -- csr_value )
-	mregs-virt h# 2010 + l@
+	sdram-virt h# 0010 + l@
 ;
 : sdr_dfii_pi0_wrdata_rd ( -- csr_value )
-	mregs-virt h# 2014 + l@
+	sdram-virt h# 0014 + l@
 ;
 : sdr_dfii_pi0_rddata_rd ( -- csr_value )
-	mregs-virt h# 2018 + l@
+	sdram-virt h# 0018 + l@
 ;
 : sdr_dfii_pi1_command_rd ( -- csr_value )
-	mregs-virt h# 201c + l@
+	sdram-virt h# 001c + l@
 ;
 : sdr_dfii_pi1_command_issue_rd ( -- csr_value )
-	mregs-virt h# 2020 + l@
+	sdram-virt h# 0020 + l@
 ;
 : sdr_dfii_pi1_address_rd ( -- csr_value )
-	mregs-virt h# 2024 + l@
+	sdram-virt h# 0024 + l@
 ;
 : sdr_dfii_pi1_baddress_rd ( -- csr_value )
-	mregs-virt h# 2028 + l@
+	sdram-virt h# 0028 + l@
 ;
 : sdr_dfii_pi1_wrdata_rd ( -- csr_value )
-	mregs-virt h# 202c + l@
+	sdram-virt h# 002c + l@
 ;
 : sdr_dfii_pi1_rddata_rd ( -- csr_value )
-	mregs-virt h# 2030 + l@
+	sdram-virt h# 0030 + l@
 ;
 : sdr_dfii_pi2_command_rd ( -- csr_value )
-	mregs-virt h# 2034 + l@
+	sdram-virt h# 0034 + l@
 ;
 : sdr_dfii_pi2_command_issue_rd ( -- csr_value )
-	mregs-virt h# 2038 + l@
+	sdram-virt h# 0038 + l@
 ;
 : sdr_dfii_pi2_address_rd ( -- csr_value )
-	mregs-virt h# 203c + l@
+	sdram-virt h# 003c + l@
 ;
 : sdr_dfii_pi2_baddress_rd ( -- csr_value )
-	mregs-virt h# 2040 + l@
+	sdram-virt h# 0040 + l@
 ;
 : sdr_dfii_pi2_wrdata_rd ( -- csr_value )
-	mregs-virt h# 2044 + l@
+	sdram-virt h# 0044 + l@
 ;
 : sdr_dfii_pi2_rddata_rd ( -- csr_value )
-	mregs-virt h# 2048 + l@
+	sdram-virt h# 0048 + l@
 ;
 : sdr_dfii_pi3_command_rd ( -- csr_value )
-	mregs-virt h# 204c + l@
+	sdram-virt h# 004c + l@
 ;
 : sdr_dfii_pi3_command_issue_rd ( -- csr_value )
-	mregs-virt h# 2050 + l@
+	sdram-virt h# 0050 + l@
 ;
 : sdr_dfii_pi3_address_rd ( -- csr_value )
-	mregs-virt h# 2054 + l@
+	sdram-virt h# 0054 + l@
 ;
 : sdr_dfii_pi3_baddress_rd ( -- csr_value )
-	mregs-virt h# 2058 + l@
+	sdram-virt h# 0058 + l@
 ;
 : sdr_dfii_pi3_wrdata_rd ( -- csr_value )
-	mregs-virt h# 205c + l@
+	sdram-virt h# 005c + l@
 ;
 : sdr_dfii_pi3_rddata_rd ( -- csr_value )
-	mregs-virt h# 2060 + l@
+	sdram-virt h# 0060 + l@
 ;
 : dphy_rst_wr ( value -- )
-	mregs-virt h# 1000 + l!
+	ddrphy-virt h# 0000 + l!
 ;
 : dphy_half_sys8x_taps_wr ( value -- )
-	mregs-virt h# 1004 + l!
+	ddrphy-virt h# 0004 + l!
 ;
 : dphy_wlevel_en_wr ( value -- )
-	mregs-virt h# 1008 + l!
+	ddrphy-virt h# 0008 + l!
 ;
 : dphy_wlevel_strobe_wr ( value -- )
-	mregs-virt h# 100c + l!
+	ddrphy-virt h# 000c + l!
 ;
 : dphy_dly_sel_wr ( value -- )
-	mregs-virt h# 1010 + l!
+	ddrphy-virt h# 0010 + l!
 ;
 : dphy_rdly_dq_rst_wr ( value -- )
-	mregs-virt h# 1014 + l!
+	ddrphy-virt h# 0014 + l!
 ;
 : dphy_rdly_dq_inc_wr ( value -- )
-	mregs-virt h# 1018 + l!
+	ddrphy-virt h# 0018 + l!
 ;
 : dphy_rdly_dq_bitslip_rst_wr ( value -- )
-	mregs-virt h# 101c + l!
+	ddrphy-virt h# 001c + l!
 ;
 : dphy_rdly_dq_bitslip_wr ( value -- )
-	mregs-virt h# 1020 + l!
+	ddrphy-virt h# 0020 + l!
 ;
 : dphy_wdly_dq_bitslip_rst_wr ( value -- )
-	mregs-virt h# 1024 + l!
+	ddrphy-virt h# 0024 + l!
 ;
 : dphy_wdly_dq_bitslip_wr ( value -- )
-	mregs-virt h# 1028 + l!
+	ddrphy-virt h# 0028 + l!
 ;
 : dphy_rdphase_wr ( value -- )
-	mregs-virt h# 102c + l!
+	ddrphy-virt h# 002c + l!
 ;
 : dphy_wrphase_wr ( value -- )
-	mregs-virt h# 1030 + l!
+	ddrphy-virt h# 0030 + l!
 ;
 : sdr_dfii_control_wr ( value -- )
-	mregs-virt h# 2000 + l!
+	sdram-virt h# 0000 + l!
 ;
 : sdr_dfii_pi0_command_wr ( value -- )
-	mregs-virt h# 2004 + l!
+	sdram-virt h# 0004 + l!
 ;
 : sdr_dfii_pi0_command_issue_wr ( value -- )
-	mregs-virt h# 2008 + l!
+	sdram-virt h# 0008 + l!
 ;
 : sdr_dfii_pi0_address_wr ( value -- )
-	mregs-virt h# 200c + l!
+	sdram-virt h# 000c + l!
 ;
 : sdr_dfii_pi0_baddress_wr ( value -- )
-	mregs-virt h# 2010 + l!
+	sdram-virt h# 0010 + l!
 ;
 : sdr_dfii_pi0_wrdata_wr ( value -- )
-	mregs-virt h# 2014 + l!
+	sdram-virt h# 0014 + l!
 ;
 : sdr_dfii_pi0_rddata_wr ( value -- )
-	mregs-virt h# 2018 + l!
+	sdram-virt h# 0018 + l!
 ;
 : sdr_dfii_pi1_command_wr ( value -- )
-	mregs-virt h# 201c + l!
+	sdram-virt h# 001c + l!
 ;
 : sdr_dfii_pi1_command_issue_wr ( value -- )
-	mregs-virt h# 2020 + l!
+	sdram-virt h# 0020 + l!
 ;
 : sdr_dfii_pi1_address_wr ( value -- )
-	mregs-virt h# 2024 + l!
+	sdram-virt h# 0024 + l!
 ;
 : sdr_dfii_pi1_baddress_wr ( value -- )
-	mregs-virt h# 2028 + l!
+	sdram-virt h# 0028 + l!
 ;
 : sdr_dfii_pi1_wrdata_wr ( value -- )
-	mregs-virt h# 202c + l!
+	sdram-virt h# 002c + l!
 ;
 : sdr_dfii_pi1_rddata_wr ( value -- )
-	mregs-virt h# 2030 + l!
+	sdram-virt h# 0030 + l!
 ;
 : sdr_dfii_pi2_command_wr ( value -- )
-	mregs-virt h# 2034 + l!
+	sdram-virt h# 0034 + l!
 ;
 : sdr_dfii_pi2_command_issue_wr ( value -- )
-	mregs-virt h# 2038 + l!
+	sdram-virt h# 0038 + l!
 ;
 : sdr_dfii_pi2_address_wr ( value -- )
-	mregs-virt h# 203c + l!
+	sdram-virt h# 003c + l!
 ;
 : sdr_dfii_pi2_baddress_wr ( value -- )
-	mregs-virt h# 2040 + l!
+	sdram-virt h# 0040 + l!
 ;
 : sdr_dfii_pi2_wrdata_wr ( value -- )
-	mregs-virt h# 2044 + l!
+	sdram-virt h# 0044 + l!
 ;
 : sdr_dfii_pi2_rddata_wr ( value -- )
-	mregs-virt h# 2048 + l!
+	sdram-virt h# 0048 + l!
 ;
 : sdr_dfii_pi3_command_wr ( value -- )
-	mregs-virt h# 204c + l!
+	sdram-virt h# 004c + l!
 ;
 : sdr_dfii_pi3_command_issue_wr ( value -- )
-	mregs-virt h# 2050 + l!
+	sdram-virt h# 0050 + l!
 ;
 : sdr_dfii_pi3_address_wr ( value -- )
-	mregs-virt h# 2054 + l!
+	sdram-virt h# 0054 + l!
 ;
 : sdr_dfii_pi3_baddress_wr ( value -- )
-	mregs-virt h# 2058 + l!
+	sdram-virt h# 0058 + l!
 ;
 : sdr_dfii_pi3_wrdata_wr ( value -- )
-	mregs-virt h# 205c + l!
+	sdram-virt h# 005c + l!
 ;
 : sdr_dfii_pi3_rddata_wr ( value -- )
-	mregs-virt h# 2060 + l!
+	sdram-virt h# 0060 + l!
 ;

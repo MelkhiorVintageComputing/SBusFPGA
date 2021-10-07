@@ -306,12 +306,15 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 			  sc->sc_bustag,
 			  sc->sc_burst,
 			  sbsc->sc_burst);
-
+	
+	  // the controller is now initialized in the PROM from values computed by sdram_init()
+	  // if the board isn't a ZTex 2.13a, new bitslip/delays value might be needed
+	/*
 	if (!sdram_init(sc)) {
 		aprint_error_dev(self, "couldn't initialize SDRAM\n");
 		return;
 	}
-
+	*/
 	if (!dma_init(sc)) {
 		aprint_error_dev(self, "couldn't initialize DMA for SDRAM\n");
 		return;

@@ -19,6 +19,27 @@ def get_header_map_stuff(name, size, type="csr"):
     r += f": map-out-{name} ( -- ) {name}-virt h# {size:x} map-out ;\n"
     return r
 
+def get_header_map2_stuff(gname, name1, name2, size1, size2, type1="csr", type2="csr"):
+    r  = f"my-address sbusfpga_{type1}addr_{name1} + my-space xdrphys      h# {size1:x} xdrint xdr+\n"
+    r += f"my-address sbusfpga_{type2}addr_{name2} + my-space xdrphys xdr+ h# {size2:x} xdrint xdr+\n"
+    r += "\" reg\" attribute\n"
+    r += "h# 7f xdrint \" slave-burst-sizes\" attribute\n" # fixme: burst-sizes
+    r += "h# 7f xdrint \" burst-sizes\" attribute\n" # fixme: burst-sizes
+    r += "headers\n"
+    r += f"-1 instance value {name1}-virt\n"
+    r += f"-1 instance value {name2}-virt\n"
+    r += "my-address constant my-sbus-address\nmy-space constant my-sbus-space\n"
+    r += ": map-in ( adr space size -- virt ) \" map-in\" $call-parent ;\n: map-out ( virt size -- ) \" map-out\" $call-parent ;\n";
+    r += f": map-in-{gname} ( -- )\n"
+    r += f"my-sbus-address sbusfpga_{type1}addr_{name1} + my-sbus-space h# {size1:x} map-in is {name1}-virt\n"
+    r += f"my-sbus-address sbusfpga_{type2}addr_{name2} + my-sbus-space h# {size2:x} map-in is {name2}-virt\n"
+    r += ";\n"
+    r += f": map-out-{gname} ( -- )\n"
+    r += f"{name1}-virt h# {size1:x} map-out\n"
+    r += f"{name2}-virt h# {size2:x} map-out\n"
+    r += ";\n"
+    return r
+
 def get_header_map3_stuff(gname, name1, name2, name3, size1, size2, size3, type1="csr", type2="csr", type3="csr"):
     r  = f"my-address sbusfpga_{type1}addr_{name1} + my-space xdrphys      h# {size1:x} xdrint xdr+\n"
     r += f"my-address sbusfpga_{type2}addr_{name2} + my-space xdrphys xdr+ h# {size2:x} xdrint xdr+\n"
@@ -99,6 +120,7 @@ def get_prom(soc,
     if (sdram):
         r += "\" RDOL,sdram\" device-name\n"
         r += get_header_map3_stuff("mregs", "ddrphy", "sdram", "exchange_with_mem", 4096, 4096, 4096)
+        r += "fload sdram_init.fth\ninit!\n"
         if (engine or i2c or cg3):
             r += "finish-device\nnew-device\n"
         
@@ -126,6 +148,7 @@ def get_prom(soc,
         buf_size=int(ceil(hres*vres)/1048576)
         for line in cg3_lines:
             r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size*1048576:x}")
+        r += get_header_map2_stuff("cg3extraregs", "video_framebuffer", "video_framebuffer_vtg", 4096, 4096)
          
     r += "end0\n"
 
