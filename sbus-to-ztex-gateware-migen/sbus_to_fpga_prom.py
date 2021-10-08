@@ -6,17 +6,20 @@ from sysconfig import get_platform
 
 from migen import *
 
-from math import ceil
+import cg3_fb
 
-def get_header_map_stuff(name, size, type="csr"):
-    r  = f"my-address sbusfpga_{type}addr_{name} + my-space h# {size:x} reg\n"
+
+def get_header_map_stuff(gname, name, size, type="csr", reg=True):
+    r = ""
+    if (reg):
+        r += f"my-address sbusfpga_{type}addr_{name} + my-space h# {size:x} reg\n"
     r += "h# 7f xdrint \" slave-burst-sizes\" attribute\n" # fixme: burst-sizes
     r += "h# 7f xdrint \" burst-sizes\" attribute\n" # fixme: burst-sizes
     r += "headers\n"
     r += f"-1 instance value {name}-virt\nmy-address constant my-sbus-address\nmy-space constant my-sbus-space\n"
     r += ": map-in ( adr space size -- virt ) \" map-in\" $call-parent ;\n: map-out ( virt size -- ) \" map-out\" $call-parent ;\n";
-    r += f": map-in-{name} ( -- ) my-sbus-address sbusfpga_{type}addr_{name} + my-sbus-space h# {size:x} map-in is {name}-virt ;\n"
-    r += f": map-out-{name} ( -- ) {name}-virt h# {size:x} map-out ;\n"
+    r += f": map-in-{gname} ( -- ) my-sbus-address sbusfpga_{type}addr_{name} + my-sbus-space h# {size:x} map-in is {name}-virt ;\n"
+    r += f": map-out-{gname} ( -- ) {name}-virt h# {size:x} map-out ;\n"
     return r
 
 def get_header_map2_stuff(gname, name1, name2, size1, size2, type1="csr", type2="csr"):
@@ -78,16 +81,16 @@ def get_prom(soc,
 
     if (version == "V1.0"):
         r += "\" RDOL,led\" device-name\n"
-        r += get_header_map_stuff("leds", 4)
+        r += get_header_map_stuff("leds", "leds", 4)
         r += ": setled! ( pattern -- )\nmap-in-leds\nleds-virt l! ( pattern virt -- )\nmap-out-leds\n;\n"
         r += "finish-device\nnew-device\n"
 
     r += "\" RDOL,sbusstat\" device-name\n"
-    r += get_header_map_stuff("sbus_bus_stat", 256)
+    r += get_header_map_stuff("sbus_bus_stat", "sbus_bus_stat", 256)
     r += "finish-device\nnew-device\n"
 
     r += "\" RDOL,neorv32trng\" device-name\n"
-    r += get_header_map_stuff("trng", 8)
+    r += get_header_map_stuff("trng", "trng", 8)
     r += ": disabletrng! ( -- )\n"
     r += "  map-in-trng\n"
     r += "  1 trng-virt l! ( pattern virt -- )\n"
@@ -100,7 +103,7 @@ def get_prom(soc,
     if (usb):
         r += "\" generic-ohci\" device-name\n"
         r += "sbusfpga_irq_usb_host xdrint \" interrupts\" attribute\n"
-        r += get_header_map_stuff("usb_host_ctrl", 4096, type="region")
+        r += get_header_map_stuff("usb_host_ctrl", "usb_host_ctrl", 4096, type="region")
         r += ": my-reset! ( -- )\n"
         r += " map-in-usb_host_ctrl\n"
         r += " 00000001 usb_host_ctrl-virt h#  4 + l! ( -- ) ( reset the HC )\n"
@@ -134,7 +137,7 @@ def get_prom(soc,
         
     if (i2c):
         r += "\" RDOL,i2c\" device-name\n"
-        r += get_header_map_stuff("i2c", 64)
+        r += get_header_map_stuff("i2c", "i2c", 64)
         if (cg3):
             r += "finish-device\nnew-device\n"
         
@@ -145,11 +148,17 @@ def get_prom(soc,
         vres_h=(f"{vres:x}").replace("0x", "")
         cg3_file = open("cg3.fth")
         cg3_lines = cg3_file.readlines()
-        buf_size=int(ceil(hres*vres)/1048576)
+        buf_size=cg3_fb.cg3_rounded_size(hres, vres)
         for line in cg3_lines:
-            r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size*1048576:x}")
-        r += get_header_map2_stuff("cg3extraregs", "video_framebuffer", "video_framebuffer_vtg", 4096, 4096)
-         
+            r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size:x}")
+        #r += "\" LITEX,fb\" device-name\n"
+        #r += get_header_map2_stuff("cg3extraregs", "vid_fb", "vid_fb_vtg", 4096, 4096)
+        #r += "fload fb_init.fth\nfb_init!\n"
+
+        r += "\n"
+        r += get_header_map_stuff("cg3extraregs", "cg3", 4096, reg=False)
+        r += "fload cg3_init.fth\ncg3_init!\n"
+        
     r += "end0\n"
 
     return r

@@ -208,8 +208,8 @@ _i2c_v1_2 = [
 def vga_rgb222_pmod_io(pmod):
     return [
         ("vga", 0,
-            Subsignal("hsync_n", Pins(f"{pmod}:3")),
-            Subsignal("vsync_n", Pins(f"{pmod}:7")),
+            Subsignal("hsync", Pins(f"{pmod}:3")),
+            Subsignal("vsync", Pins(f"{pmod}:7")),
             Subsignal("b", Pins(f"{pmod}:0 {pmod}:4")),
             Subsignal("g", Pins(f"{pmod}:1 {pmod}:5")),
             Subsignal("r", Pins(f"{pmod}:2 {pmod}:6")),

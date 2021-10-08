@@ -198,6 +198,22 @@ dma_init(struct sbusfpga_sdram_softc *sc);
 int
 dma_memtest(struct sbusfpga_sdram_softc *sc);
 
+int
+init_last_blocks(struct sbusfpga_sdram_softc *sc);
+int
+init_last_blocks(struct sbusfpga_sdram_softc *sc) {
+	u_int32_t data[512];
+	u_int32_t i;
+	int res = 0;
+	for (i = 0 ; i < 512 ; i++) {
+		data[i] = 0x00FF00FF;
+	}
+	for (i = 254*1024*2 ; i < 256*1024*2 && !res; i+=4) {
+		res = sbusfpga_sdram_write_block(sc, i, 4, data);
+	}
+	return res;
+}
+
 /*
  * Attach all the sub-devices we can find
  */
@@ -365,6 +381,11 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 		lp->d_magic2 = DISKMAGIC;
 		lp->d_checksum = dkcksum(lp);
 	}
+
+	/*
+	// initialize some blocks were the FB lives to test the output
+	init_last_blocks(sc);
+	*/
 
 	/*
 	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_blkshift = %d\n", sc->dk.sc_dkdev.dk_blkshift);

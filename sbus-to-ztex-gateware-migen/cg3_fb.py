@@ -10,6 +10,8 @@ from litex.build.io import SDROutput, DDROutput
 
 from litex.soc.cores.video import *
 
+from math import ceil;
+
 # " 108000000,71808,76,32,128,192,1152,2,8,33,900,COLOR,0OFFSET"
 cg3_timings = {
     "1152x900@76Hz": {
@@ -25,10 +27,15 @@ cg3_timings = {
     },
 }
 
+def cg3_rounded_size(hres, vres):
+    return int(1048576 * ceil(((hres * vres) + 262144) / 1048576))
+
 class VideoFrameBuffer256c(Module, AutoCSR):
     """Video FrameBuffer256c"""
-    def __init__(self, dram_port, upd_clut_fifo, hres=800, vres=600, base=0x00000000, fifo_depth=65536, clock_domain="sys", clock_faster_than_sys=False):
-        clut = Array(Array(Signal(8) for i in range(0, 256)) for j in range(0, 3))
+    def __init__(self, dram_port, upd_clut_fifo = None, hres=800, vres=600, base=0x00000000, fifo_depth=65536, clock_domain="sys", clock_faster_than_sys=False):
+        clut = Array(Array(Signal(8, reset = (255-i)) for i in range(0, 256)) for j in range(0, 3))
+
+        print(f"FRAMEBUFFER: dram_port.data_width = {dram_port.data_width}, {hres}x{vres}, 0x{base:x}, in {clock_domain}, clock_faster_than_sys={clock_faster_than_sys}")
 
         vga_sync = getattr(self.sync, clock_domain)
         vga_sync += [
@@ -62,7 +69,7 @@ class VideoFrameBuffer256c(Module, AutoCSR):
             self.submodules.cdc = stream.ClockDomainCrossing([("data", dram_port.data_width)], cd_from="sys", cd_to=clock_domain)
             self.comb += self.dma.source.connect(self.cdc.sink)
             # ... and then Data-Width Conversion.
-            self.submodules.conv = stream.Converter(dram_port.data_width, 8)
+            self.submodules.conv = ClockDomainsRenamer({"sys": clock_domain})(stream.Converter(dram_port.data_width, 8))
             self.comb += self.cdc.source.connect(self.conv.sink)
             video_pipe_source = self.conv.source
         # Elsif DRAM Data Widt < 8-bit or Video clock is slower than sys_clk:
@@ -75,30 +82,56 @@ class VideoFrameBuffer256c(Module, AutoCSR):
             self.comb += self.conv.source.connect(self.cdc.sink)
             video_pipe_source = self.cdc.source
 
+        #counter = Signal(11)
+        #vga_sync += If(vtg_sink.de,
+        #               If(counter == (hres-1),
+        #                  counter.eq(0)
+        #               ).Else(            
+        #                   counter.eq(counter + 1))).Else(
+        #                       counter.eq(0))
+        
         # Video Generation.
         self.comb += [
+            #vtg_sink.ready.eq(1),
+            #vtg_sink.connect(source, keep={"de", "hsync", "vsync"}),
+            #If(vtg_sink.de,
+            #   source.r.eq(Cat(Signal(6, reset = 0), counter[2:4])),
+            #   source.g.eq(Cat(Signal(6, reset = 0), counter[4:6])),
+            #   source.b.eq(Cat(Signal(6, reset = 0), counter[6:8])),
+            #).Else(source.r.eq(0),
+            #       source.g.eq(0),
+            #       source.b.eq(0),)
             vtg_sink.ready.eq(1),
             If(vtg_sink.valid & vtg_sink.de,
                 video_pipe_source.connect(source, keep={"valid", "ready"}),
                 vtg_sink.ready.eq(source.valid & source.ready),
             ),
             vtg_sink.connect(source, keep={"de", "hsync", "vsync"}),
-            source.r.eq(clut[0][video_pipe_source.data]),
-            source.g.eq(clut[1][video_pipe_source.data]),
-            source.b.eq(clut[2][video_pipe_source.data]),
+            If(vtg_sink.de,
+               source.r.eq(clut[0][video_pipe_source.data]),
+               source.g.eq(clut[1][video_pipe_source.data]),
+               source.b.eq(clut[2][video_pipe_source.data])
+               #source.r.eq(video_pipe_source.data),
+               #source.g.eq(video_pipe_source.data),
+               #source.b.eq(video_pipe_source.data),
+            ).Else(
+               source.r.eq(0),
+               source.g.eq(0),
+               source.b.eq(0)
+            )
         ]
 
         # Underflow.
         self.comb += self.underflow.eq(~source.valid)
 
         
-class cg3(Module):
+class cg3(Module, AutoCSR):
     def __init__(self, soc, phy=None, timings = None, clock_domain="sys"):
 
         # 2 bits for color (0/r, 1/g, 2/b), 8 for @ and 8 for value
         self.submodules.upd_cmap_fifo = upd_cmap_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=2+8+8, depth=8))
         
-        name = "cg3_pixels"
+        name = "video_framebuffer"
         # near duplicate of plaform.add_video_framebuffer
         # Video Timing Generator.
         vtg = VideoTimingGenerator(default_video_timings=timings if isinstance(timings, str) else timings[1])
@@ -111,8 +144,9 @@ class cg3(Module):
         print(f"CG3: visible memory at {base:x}")
         hres = int(timings.split("@")[0].split("x")[0])
         vres = int(timings.split("@")[0].split("x")[1])
-        print(f"CG3: using {hres} x {vres}")
-        vfb = VideoFrameBuffer256c(soc.sdram.crossbar.get_port(),
+        freq = vtg.video_timings["pix_clk"]
+        print(f"CG3: using {hres} x {vres}, {freq/1e6} MHz pixclk")
+        vfb = VideoFrameBuffer256c(dram_port = soc.sdram.crossbar.get_port(),
                                    upd_clut_fifo = upd_cmap_fifo,
                                    hres = hres,
                                    vres = vres,

@@ -113,8 +113,8 @@ class _CRG(Module):
             platform.add_platform_command("create_generated_clock -name sys4x90clk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
             num_clk = num_clk + 1
         self.comb += pll.reset.eq(~rst_sbus) # | ~por_done 
-        platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk)
-        platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk)
+        platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk) # FIXME?
+        platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk) # FIXME?
         #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
@@ -167,7 +167,7 @@ class _CRG(Module):
             platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
             num_clk = num_clk + 1
             self.comb += usb_pll.reset.eq(~rst_sbus) # | ~por_done 
-            platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk)
+            platform.add_false_path_constraints(self.cd_sys.clk, self.cd_usb.clk) # FIXME?
             num_adv = num_adv + 1
             num_clk = 0
 
@@ -190,7 +190,8 @@ class _CRG(Module):
             platform.add_platform_command("create_generated_clock -name vga_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
             num_clk = num_clk + 1
             self.comb += video_pll.reset.eq(~rst_sbus)
-            platform.add_false_path_constraints(self.cd_sys.clk, self.cd_vga.clk)
+            #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_vga.clk)
+            platform.add_false_path_constraints(self.cd_sys.clk, video_pll.clkin)
             num_adv = num_adv + 1
             num_clk = 0
             
@@ -226,7 +227,7 @@ class SBusFPGA(SoCCore):
         if (cg3):
             hres = int(cg3_res.split("@")[0].split("x")[0])
             vres = int(cg3_res.split("@")[0].split("x")[1])
-            cg3_fb_size = int(1048576 * ceil((hres * vres) / 1048576))
+            cg3_fb_size = cg3_fb.cg3_rounded_size(hres, vres)
             print(f"Reserving {cg3_fb_size} bytes ({cg3_fb_size//1048576} MiB) for the CG3")
         else:
             hres = 0
@@ -256,13 +257,13 @@ class SBusFPGA(SoCCore):
             "usb_host":         0x00080000, # OHCI registers are here, not in CSR
             #"usb_shared_mem":   0x00090000, # unused ATM
             "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
-            #"cgtroisengine":    0x000c0000, # includes microcode (4 KiB@0) and registers (?? KiB @ 64 KiB)
             "cg3_registers":    0x00400000, # required for compatibility
             "fb_accel_rom":     0x00410000,
             "fb_accel_ram":     0x00420000,
-            "cg6_fbc":          0x00700000, # required for compatibility
-            "cg3_pixels":       0x00800000, # required for compatibility
-            "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible)
+            #"cg6_fbc":          0x00700000, # required for compatibility
+            "cg3_pixels":       0x00800000, # required for compatibility, 1-2 MiB for now (2nd MiB is 0x00900000)
+            "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible),
+            "video_framebuffer":0x80000000 + 0x10000000 - cg3_fb_size, # FIXME
             "usb_fake_dma":     0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
@@ -294,7 +295,7 @@ class SBusFPGA(SoCCore):
 
         if (usb):
             self.add_usb_host_custom(pads=platform.request("usb"), usb_clk_freq=48e6)
-            pad_usb_interrupt = platform.get_irq(irq_req=1, device="usb_host", next_down=True, next_up=True)
+            pad_usb_interrupt = platform.get_irq(irq_req=4, device="usb_host", next_down=True, next_up=False)
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
             sig_usb_interrupt = Signal(reset=1)
@@ -346,7 +347,7 @@ class SBusFPGA(SoCCore):
         # don't enable anything on the SBus side for 20 seconds after power up
         # this avoids FPGA initialization messing with the cold boot process
         # requires us to reset the SPARCstation afterward so the FPGA board
-        # is properly identified
+        # is properly identified - or to 'probe-slot'
         # This is in the 'native' ClockDomain that is never reset
         hold_reset_ctr = Signal(30, reset=960000000)
         self.sync.native += If(hold_reset_ctr>0, hold_reset_ctr.eq(hold_reset_ctr - 1))
@@ -438,7 +439,15 @@ class SBusFPGA(SoCCore):
             self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
             self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg3 is running in cd_sys 
             self.bus.add_slave("cg3_registers", self.cg3.bus, SoCRegion(origin=self.mem_map.get("cg3_registers", None), size=0x1000, cached=False))
-            #self.submodules.cgtrois = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(cgtrois.CGTrois(platform=platform,prefix=self.mem_map.get("curve25519engine", None), hres=hres, vres=vres, base=(self.wb_mem_map["main_ram"] + avail_sdram)))
+            ##self.submodules.cgtrois = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(cgtrois.CGTrois(platform=platform,prefix=self.mem_map.get("curve25519engine", None), hres=hres, vres=vres, base=(self.wb_mem_map["main_ram"] + avail_sdram)))
+            ##self.add_video_framebuffer(phy=self.videophy, timings=cg3_res, clock_domain="vga")
+            pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+            #self.comb += pad_SBUS_DATA_OE_LED.eq(~self.cg3.video_framebuffer.dma.source.valid)
+            #self.comb += pad_SBUS_DATA_OE_LED.eq(~self.cg3.video_framebuffer.conv.source.valid)
+            #self.comb += pad_SBUS_DATA_OE_LED.eq(~self.cg3.video_framebuffer.cdc.source.valid)
+            self.comb += pad_SBUS_DATA_OE_LED.eq(~self.cg3.video_framebuffer_vtg.source.valid)
+            #self.comb += pad_SBUS_DATA_OE_LED.eq(self.cg3.video_framebuffer.underflow)
+            ##self.comb += pad_SBUS_DATA_OE_LED.eq(self.video_framebuffer.underflow)
 
         print("IRQ to Device map:\n")
         print(platform.irq_device_map)
