@@ -26,47 +26,20 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _RDFPGA_SDCARD_H_
-#define _RDFPGA_SDCARD_H_
+#ifndef _SBUSFPGA_STAT_H_
+#define _SBUSFPGA_STAT_H_
 
-struct rdfpga_sdcard_softc {
-	struct dk_softc dk;
-	/* device_t sc_dev;		/\* us as a device *\/ */
-	/* struct disk	sc_dk;		/\* generic disk info *\/ */
+struct sbusfpga_sbus_bus_stat_softc {
+	device_t sc_dev;		/* us as a device */
 	u_int	sc_rev;			/* revision */
 	int	sc_node;		/* PROM node ID */
 	int	sc_burst;		/* DVMA burst size in effect */
 	bus_space_tag_t	sc_bustag;	/* bus tag */
-	bus_space_handle_t sc_bhregs;	/* bus handle */
-	//void *	sc_buffer;		/* VA of the registers */
+	bus_space_handle_t sc_bhregs_sbus_bus_stat;	/* bus handle */
 	int	sc_bufsiz;		/* Size of buffer */
-	bus_dma_tag_t		sc_dmatag;
-	bus_dmamap_t		sc_dmamap;	/* DMA map for bus_dma_* */
-	bus_dma_segment_t       sc_segs;
-	int                     sc_rsegs;
-
+	callout_t		 sc_display;
+	int sc_delay;
+	int sc_enable;
 };
 
-/* ctrl*/
-#define RDFPGA_SDCARD_REG_BASE   0x00
-#define RDFPGA_SDCARD_REG_STATUS (RDFPGA_SDCARD_REG_BASE + 0x00)
-#define RDFPGA_SDCARD_REG_STATUS_OLD (RDFPGA_SDCARD_REG_BASE + 0x04)
-#define RDFPGA_SDCARD_REG_ADDR   (RDFPGA_SDCARD_REG_BASE + 0x08)
-#define RDFPGA_SDCARD_REG_CTRL   (RDFPGA_SDCARD_REG_BASE + 0x0c)
-#define RDFPGA_SDCARD_REG_DMAW_ADDR   (RDFPGA_SDCARD_REG_BASE + 0x10)
-#define RDFPGA_SDCARD_REG_DMAW_CTRL   (RDFPGA_SDCARD_REG_BASE + 0x14)
-#define RDFPGA_SDCARD_REG_STATUS_OLD2 (RDFPGA_SDCARD_REG_BASE + 0x18)
-#define RDFPGA_SDCARD_REG_STATUS_OLD3 (RDFPGA_SDCARD_REG_BASE + 0x1c)
-#define RDFPGA_SDCARD_REG_STATUS_DAT (RDFPGA_SDCARD_REG_BASE + 0x20)
-#define RDFPGA_SDCARD_REG_STATUS_DAT2 (RDFPGA_SDCARD_REG_BASE + 0x24)
-#define RDFPGA_SDCARD_REG_DMA_ADDR (RDFPGA_SDCARD_REG_BASE + 0x28)
-#define RDFPGA_SDCARD_REG_DMA_CTRL (RDFPGA_SDCARD_REG_BASE + 0x2c)
-
-
-#define RDFPGA_SDCARD_CTRL_START  0x80000000
-#define RDFPGA_SDCARD_CTRL_READ   0x40000000
-
-/* 16 pages, though we're likely to only use 512 bytes (one block) ATM */
-#define RDFPGA_SDCARD_VAL_DMA_MAX_SZ       (65536)
-
-#endif /* _RDFPGA_SDCARD_H_ */
+#endif /* _SBUSFPGA_STAT_H_ */

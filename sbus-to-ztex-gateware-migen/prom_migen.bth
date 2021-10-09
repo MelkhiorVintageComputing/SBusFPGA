@@ -1,0 +1,31 @@
+purpose: Load file for SBusFPGA
+
+command: &builder &this
+
+\ in: ${BP}/dev/usb2/device/hub/build/hub.fc
+\ in: ${BP}/dev/usb2/device/generic/build/generic.fc
+\ in: ${BP}/dev/usb2/device/net/build/usbnet.fc
+\ in: ${BP}/dev/usb2/device/serial/build/usbserial.fc
+\ in: ${BP}/dev/usb2/device/storage/build/usbstorage.fc
+\ in: ${BP}/dev/usb2/device/keyboard/build/usbkbd.fc
+\ in: ${BP}/dev/usb2/device/mouse/build/usbmouse.fc
+
+build-now
+
+\ silent on
+
+begin-tokenizing prom_migen.fc
+
+fload prom_migen.fth
+
+end-tokenizing
+
+\ h# 8000 to reserved-start
+\ h# f000 to reserved-end
+\    " ${BP}/dev/usb2/device/hub/build/hub.fc"     " usb,class9"      $add-dropin
+\    " ${BP}/dev/usb2/device/generic/build/generic.fc"  " usbdevice"  $add-deflated-dropin
+\    " ${BP}/dev/usb2/device/net/build/usbnet.fc"       " usbnet"     $add-deflated-dropin
+\    " ${BP}/dev/usb2/device/keyboard/build/usbkbd.fc" " usb,class3,1,1" $add-deflated-dropin
+\    " ${BP}/dev/usb2/device/mouse/build/usbmouse.fc"  " usb,class3,1,2" $add-deflated-dropin
+\    " ${BP}/dev/usb2/device/serial/build/usbserial.fc" " usbserial"  $add-deflated-dropin
+\    " ${BP}/dev/usb2/device/storage/build/usbstorage.fc" " usbstorage"   $add-deflated-dropin

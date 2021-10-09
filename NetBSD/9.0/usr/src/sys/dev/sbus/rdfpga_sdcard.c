@@ -112,7 +112,7 @@ extern struct cfdriver rdfpga_sdcard_cd;
 
 static int rdfpga_sdcard_wait_dma_ready(struct rdfpga_sdcard_softc *sc, const int count);
 static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const int count);
-static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
+static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data);
 static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data);
 
 struct rdfpga_sdcard_rb_32to512 {
@@ -179,7 +179,7 @@ rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
         case RDFPGA_SDCARD_RB:
 	  {
 	    struct rdfpga_sdcard_rb_32to512* u = data; 
-	    err = rdfpga_sdcard_read_block(sc, u->block, u->data);
+	    err = rdfpga_sdcard_read_block(sc, u->block, 1, u->data);
 	    break;
 	  }
         case RDFPGA_SDCARD_WB:
@@ -188,49 +188,6 @@ rdfpga_sdcard_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 	    err = rdfpga_sdcard_write_block(sc, u->block, u->data);
 	    break;
 	  }
-	  
-
- #if 0
-		case DIOCGDINFO:
-			*(struct disklabel *)data = *(sc->dk.sc_dkdev.dk_label);
-			break;
-			
-		case DIOCGDEFLABEL:
-			{
-		struct disklabel *lp = sc->dk.sc_dkdev.dk_label;
-		struct cpu_disklabel *clp = sc->dk.sc_dkdev.dk_cpulabel;
-		memset(lp, 0, sizeof(struct disklabel));
-		memset(clp, 0, sizeof(struct cpu_disklabel));
-		if (readdisklabel(dev, rdfpga_sdcard_strategy, lp, clp) != NULL) {
-			int i;
-			aprint_normal_dev(sc->dk.sc_dev, "read disk label OK\n");
-			strncpy(lp->d_packname, "default label", sizeof(lp->d_packname));
-			/*
-			 * Reset the partition info; it might have gotten
-			 * trashed in readdisklabel().
-			 *
-			 * XXX Why do we have to do this?  readdisklabel()
-			 * should be safe...
-			 */
-			for (i = 0; i < MAXPARTITIONS; ++i) {
-				lp->d_partitions[i].p_offset = 0;
-				if (i == RAW_PART) {
-					lp->d_partitions[i].p_size =
-						lp->d_secpercyl * lp->d_ncylinders;
-					lp->d_partitions[i].p_fstype = FS_BSDFFS;
-				} else {
-					lp->d_partitions[i].p_size = 0;
-					lp->d_partitions[i].p_fstype = FS_UNUSED;
-				}
-			}
-			lp->d_npartitions = RAW_PART + 1;
-			memcpy(data, lp, sizeof(struct disklabel));
-		} else {
-			aprint_normal_dev(sc->dk.sc_dev, "read disk label FAILED\n");
-		}
-	}
-			break;
-#endif
 			
 	/* case VNDIOCCLR: */
 	/* case VNDIOCCLR50: */
@@ -505,9 +462,10 @@ static int rdfpga_sdcard_wait_device_ready(struct rdfpga_sdcard_softc *sc, const
   return rdfpga_sdcard_wait_dma_ready(sc, count);
 }
 
-static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, void *data) {
+static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data) {
   int res = 0;
-  u_int32_t ctrl;
+  u_int32_t ctrl = 0;
+  u_int32_t idx = 0;
   /* aprint_normal_dev(sc->dk.sc_dev, "Reading block %u from sdcard\n", block); */
   
   if ((res = rdfpga_sdcard_wait_device_ready(sc, 50000)) != 0)
@@ -524,9 +482,6 @@ static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int3
     bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
     return ENXIO;
   }
-
-  /* for testing only, remove */
-  //memcpy(kvap, data, 512);
   
   if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
 		      BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
@@ -536,24 +491,28 @@ static int rdfpga_sdcard_read_block(struct rdfpga_sdcard_softc *sc, const u_int3
     return ENXIO;
   }
   
-  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_PREWRITE);
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_PREWRITE);
 
-  /* set DMA address */
-  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_ADDR, (uint32_t)(sc->sc_dmamap->dm_segs[0].ds_addr));
-  /* set block to read */
-  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_ADDR, block);
-  ctrl = RDFPGA_SDCARD_CTRL_START | RDFPGA_SDCARD_CTRL_READ;
-  /* initiate reading block from SDcard; once the read request is acknowledged, the HW will start the DMA engine */
-  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_CTRL, ctrl);
+  for (idx = 0 ; idx < blkcnt && !res; idx++) {
+	  bus_addr_t addr = sc->sc_dmamap->dm_segs[0].ds_addr + 512 * idx;
+	  
+	  /* set DMA address */
+	  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_DMAW_ADDR, (uint32_t)(addr));
+	  /* set block to read */
+	  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_ADDR, (block + idx));
+	  ctrl = RDFPGA_SDCARD_CTRL_START | RDFPGA_SDCARD_CTRL_READ;
+	  /* initiate reading block from SDcard; once the read request is acknowledged, the HW will start the DMA engine */
+	  bus_space_write_4(sc->sc_bustag, sc->sc_bhregs, RDFPGA_SDCARD_REG_CTRL, ctrl);
+	  
+	  res = rdfpga_sdcard_wait_device_ready(sc, 100000);
+  }
 
-  res = rdfpga_sdcard_wait_device_ready(sc, 100000);
-
-  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, 512, BUS_DMASYNC_POSTWRITE);
+  bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_POSTWRITE);
   
   bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
   /* aprint_normal_dev(sc->dk.sc_dev, "dma: unloaded\n"); */
 
-  memcpy(data, kvap, 512);
+  memcpy(data, kvap, blkcnt * 512);
   
   bus_dmamem_unmap(sc->sc_dmatag, kvap, RDFPGA_SDCARD_VAL_DMA_MAX_SZ);
 	  /* aprint_normal_dev(sc->dk.sc_dev, "dma: unmapped\n"); */
@@ -625,100 +584,9 @@ static int rdfpga_sdcard_write_block(struct rdfpga_sdcard_softc *sc, const u_int
 void
 rdfpga_sdcard_strategy(struct buf *bp)
 {
-#if 0
-	struct rdfpga_sdcard_softc *sc = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(bp->b_dev));
-	int err = 0;
-	if (sc == NULL) {
-		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
-		bp->b_resid = bp->b_bcount;
-		bp->b_error = EINVAL;
-		goto done;
-	}
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount); */
-
-	bp->b_resid = bp->b_bcount;
-
-	if (bp->b_bcount == 0) {
-		goto done;
-	}
-
-	if (bp->b_flags & B_READ) {
-		unsigned char* data = bp->b_data;
-		daddr_t blk = bp->b_blkno;
-		struct partition *p = NULL;
-		
-		if (DISKPART(bp->b_dev) != RAW_PART) {
-			if ((err = bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0)) <= 0) {
-				aprint_error("%s:%d: bounds_check_with_label -> %d\n", __PRETTY_FUNCTION__, __LINE__, err);
-				bp->b_resid = bp->b_bcount;
-				goto done;
-			}
-			p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)];
-			blk = bp->b_blkno + p->p_offset;
-		}
-		
-		while (bp->b_resid >= 512 && !bp->b_error) {
-			if (blk < 62521344) {
-				aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld, computed %lld (part %d)\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno, blk, DISKPART(bp->b_dev));
-aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno);
-				bp->b_error = rdfpga_sdcard_read_block(sc, blk, data);
-			} else {
-				aprint_error("%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
-				bp->b_error = EINVAL;
-			}
-			blk ++;
-			data += 512;
-			bp->b_resid -= 512;
-		}
-	} else {
-#if 1
-		bp->b_error = EINVAL;
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno);
-	aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount);
-#else
-		unsigned char* data = bp->b_data;
-		daddr_t blk = bp->b_blkno;
-		
-		if (DISKPART(bp->b_dev) != RAW_PART) {
-			if (bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0) <= 0) {
-				bp->b_resid = bp->b_bcount;
-				goto done;
-			}
-			p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)];
-			blk = bp->b_blkno + p->p_offset;
-		}
-		
-		while (bp->b_resid >= 512 && !bp->b_error) {
-			if (blk < 62521344) {
-				bp->b_error = rdfpga_sdcard_write_block(sc, blk, data);
-			} else {
-				aprint_error("%s:%d: blk = %lld write out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
-				bp->b_error = EINVAL;
-			}
-			blk ++;
-			data += 512;
-			bp->b_resid -= 512;
-		}
-#endif
-	}
-	
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_resid = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_resid); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_error = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_error); */
-	
- done:
-	biodone(bp);
-#else
 	struct rdfpga_sdcard_softc *sc = device_lookup_private(&rdfpga_sdcard_cd, DISKUNIT(bp->b_dev));
 	
 	dk_strategy(&sc->dk, bp);
-#endif
 }
 
 static void	rdfpga_sdcard_set_geometry(struct rdfpga_sdcard_softc *sc) {
@@ -749,8 +617,8 @@ rdfpga_sdcard_size(dev_t dev) {
 static void
 rdfpga_sdcard_minphys(struct buf *bp)
 {
-	if (bp->b_bcount > 16)
-		bp->b_bcount = 16;
+	if (bp->b_bcount > RDFPGA_SDCARD_VAL_DMA_MAX_SZ)
+		bp->b_bcount = RDFPGA_SDCARD_VAL_DMA_MAX_SZ;
 }
 
 static int
@@ -792,15 +660,20 @@ rdfpga_sdcard_diskstart(device_t self, struct buf *bp)
 		/* } */
 		
 		while (bp->b_resid >= 512 && !err) {
-			if (blk < 62521344) {
-				err = rdfpga_sdcard_read_block(sc, blk, data);
+			u_int32_t blkcnt = bp->b_resid / 512;
+			
+			if (blkcnt > (RDFPGA_SDCARD_VAL_DMA_MAX_SZ/512))
+				blkcnt = (RDFPGA_SDCARD_VAL_DMA_MAX_SZ/512);
+			
+			if (blk+blkcnt <= 62521344) {
+				err = rdfpga_sdcard_read_block(sc, blk, blkcnt, data);
 			} else {
 				aprint_error("%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
 				err = EINVAL;
 			}
-			blk ++;
-			data += 512;
-			bp->b_resid -= 512;
+			blk += blkcnt;
+			data += 512 * blkcnt;
+			bp->b_resid -= 512 * blkcnt;
 		}
 	} else {
 #if 1

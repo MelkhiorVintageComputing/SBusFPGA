@@ -1,0 +1,4 @@
+sbusfpga256|SBusFPGA with 256 MiB SDRAM: \
+			 :ns#2:nt#4:nc#65536:se#512: \
+			 :oa#0:pa#524288:ta=4.2BSD: \
+			 :oc#0:pc#524288:

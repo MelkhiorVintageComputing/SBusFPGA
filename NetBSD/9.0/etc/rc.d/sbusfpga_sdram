@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+# $NetBSD$
+#
+
+# PROVIDE: SBUSFPGA_SDRAM
+
+if test -b /dev/sbusfpga_sdram0; then
+   for DEVICE in /dev/sbusfpga_sdram[0-9]; do
+   	   test -b ${DEVICE} && disklabel -w ${DEVICE} sbusfpga256 || return
+	   test -b ${DEVICE}a && newfs ${DEVICE}a || return
+   done
+fi
