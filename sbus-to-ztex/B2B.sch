@@ -4,7 +4,7 @@ EELAYER 26 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 3 5
+Sheet 3 6
 Title "sbus-to-ztex B2B connector"
 Date ""
 Rev ""
@@ -22,9 +22,10 @@ AR Path="/5F676E85" Ref="JAB1"  Part="1"
 AR Path="/5F67E4B9/5F676E85" Ref="JAB1"  Part="1" 
 F 0 "JAB1" H 1825 4375 50  0000 C CNN
 F 1 "ZTEX_AB-ztex_AB" H 1825 4284 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_2x32_P2.54mm_Vertical" H 1800 2650 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio" H 1800 2650 50  0001 C CNN
 F 3 "" H 1800 2650 50  0001 C CNN
 F 4 "10-89-7642" H 1800 2650 50  0001 C CNN "MPN"
+F 5 "https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D" H 1800 2650 50  0001 C CNN "URL"
 	1    1800 2650
 	1    0    0    -1  
 $EndComp
@@ -81,29 +82,6 @@ Text GLabel 1600 1950 0    60   Input ~ 0
 SBUS_3V3_D[11]
 Text GLabel 4100 1850 2    60   Input ~ 0
 SBUS_3V3_D[10]
-Wire Wire Line
-	1600 1650 750  1650
-Wire Wire Line
-	750  1650 750  2750
-Wire Wire Line
-	750  2750 1450 2750
-Connection ~ 1450 2750
-Wire Wire Line
-	7400 2250 6700 2250
-Wire Wire Line
-	6700 2250 6700 2700
-Connection ~ 6700 2850
-Wire Wire Line
-	7400 3250 6700 3250
-Wire Wire Line
-	6700 3250 6700 2850
-Wire Wire Line
-	1600 3550 700  3550
-Wire Wire Line
-	700  3550 700  2750
-Wire Wire Line
-	700  2750 750  2750
-Connection ~ 750  2750
 Text GLabel 4100 2150 2    60   Input ~ 0
 SBUS_3V3_D[16]
 Text GLabel 1600 2250 0    60   Input ~ 0
@@ -136,19 +114,19 @@ Text GLabel 1600 2950 0    60   Input ~ 0
 SBUS_3V3_D[25]
 Text GLabel 4100 2850 2    60   Input ~ 0
 SBUS_3V3_D[24]
-Text GLabel 9900 3050 2    60   Input ~ 0
+Text GLabel 6650 5700 2    60   Input ~ 0
 SBUS_3V3_INT[7]*
-Text GLabel 6300 5850 0    60   Input ~ 0
+Text GLabel 7400 2350 0    60   Input ~ 0
 SBUS_3V3_INT[6]*
-Text GLabel 6300 5950 0    60   Input ~ 0
+Text GLabel 7400 3250 0    60   Input ~ 0
 SBUS_3V3_INT[5]*
-Text GLabel 6300 6050 0    60   Input ~ 0
+Text GLabel 9900 3050 2    60   Input ~ 0
 SBUS_3V3_INT[4]*
-Text GLabel 6300 6150 0    60   Input ~ 0
-SBUS_3V3_INT[3]*
-Text GLabel 6300 6250 0    60   Input ~ 0
-SBUS_3V3_INT[2]*
 Text GLabel 9900 2550 2    60   Input ~ 0
+SBUS_3V3_INT[3]*
+Text GLabel 1600 1650 0    60   Input ~ 0
+SBUS_3V3_INT[2]*
+Text GLabel 7400 2250 0    60   Input ~ 0
 SBUS_3V3_INT[1]*
 Text GLabel 4100 3350 2    60   Input ~ 0
 SBUS_3V3_PA[00]
@@ -210,7 +188,7 @@ Text GLabel 9900 3950 2    60   Input ~ 0
 SBUS_3V3_PA[24]
 Text GLabel 5550 6450 2    60   Input ~ 0
 SBUS_3V3_DP
-Text GLabel 7400 1950 0    60   Input ~ 0
+Text GLabel 7400 2050 0    60   Input ~ 0
 SBUS_3V3_SIZ[0]
 Text GLabel 9900 2150 2    60   Input ~ 0
 SBUS_3V3_SIZ[1]
@@ -220,7 +198,7 @@ Text GLabel 7400 2150 0    60   Input ~ 0
 SBUS_3V3_BR*
 Text GLabel 7400 2550 0    60   Input ~ 0
 SBUS_3V3_SEL*
-Text GLabel 7400 2050 0    60   Input ~ 0
+Text GLabel 7400 1950 0    60   Input ~ 0
 SBUS_3V3_BG*
 Text GLabel 9900 1950 2    60   Input ~ 0
 SBUS_3V3_AS*
@@ -232,12 +210,8 @@ Text GLabel 7400 3050 0    60   Input ~ 0
 SBUS_3V3_ACK[0]*
 Text GLabel 7400 2950 0    60   Input ~ 0
 SBUS_3V3_PPRD
-Text GLabel 7400 2350 0    60   Input ~ 0
+Text GLabel 1600 3550 0    60   Input ~ 0
 SBUS_3V3_EER*
-Text GLabel 7400 1450 0    60   Input ~ 0
-LED0
-Text GLabel 7400 1550 0    60   Input ~ 0
-LED1
 Wire Wire Line
 	1800 5850 1650 5850
 Wire Wire Line
@@ -299,9 +273,12 @@ U 1 1 5F69129B
 P 9250 850
 F 0 "J1" H 9356 1228 50  0000 C CNN
 F 1 "Conn_01x06_Male" H 9356 1137 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_1x06_P2.54mm_Vertical" H 9250 850 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_1x06_P2.54mm_Horizontal_For_SeeedStudio" H 9250 850 50  0001 C CNN
 F 3 "~" H 9250 850 50  0001 C CNN
-F 4 "22-28-4060" H 9250 850 50  0001 C CNN "MPN"
+F 4 "22-28-8060" H 9250 850 50  0001 C CNN "MPN-ALT"
+F 5 "PZ254R-11-06P" H 9250 850 50  0001 C CNN "MPN"
+F 6 "https://www2.mouser.com/ProductDetail/Molex/22-28-8060?qs=4XSMV6Twtb2rYD%2F%2F316gfQ==" H 9250 850 50  0001 C CNN "URL-ALT"
+F 7 "https://lcsc.com/product-detail/Pin-Header-Female-Header_XFCN-PZ254R-11-06P_C492414.html" H 9250 850 50  0001 C CNN "URL"
 	1    9250 850 
 	1    0    0    -1  
 $EndComp
@@ -346,16 +323,13 @@ AR Path="/5F676F65" Ref="JCD1"  Part="1"
 AR Path="/5F67E4B9/5F676F65" Ref="JCD1"  Part="1" 
 F 0 "JCD1" H 7650 4375 50  0000 C CNN
 F 1 "ZTEX_CD-ztex_CD" H 7650 4284 50  0000 C CNN
-F 2 "Connector_PinHeader_2.54mm:PinHeader_2x32_P2.54mm_Vertical" H 7600 2650 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio" H 7600 2650 50  0001 C CNN
 F 3 "" H 7600 2650 50  0001 C CNN
 F 4 "10-89-7642" H 7600 2650 50  0001 C CNN "MPN"
+F 5 "https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D" H 7600 2650 50  0001 C CNN "URL"
 	1    7600 2650
 	1    0    0    -1  
 $EndComp
-Text GLabel 7400 1650 0    60   Input ~ 0
-LED2
-Text GLabel 7400 1750 0    60   Input ~ 0
-LED3
 Text GLabel 2800 5850 2    60   Input ~ 12
 SBUS_DATA_OE_LED
 Text Notes 5500 5550 0    50   ~ 0
@@ -364,74 +338,17 @@ Text GLabel 9900 2950 2    60   Input ~ 12
 SBUS_OE
 Text GLabel 9900 2350 2    60   Input ~ 12
 SBUS_DATA_OE_LED
-Wire Wire Line
-	1800 6400 1650 6400
-Wire Wire Line
-	1650 6400 1650 6600
-Wire Wire Line
-	2100 6400 2500 6400
-$Comp
-L Device:R ROE?
-U 1 1 5F75534A
-P 2650 6400
-AR Path="/5F6B165A/5F75534A" Ref="ROE?"  Part="1" 
-AR Path="/5F67E4B9/5F75534A" Ref="ROE2"  Part="1" 
-F 0 "ROE2" V 2730 6400 50  0000 C CNN
-F 1 "549" V 2650 6400 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 2580 6400 50  0001 C CNN
-F 3 "" H 2650 6400 50  0000 C CNN
-F 4 "0603WAF5490T5E" V 2650 6400 50  0001 C CNN "MPN"
-	1    2650 6400
-	0    1    1    0   
-$EndComp
-Text Label 2150 6400 0    60   ~ 0
-DATA_OE_LED_2
-$Comp
-L Device:LED_ALT D?
-U 1 1 5F75535B
-P 1950 6400
-AR Path="/5F6B165A/5F75535B" Ref="D?"  Part="1" 
-AR Path="/5F67E4B9/5F75535B" Ref="DOE2"  Part="1" 
-F 0 "DOE2" H 1950 6500 50  0000 C CNN
-F 1 "RED" H 1600 6400 50  0000 R CNN
-F 2 "LED_SMD:LED_0805_2012Metric" H 1950 6400 50  0001 C CNN
-F 3 "https://optoelectronics.liteon.com/upload/download/DS-22-99-0150/LTST-C170KRKT.pdf" H 1950 6400 50  0001 C CNN
-F 4 "www.liteon.com" H 1950 6400 60  0001 C CNN "MNF1_URL"
-F 5 "LTST-C170KRKT" H 1950 6400 60  0001 C CNN "MPN"
-F 6 "859-LTST-C170KRKT" H 1950 6400 60  0001 C CNN "Mouser"
-F 7 "743-IN-S85ATR" H 1950 6400 50  0001 C CNN "Mouse_r2"
-F 8 "160-1415-1-ND" H 1950 6400 50  0001 C CNN "Digikey"
-F 9 "C94868" H 1950 6400 50  0001 C CNN "LCSC"
-F 10 "0.0195$" H 1950 6400 50  0001 C CNN "price400_LCSC"
-F 11 "FV007" H 1950 6400 50  0001 C CNN "Koncar"
-F 12 "TB" H 1950 6400 50  0001 C CNN "Side"
-	1    1950 6400
-	1    0    0    -1  
-$EndComp
-$Comp
-L power:GND #PWR0120
-U 1 1 5F755362
-P 1650 6600
-F 0 "#PWR0120" H 1650 6350 50  0001 C CNN
-F 1 "GND" H 1655 6427 50  0000 C CNN
-F 2 "" H 1650 6600 50  0001 C CNN
-F 3 "" H 1650 6600 50  0001 C CNN
-	1    1650 6600
-	1    0    0    -1  
-$EndComp
-Text GLabel 2800 6400 2    60   Input ~ 12
-SBUS_DATA_OE_LED_2
-Text GLabel 9900 2450 2    60   Input ~ 12
-SBUS_DATA_OE_LED_2
 $Comp
 L Connector_Generic:Conn_02x07_Odd_Even J3
 U 1 1 5F749BE1
 P 3150 7250
 F 0 "J3" H 3200 7767 50  0000 C CNN
 F 1 "Conn_02x07_Odd_Even" H 3200 7676 50  0000 C CNN
-F 2 "Connector_PinHeader_2.00mm:PinHeader_2x07_P2.00mm_Horizontal" H 3150 7250 50  0001 C CNN
+F 2 "For_SeeedStudio:PinHeader_2x07_P2.00mm_Horizontal_For_SeeedStudio" H 3150 7250 50  0001 C CNN
 F 3 "https://www.molex.com/pdm_docs/sd/878331420_sd.pdf" H 3150 7250 50  0001 C CNN
-F 4 "878331420" H 3150 7250 50  0001 C CNN "MPN"
+F 4 "87833-1420" H 3150 7250 50  0001 C CNN "MPN"
+F 5 "A2005WR-N-2X7P-B" H 3150 7250 50  0001 C CNN "MPN-ALT"
+F 6 "https://www2.mouser.com/ProductDetail/Molex/87833-1420?qs=%2Fha2pyFadujYFYCIYI1IvFCvLi7no9WQYzIL%2FpYxKhg%3D" H 3150 7250 50  0001 C CNN "URL"
 	1    3150 7250
 	1    0    0    -1  
 $EndComp
@@ -497,14 +414,6 @@ Wire Wire Line
 	7150 2650 7400 2650
 Wire Wire Line
 	7150 1350 7400 1350
-Text GLabel 9900 3150 2    60   Input ~ 0
-LED4
-Text GLabel 9900 3250 2    60   Input ~ 0
-LED5
-Text GLabel 9900 3350 2    60   Input ~ 0
-LED6
-Text GLabel 9900 3450 2    60   Input ~ 0
-LED7
 Wire Wire Line
 	1450 2550 1600 2550
 Wire Wire Line
@@ -619,7 +528,6 @@ Wire Wire Line
 Wire Wire Line
 	6250 2700 6700 2700
 Connection ~ 4100 2550
-Connection ~ 6700 2700
 Wire Wire Line
 	6700 2700 6700 2850
 $Comp
@@ -671,6 +579,28 @@ Wire Wire Line
 	10200 1350 9900 1350
 Wire Wire Line
 	9450 1050 10200 1050
-Text Notes 10100 2100 0    50   ~ 0
-Free
+Text GLabel 7400 1450 0    50   Input ~ 0
+USBH0_D+
+Text GLabel 7400 1550 0    50   Input ~ 0
+USBH0_D-
+Text GLabel 7400 1650 0    50   Input ~ 0
+PMOD-12
+Text GLabel 9900 3450 2    50   Input ~ 0
+PMOD-5
+Text GLabel 9900 2450 2    50   Input ~ 0
+PMOD-6
+Text GLabel 9900 3350 2    50   Input ~ 0
+PMOD-7
+Text GLabel 9900 2050 2    50   Input ~ 0
+PMOD-8
+Text GLabel 9900 3250 2    50   Input ~ 0
+PMOD-9
+Text GLabel 9900 3150 2    50   Input ~ 0
+PMOD-10
+Text GLabel 7400 1750 0    50   Input ~ 0
+PMOD-11
+Text GLabel 2350 5000 0    60   Input ~ 12
+LED0
+Text GLabel 2800 5350 0    60   Input ~ 12
+LED1
 $EndSCHEMATC
