@@ -28,7 +28,7 @@ cg3_timings = {
 }
 
 def cg3_rounded_size(hres, vres):
-    return int(1048576 * ceil(((hres * vres) + 262144) / 1048576))
+    return int(1048576 * ceil(((hres * vres) + 0) / 1048576))
 
 class VideoFrameBuffer256c(Module, AutoCSR):
     """Video FrameBuffer256c"""
