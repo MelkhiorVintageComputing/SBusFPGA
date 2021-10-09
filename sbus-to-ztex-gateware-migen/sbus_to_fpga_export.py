@@ -124,10 +124,68 @@ def get_csr_header(regions, constants, csr_base=None, with_access_functions=True
     return r
 
 
-def get_csr_forth_header(csr_regions, mem_regions, constants, csr_base=None):
+def get_csr_forth_header(csr_regions, mem_regions, device_irq_map, constants, csr_base=None):
     r = "\\ auto-generated base regions for CSRs in the PROM\n"
     for name, region in csr_regions.items():
-        r += "h# " + hex(region.origin).replace("0x", "") + " constant " + "sbusfpga_csraddr_{}".format(name) + "\n"
+        r += "h# " + hex(region.origin).replace("0x", "") + " constant " + "sbusfpga_csraddr_{}".format(name.replace("video_framebuffer", "vid_fb")) + "\n"
     for name, region in mem_regions.items():
-        r += "h# " + hex(region.origin).replace("0x", "") + " constant " + "sbusfpga_regionaddr_{}".format(name) + "\n"
+        r += "h# " + hex(region.origin).replace("0x", "") + " constant " + "sbusfpga_regionaddr_{}".format(name.replace("video_framebuffer", "vid_fb")) + "\n"
+    for device, irq in device_irq_map.items():
+        if ((irq < 7) and (irq > 0)):
+            r += "h# " + hex(irq).replace("0x", "") + " constant " + "sbusfpga_irq_{}".format(device) + "\n"
     return r
+
+
+def get_csr_header_split(regions, constants, csr_base=None, with_access_functions=True):
+    alignment = constants.get("CONFIG_CSR_ALIGNMENT", 32)
+    ar = dict()
+    for name, region in regions.items():
+        r = generated_banner("//")
+    
+        r += "#ifndef __GENERATED_{}_CSR_H\n#define __GENERATED_{}_CSR_H\n".format(name.upper(), name.upper())
+        csr_base = csr_base if csr_base is not None else regions[next(iter(regions))].origin
+        
+        origin = region.origin - csr_base
+        r += "\n/* "+name+" */\n"
+        r += "#ifndef CSR_BASE\n"
+        r += "#define CSR_BASE {}L\n".format(hex(csr_base))
+        r += "#endif\n"
+        r += "#ifndef CSR_"+name.upper()+"_BASE\n"
+        r += "#define CSR_"+name.upper()+"_BASE (CSR_BASE + "+hex(origin)+"L)\n"
+        if not isinstance(region.obj, Memory):
+            for csr in region.obj:
+                nr = (csr.size + region.busword - 1)//region.busword
+                r += _get_rw_functions_c(name, csr.name, origin, region.origin - csr_base, nr, region.busword, alignment,
+                    getattr(csr, "read_only", False), with_access_functions)
+                origin += alignment//8*nr
+                if hasattr(csr, "fields"):
+                    for field in csr.fields.fields:
+                        offset = str(field.offset)
+                        size = str(field.size)
+                        r += "#define CSR_"+name.upper()+"_"+csr.name.upper()+"_"+field.name.upper()+"_OFFSET "+offset+"\n"
+                        r += "#define CSR_"+name.upper()+"_"+csr.name.upper()+"_"+field.name.upper()+"_SIZE "+size+"\n"
+                        if with_access_functions and csr.size <= 32: # FIXME: Implement extract/read functions for csr.size > 32-bit.
+                            reg_name = name + "_" + csr.name.lower()
+                            field_name = reg_name + "_" + field.name.lower()
+                            r += "static inline uint32_t " + field_name + "_extract(struct sbusfpga_" + name + "_softc *sc, uint32_t oldword) {\n"
+                            r += "\tuint32_t mask = ((1 << " + size + ")-1);\n"
+                            r += "\treturn ( (oldword >> " + offset + ") & mask );\n}\n"
+                            r += "static inline uint32_t " + field_name + "_read(struct sbusfpga_" + name + "_softc *sc) {\n"
+                            r += "\tuint32_t word = " + reg_name + "_read(sc);\n"
+                            r += "\treturn " + field_name + "_extract(sc, word);\n"
+                            r += "}\n"
+                            if not getattr(csr, "read_only", False):
+                                r += "static inline uint32_t " + field_name + "_replace(struct sbusfpga_" + name + "_softc *sc, uint32_t oldword, uint32_t plain_value) {\n"
+                                r += "\tuint32_t mask = ((1 << " + size + ")-1);\n"
+                                r += "\treturn (oldword & (~(mask << " + offset + "))) | (mask & plain_value)<< " + offset + " ;\n}\n"
+                                r += "static inline void " + field_name + "_write(struct sbusfpga_" + name + "_softc *sc, uint32_t plain_value) {\n"
+                                r += "\tuint32_t oldword = " + reg_name + "_read(sc);\n"
+                                r += "\tuint32_t newword = " + field_name + "_replace(sc, oldword, plain_value);\n"
+                                r += "\t" + reg_name + "_write(sc, newword);\n"
+                                r += "}\n"
+
+        r += "#endif // CSR_"+name.upper()+"_BASE\n"
+        r += "\n#endif\n"
+        ar[name] = r
+            
+    return ar

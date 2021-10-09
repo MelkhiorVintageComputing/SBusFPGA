@@ -144,6 +144,7 @@ _sbus_sbus_v1_0 = [
     ("SBUS_3V3_D",         0, Pins("J18 K16 J17 K15 K13 J15 J13 J14 H14 H17 G14 G17 G16 G18 H16 F18 F16 E18 F15 D18 E17 G13 D17 F13 F14 E16 E15 C17 C16 A18 B18 C15"),  IOStandard("lvttl")),
     ("SBUS_3V3_PA",        0, Pins("B16 B17 D14 C14 D12 A16 A15 B14 B13 B12 C12 A14 A13 B11 A11  M4  R2  M3  P2  M2  N2  K5  N1  L4  M1  L3  L1  K3"),  IOStandard("lvttl")),
 ]
+
 _sbus_sbus_v1_2 = [
     ("SBUS_3V3_CLK",       0, Pins("D15"), IOStandard("lvttl")),
     ("SBUS_3V3_ASs",       0, Pins("T4"),  IOStandard("lvttl")),
@@ -160,7 +161,7 @@ _sbus_sbus_v1_2 = [
     ("SBUS_3V3_INT4s",     0, Pins("N5"),  IOStandard("lvttl")), # added
     ("SBUS_3V3_INT5s",     0, Pins("L5"),  IOStandard("lvttl")), # added
     ("SBUS_3V3_INT6s",     0, Pins("V2"),  IOStandard("lvttl")), # added
-    #("SBUS_3V3_INT7s",     0, Pins("N5"),  IOStandard("lvttl")),
+    #("SBUS_3V3_INT7s",     0, Pins(""),  IOStandard("lvttl")), # removed
     ("SBUS_3V3_PPRD",      0, Pins("N6"),  IOStandard("lvttl")),
     ("SBUS_OE",            0, Pins("P5"),  IOStandard("lvttl")),
     ("SBUS_3V3_ACKs",      0, Pins("M6 L6 N4"),  IOStandard("lvttl")),
@@ -182,14 +183,72 @@ _usb_io_v1_0 = [
 _connectors_v1_0 = [
 ]
 _connectors_v1_2 = [
-    ("P1", "T8 U6 P3 P4 T1 U4 R1 T3"),
+    ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"), # swapped line?
 ]
 
+# I2C ----------------------------------------------------------------------------------------------
+
+# reusing the UART pins !!!
+_i2c_v1_0 = [
+    ("i2c", 0,
+    Subsignal("scl", Pins("V9")),
+    Subsignal("sda", Pins("U9")),
+    IOStandard("LVCMOS33"))
+]
+# reusing the UART pins !!!
+_i2c_v1_2 = [
+    ("i2c", 0,
+    Subsignal("scl", Pins("V9")),
+    Subsignal("sda", Pins("U9")),
+    IOStandard("LVCMOS33"))
+]
+
+# VGA ----------------------------------------------------------------------------------------------
+
+def vga_rgb222_pmod_io(pmod):
+    return [
+        ("vga", 0,
+            Subsignal("hsync", Pins(f"{pmod}:3")),
+            Subsignal("vsync", Pins(f"{pmod}:7")),
+            Subsignal("b", Pins(f"{pmod}:0 {pmod}:4")),
+            Subsignal("g", Pins(f"{pmod}:1 {pmod}:5")),
+            Subsignal("r", Pins(f"{pmod}:2 {pmod}:6")),
+            IOStandard("LVCMOS33"),
+        ),
+]
+_vga_pmod_io_v1_2 = vga_rgb222_pmod_io("P1")
+   
 # Platform -----------------------------------------------------------------------------------------
 
 class Platform(XilinxPlatform):
     default_clk_name   = "clk48"
     default_clk_period = 1e9/48e6
+
+    def get_irq(self, device, irq_req, next_down=True, next_up=False):
+        irq = irq_req
+        if (irq in self.avail_irqs):
+            self.avail_irqs.remove(irq)
+            self.irq_device_map[irq] = device
+            self.device_irq_map[device] = irq
+            print("~~~~~ A Requesting SBUS_3V3_INT{}s".format(irq))
+            return self.request("SBUS_3V3_INT{}s".format(irq))
+        if (next_down):
+            for irq in range(irq_req, 0, -1):
+                if (irq in self.avail_irqs):
+                    self.avail_irqs.remove(irq)
+                    self.irq_device_map[irq] = device
+                    self.device_irq_map[device] = irq
+                    print("~~~~~ B Requesting SBUS_3V3_INT{}s".format(irq))
+                    return self.request("SBUS_3V3_INT{}s".format(irq))
+        if (next_up):
+            for irq in range(irq_req, 7, 1):
+                if (irq in self.avail_irqs):
+                    self.avail_irqs.remove(irq)
+                    self.irq_device_map[irq] = device
+                    self.device_irq_map[device] = irq
+                    print("~~~~~ C Requesting SBUS_3V3_INT{}s".format(irq))
+                    return self.request("SBUS_3V3_INT{}s".format(irq))
+        return None
 
     def __init__(self, variant="ztex2.13a", version="V1.0"):
         device = {
@@ -211,10 +270,21 @@ class Platform(XilinxPlatform):
             "V1.0" : _connectors_v1_0,
             "V1.2" : _connectors_v1_2,
         }[version]
+        i2c = {
+            "V1.0" : _i2c_v1_0,
+            "V1.2" : _i2c_v1_2,
+        }[version]
+        self.avail_irqs = {
+            "V1.0" : { 1 }, # don't add 7 here, too risky
+            "V1.2" : { 1, 2, 3, 4, 5, 6 },
+        }[version]
+        self.irq_device_map = dict()
+        self.device_irq_map = dict()
         
         XilinxPlatform.__init__(self, device, _io, connectors, toolchain="vivado")
         self.add_extension(sbus_io)
         self.add_extension(sbus_sbus)
+        self.add_extension(i2c)
         
         self.toolchain.bitstream_commands = \
             ["set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR No [current_design]",

@@ -25,13 +25,21 @@ ADDR_PHYS_LOW = 0
 ADDR_PFX_HIGH = ADDR_PHYS_HIGH
 ADDR_PFX_LOW = 16 ## 64 KiB per prefix
 ADDR_PFX_LENGTH = 12 #(1 + ADDR_PFX_HIGH - ADDR_PFX_LOW)
-ROM_ADDR_PFX = Signal(12, reset = 0x000)
-WISHBONE_CSR_ADDR_PFX = Signal(12, reset = 0x004)
-USBOHCI_ADDR_PFX = Signal(12, reset = 0x008)
-SRAM_ADDR_PFX = Signal(12, reset = 0x009)
-ENGINE_ADDR_PFXA = Signal(12, reset = 0x00a)
-ENGINE_ADDR_PFXB = Signal(12, reset = 0x00b)
-#SDRAM_ADDR_PFX = Signal(12, reset = 2048)
+ROM_ADDR_PFX =           Signal(12, reset = 0x000) # read only
+WISHBONE_CSR_ADDR_PFX =  Signal(12, reset = 0x004)
+USBOHCI_ADDR_PFX =       Signal(12, reset = 0x008)
+SRAM_ADDR_PFX =          Signal(12, reset = 0x009) # unmapped ; LE
+ENGINE_ADDR_PFXA =       Signal(12, reset = 0x00a)
+ENGINE_ADDR_PFXB =       Signal(12, reset = 0x00b)
+CG3_REGISTERS_ADDR_PFX = Signal(12, reset = 0x040)
+
+ADDR_BIGPFX_HIGH = ADDR_PHYS_HIGH
+ADDR_BIGPFX_LOW = 20 ## 1 MiB per bigprefix
+ADDR_BIGPFX_LENGTH = 8 #(1 + ADDR_BIGPFX_HIGH - ADDR_BIGPFX_LOW)
+CG3_PIXELS_ADDR_BIGPFX =  Signal(8, reset = 0x08) # cg3_pixels, remapped, first MiB, LE
+CG3_PIXELS_ADDR_BIGVAL =  0x08
+CG3_PIXELS_ADDR2_BIGPFX = Signal(8, reset = 0x09) # cg3_pixels, remapped, second MiB, LE
+CG3_PIXELS_ADDR2_BIGVAL = 0x09
 
 wishbone_default_timeout = 120 ##
 sbus_default_timeout = 50 ## must be below 255
@@ -175,7 +183,7 @@ LED_M_READ = 0x20
 LED_M_CACHE = 0x40
         
 class SBusFPGABus(Module):
-    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, burst_size = 8):
+    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8, cg3_fb_size = 0, cg3_base=0x8ff00000 ):
         self.platform = platform
         self.hold_reset = hold_reset
 
@@ -185,6 +193,19 @@ class SBusFPGABus(Module):
         self.tosbus_fifo = tosbus_fifo
         self.fromsbus_fifo = fromsbus_fifo
         self.fromsbus_req_fifo = fromsbus_req_fifo
+
+        if (cg3_fb_size <= 1048576): #round up to 1 MiB
+            CG3_UPPER_BITS=12
+            CG3_KEPT_UPPER_BIT=20
+        elif (cg3_fb_size == (2*1048576)):
+            CG3_UPPER_BITS=11
+            CG3_KEPT_UPPER_BIT=21
+        else:
+            print(f"CG3 configuration ({cg3_fb_size//1048576} MiB) not yet supported\n")
+            assert(False)
+        CG3_REMAPPED_BASE=cg3_base >> CG3_KEPT_UPPER_BIT
+
+        print(f"CG3 remapping: {cg3_fb_size//1048576} Mib starting at prefix {CG3_REMAPPED_BASE:x} ({(CG3_REMAPPED_BASE<<CG3_KEPT_UPPER_BIT):x})")
         
         data_width = burst_size * 4
         data_width_bits = burst_size * 32
@@ -193,9 +214,10 @@ class SBusFPGABus(Module):
         fifo_blk_addr = Signal(blk_addr_width)
         fifo_buffer = Signal(data_width_bits)
         
-        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        SBUS_DATA_OE_LED_o = Signal()
-        self.comb += pad_SBUS_DATA_OE_LED.eq(SBUS_DATA_OE_LED_o)
+        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        #SBUS_DATA_OE_LED_o = Signal()
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(SBUS_DATA_OE_LED_o)
+        
         ##pad_SBUS_DATA_OE_LED_2 = platform.request("SBUS_DATA_OE_LED_2")
         ##SBUS_DATA_OE_LED_2_o = Signal()
         ##self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
@@ -217,8 +239,7 @@ class SBusFPGABus(Module):
         pad_SBUS_3V3_ERRs = platform.request("SBUS_3V3_ERRs")
         #pad_SBUS_3V3_RSTs = platform.request("SBUS_3V3_RSTs")
         pad_SBUS_3V3_SELs = platform.request("SBUS_3V3_SELs")
-        #pad_SBUS_3V3_INT1s = platform.request("SBUS_3V3_INT1s")
-        pad_SBUS_3V3_INT7s = platform.request("SBUS_3V3_INT7s")
+        
         pad_SBUS_3V3_PPRD = platform.request("SBUS_3V3_PPRD")
         pad_SBUS_OE = platform.request("SBUS_OE")
         pad_SBUS_3V3_ACKs = platform.request("SBUS_3V3_ACKs")
@@ -231,11 +252,9 @@ class SBusFPGABus(Module):
         sbus_oe_data = Signal(reset=0)
         sbus_oe_slave_in = Signal(reset=0)
         sbus_oe_master_in = Signal(reset=0)
-        #sbus_oe_int1 = Signal(reset=0)
-        sbus_oe_int7 = Signal(reset=0)
         #sbus_oe_master_br = Signal(reset=0)
 
-        sbus_last_pa = Signal(28)
+        sbus_last_pa = Signal(32)
         burst_index = Signal(4)
         burst_counter = Signal(4)
         burst_limit_m1 = Signal(4)
@@ -254,10 +273,7 @@ class SBusFPGABus(Module):
         #SBUS_3V3_RSTs = Signal()
         SBUS_3V3_SELs_i = Signal(reset=1)
         self.comb += SBUS_3V3_SELs_i.eq(pad_SBUS_3V3_SELs)
-        #SBUS_3V3_INT1s_o = Signal(reset=1)
-        #self.specials += Tristate(pad_SBUS_3V3_INT1s, SBUS_3V3_INT1s_o, sbus_oe_int1, None)
-        SBUS_3V3_INT7s_o = Signal(reset=1)
-        self.specials += Tristate(pad_SBUS_3V3_INT7s, SBUS_3V3_INT7s_o, sbus_oe_int7, None)
+        
         SBUS_3V3_PPRD_i = Signal()
         SBUS_3V3_PPRD_o = Signal()
         self.specials += Tristate(pad_SBUS_3V3_PPRD, SBUS_3V3_PPRD_o, sbus_oe_slave_in, SBUS_3V3_PPRD_i)
@@ -333,7 +349,7 @@ class SBusFPGABus(Module):
         #self.sync += platform.request("user_led", 5).eq(self.wishbone_slave.cyc)
         #self.sync += platform.request("user_led", 6).eq(~SBUS_3V3_BRs_o)
         #self.sync += platform.request("user_led", 7).eq(~SBUS_3V3_BGs_i)
-        self.sync += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_BGs_i),
+        #self.sync += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_BGs_i),
 
         #cycle_counter = Signal(8, reset = 0)
         #self.sync += cycle_counter.eq(cycle_counter + 1)
@@ -427,12 +443,12 @@ class SBusFPGABus(Module):
                       If((self.hold_reset == 0), NextState("Idle"))
         )
         slave_fsm.act("Idle",
+                      # ***** Slave (Multi-)Word Read *****
                       If(((SBUS_3V3_SELs_i == 0) &
                           (SBUS_3V3_ASs_i == 0) &
                           (siz_is_word(SBUS_3V3_SIZ_i)) &
                           (SBUS_3V3_PPRD_i == 1)),
                          NextValue(sbus_oe_master_in, 1),
-                         NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          NextValue(burst_counter, 0),
                          Case(SBUS_3V3_SIZ_i, {
                              SIZ_WORD: NextValue(burst_limit_m1, 0),
@@ -451,22 +467,52 @@ class SBusFPGABus(Module):
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == USBOHCI_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXA) |
-                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXB)),
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXB) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_REGISTERS_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) |
+                                 (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
-                                NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                NextValue(sbus_wishbone_le,
+                                          (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                          (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) | 
+                                          (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                 NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
                                    NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                                    NextValue(self.wishbone_master.we, 0),
-                                   NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:28], Signal(4, reset = 0))),
+                                   Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:28], Signal(4, reset = 0))),
+                                                     NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                       # next remap X MiB to last MiB of SDRAM for CG3_PIXELS_ADDR_PFX
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                   }),
                                    NextValue(wishbone_master_timeout, wishbone_default_timeout),
                                    NextValue(sbus_slave_timeout, sbus_default_timeout),
                                    #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                                    NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Data")
                                 ).Else(
+                                   Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                       # next remap X MiB to last MiB of SDRAM for CG3_PIXELS_ADDR_PFX
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                   }),
                                    NextValue(sbus_slave_timeout, sbus_default_timeout),
                                    NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Wishbone")
                                 )
@@ -478,29 +524,59 @@ class SBusFPGABus(Module):
                              NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                              NextState("Slave_Error")
                          )
+                      # ***** Slave Byte Read *****
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_BYTE == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 1)),
                              NextValue(sbus_oe_master_in, 1),
-                             NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                              If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
-                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_REGISTERS_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) |
+                                 (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
-                                NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                NextValue(sbus_wishbone_le,
+                                          (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                          (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) | 
+                                          (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                 NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
                                    NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                                    NextValue(self.wishbone_master.we, 0),
-                                   NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:28], Signal(4, reset = 0))),
+                                   Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:28], Signal(4, reset = 0))),
+                                                     NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                       # next remap X MiB to last MiB of SDRAM for CG3_PIXELS_ADDR_PFX
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                   }),
                                    NextValue(wishbone_master_timeout, wishbone_default_timeout),
                                    NextValue(sbus_slave_timeout, sbus_default_timeout),
                                    #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                                    NextState("Slave_Ack_Read_Reg_Byte_Wait_For_Data")
                                 ).Else(
+                                   Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                       # next remap X MiB to last MiB of SDRAM for CG3_PIXELS_ADDR_PFX
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                   }),
                                    NextValue(sbus_slave_timeout, sbus_default_timeout),
                                    NextState("Slave_Ack_Read_Reg_Byte_Wait_For_Wishbone")
                                 )
@@ -512,12 +588,12 @@ class SBusFPGABus(Module):
                                  NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                                  NextState("Slave_Error")
                              )
+                      # ***** Slave HalfWord Read *****
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_HWORD == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 1)),
                          NextValue(sbus_oe_master_in, 1),
-                         NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                          If(SBUS_3V3_PA_i[0:1] != 0,
                             NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                             NextValue(SBUS_3V3_ERRs_o, 1),
@@ -525,22 +601,52 @@ class SBusFPGABus(Module):
                             NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                             NextState("Slave_Error")
                          ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
-                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_REGISTERS_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) |
+                                 (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
-                                NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                NextValue(sbus_wishbone_le,
+                                          (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                          (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) | 
+                                          (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                 NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
                                    NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                                    NextValue(self.wishbone_master.we, 0),
-                                   NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:28], Signal(4, reset = 0))),
+                                   Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:28], Signal(4, reset = 0))),
+                                                     NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                       # next remap X MiB to last MiB of SDRAM for CG3_PIXELS_ADDR_PFX
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(self.wishbone_master.adr, Cat(SBUS_3V3_PA_i[2:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                   }),
                                    NextValue(wishbone_master_timeout, wishbone_default_timeout),
                                    NextValue(sbus_slave_timeout, sbus_default_timeout),
                                    #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                                    NextState("Slave_Ack_Read_Reg_HWord_Wait_For_Data")
                                 ).Else(
+                                   Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                       # next remap X MiB to last MiB of SDRAM for CG3_PIXELS_ADDR_PFX
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                   }),
                                    NextValue(sbus_slave_timeout, sbus_default_timeout),
                                    NextState("Slave_Ack_Read_Reg_HWord_Wait_For_Wishbone")
                                 )
@@ -552,12 +658,12 @@ class SBusFPGABus(Module):
                              NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                              NextState("Slave_Error")
                          )
+                      # ***** Slave (Multi-)Word Write *****
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0) &
                               (siz_is_word(SBUS_3V3_SIZ_i)) &
                               (SBUS_3V3_PPRD_i == 0)),
                              NextValue(sbus_oe_master_in, 1),
-                             NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                              NextValue(burst_counter, 0),
                              Case(SBUS_3V3_SIZ_i, {
                                  SIZ_WORD: NextValue(burst_limit_m1, 0),
@@ -576,9 +682,26 @@ class SBusFPGABus(Module):
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == USBOHCI_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXA) |
-                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXB)),
-                                    NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXB) |
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_REGISTERS_ADDR_PFX) |
+                                     (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) |
+                                     (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
+                                    NextValue(sbus_wishbone_le,
+                                              (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                              (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) | 
+                                              (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                     NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                                    Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                        # next remap X MiB to last MiB of SDRAM
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                    }),
                                     If(~self.wishbone_master.cyc,
                                        NextValue(SBUS_3V3_ACKs_o, ACK_WORD),
                                        NextValue(SBUS_3V3_ERRs_o, 1),
@@ -599,15 +722,32 @@ class SBusFPGABus(Module):
                                  NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                                  NextState("Slave_Error")
                              )
+                      # ***** Slave Byte Write *****
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_BYTE == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 0)),
                          NextValue(sbus_oe_master_in, 1),
-                         NextValue(sbus_last_pa, SBUS_3V3_PA_i),
-                         If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
-                            NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                         If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                             (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_REGISTERS_ADDR_PFX) |
+                             (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) |
+                             (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
+                            NextValue(sbus_wishbone_le,
+                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                      (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) | 
+                                      (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                             NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                            Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                ],
+                                # next remap X MiB to last MiB of SDRAM
+                                CG3_PIXELS_ADDR_BIGVAL: [
+                                    NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                ],
+                                CG3_PIXELS_ADDR2_BIGVAL: [
+                                    NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                ],
+                            }),
                             If(~self.wishbone_master.cyc,
                                 NextValue(SBUS_3V3_ACKs_o, ACK_BYTE),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
@@ -628,21 +768,38 @@ class SBusFPGABus(Module):
                              NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                              NextState("Slave_Error")
                          )
+                      # ***** Slave HalfWord Write *****
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0) &
                               (SIZ_HWORD == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 0)),
                              NextValue(sbus_oe_master_in, 1),
-                             NextValue(sbus_last_pa, SBUS_3V3_PA_i),
                              If(SBUS_3V3_PA_i[0:1] != 0,
                                 NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 #NextValue(led0123, led0123 | LED_PARITY),
                                 NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                                 NextState("Slave_Error")
-                             ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
-                                    NextValue(sbus_wishbone_le, (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX)),
+                             ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_REGISTERS_ADDR_PFX) |
+                                     (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) |
+                                     (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
+                                    NextValue(sbus_wishbone_le,
+                                              (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                                              (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX) | 
+                                              (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR2_BIGPFX)),
                                     NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                                    Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
+                                        "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
+                                        ],
+                                        # next remap X MiB to last MiB of SDRAM
+                                        CG3_PIXELS_ADDR_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                        CG3_PIXELS_ADDR2_BIGVAL: [
+                                            NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i[0:CG3_KEPT_UPPER_BIT], Signal(CG3_UPPER_BITS, reset = CG3_REMAPPED_BASE))),
+                                        ],
+                                    }),
                                     If(~self.wishbone_master.cyc,
                                        NextValue(SBUS_3V3_ACKs_o, ACK_HWORD),
                                        NextValue(SBUS_3V3_ERRs_o, 1),
@@ -915,8 +1072,8 @@ class SBusFPGABus(Module):
                           NextValue(wishbone_master_timeout, wishbone_default_timeout),
                           NextValue(self.wishbone_master.adr, Cat(index_with_wrap(burst_counter+1, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), # 4 bits, adr FIXME
                                                                   sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
-                                                                  sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
-                                                                  Signal(4, reset = 0))),
+                                                                  sbus_last_pa[ADDR_PFX_LOW:32] # 16 bits, adr
+                                                                  )),
                           NextValue(SBUS_3V3_ACKs_o, ACK_IDLE),
                           NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Data")
                       )
@@ -954,7 +1111,7 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.stb, 1),
                          NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                          NextValue(self.wishbone_master.we, 0),
-                         NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[2:28], Signal(4, reset = 0))),
+                         NextValue(self.wishbone_master.adr, sbus_last_pa[2:32]),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Data")
@@ -1015,7 +1172,7 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.stb, 1),
                          NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                          NextValue(self.wishbone_master.we, 0),
-                         NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[2:28], Signal(4, reset = 0))),
+                         NextValue(self.wishbone_master.adr, sbus_last_pa[2:32]),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_HWord_Wait_For_Data")
@@ -1074,7 +1231,7 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.stb, 1),
                          NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                          NextValue(self.wishbone_master.we, 0),
-                         NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[2:28], Signal(4, reset = 0))),
+                         NextValue(self.wishbone_master.adr, sbus_last_pa[2:32]),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_Byte_Wait_For_Data")
@@ -1094,8 +1251,8 @@ class SBusFPGABus(Module):
                       NextValue(self.wishbone_master.sel, 2**len(self.wishbone_master.sel)-1),
                       NextValue(self.wishbone_master.adr, Cat(index_with_wrap(burst_counter, burst_limit_m1, sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6]), # 4 bits, adr FIXME
                                                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
-                                                              sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
-                                                              Signal(4, reset = 0))),
+                                                              sbus_last_pa[ADDR_PFX_LOW:32] # 16 bits, adr
+                                                              )),
                       Case(sbus_wishbone_le, {
                           0: NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i)),
                           1: NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i[24:32],
@@ -1132,7 +1289,7 @@ class SBusFPGABus(Module):
                          NextState("Slave_Ack_Reg_Write_Burst")
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN),
-                             #NextValue(self.led_display.value, Cat(Signal(8, reset = LED_RERUN | LED_RERUN_WRITE | LED_RERUN_WORD), sbus_last_pa, Signal(4, reset = 0))),
+                             #NextValue(self.led_display.value, Cat(Signal(8, reset = LED_RERUN | LED_RERUN_WRITE | LED_RERUN_WORD), sbus_last_pa)),
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WRITE | LED_RERUN_WORD),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
                              NextState("Slave_Error")
@@ -1154,8 +1311,8 @@ class SBusFPGABus(Module):
                       }),
                       NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6], # 4 bits, adr FIXME
                                                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
-                                                              sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
-                                                              Signal(4, reset = 0))),
+                                                              sbus_last_pa[ADDR_PFX_LOW:32] # 16 bits, adr
+                                                              )),
                       Case(sbus_wishbone_le, {
                           0: NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i[16:32],
                                                                        SBUS_3V3_D_i[16:32])),
@@ -1201,8 +1358,8 @@ class SBusFPGABus(Module):
                       }),
                       NextValue(self.wishbone_master.adr, Cat(sbus_last_pa[ADDR_PHYS_LOW+2:ADDR_PHYS_LOW+6], # 4 bits, adr FIXME
                                                               sbus_last_pa[ADDR_PHYS_LOW+6:ADDR_PFX_LOW], # 10 bits, adr
-                                                              sbus_last_pa[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH], # 12 bits, adr
-                                                              Signal(4, reset = 0))),
+                                                              sbus_last_pa[ADDR_PFX_LOW:32] # 16 bits, adr
+                                                              )),
                       NextValue(self.wishbone_master.dat_w, Cat(SBUS_3V3_D_i[24:32], # LE/BE identical
                                                                 SBUS_3V3_D_i[24:32],
                                                                 SBUS_3V3_D_i[24:32],

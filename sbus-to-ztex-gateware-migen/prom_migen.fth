@@ -49,7 +49,8 @@ my-address sbusfpga_regionaddr_usb_host_ctrl + my-space h# 1000 reg
 h# 7c xdrint " slave-burst-sizes" attribute
 h# 7c xdrint " burst-sizes" attribute
 
-1 xdrint " interrupts" attribute
+\ USB has an interrupt
+sbusfpga_irq_usb_host xdrint " interrupts" attribute
 
 headers
 -1 instance value regs-virt

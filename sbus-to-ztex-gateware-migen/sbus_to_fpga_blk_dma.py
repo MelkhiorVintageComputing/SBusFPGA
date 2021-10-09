@@ -9,8 +9,9 @@ from litex.soc.interconnect import wishbone
 # width of fromsbus_req_fifo is 'blk_addr_width' + 'vaddr' (blk_addr + vaddr)
 # width of fromsbus_fifo is 'blk_addr_width' + 'burst_size * 32' (blk_addr + data)
 # the blk_addr does the round-trip to accompany the data
+# mem_size in MiB, might be weird if some space is reserved for other use (e.g. FrameBuffer)
 class ExchangeWithMem(Module, AutoCSR):
-    def __init__(self, soc, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_dma_writer, dram_dma_reader, burst_size = 8, do_checksum = False):
+    def __init__(self, soc, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_dma_writer, dram_dma_reader, mem_size=256, burst_size = 8, do_checksum = False):
         #self.wishbone_r_slave = wishbone.Interface(data_width=soc.bus.data_width)
         #self.wishbone_w_slave = wishbone.Interface(data_width=soc.bus.data_width)
         self.tosbus_fifo = tosbus_fifo
@@ -18,6 +19,8 @@ class ExchangeWithMem(Module, AutoCSR):
         self.fromsbus_req_fifo = fromsbus_req_fifo
         self.dram_dma_writer = dram_dma_writer
         self.dram_dma_reader = dram_dma_reader
+
+        print(f"Configuring the SDRAM for {mem_size} MiB\n")
 
         data_width = burst_size * 4
         data_width_bits = burst_size * 32
@@ -55,7 +58,7 @@ class ExchangeWithMem(Module, AutoCSR):
         self.mem_size = CSRStatus(32) # report how much memory we have
         self.comb += self.blk_size.status.eq(data_width)
         self.comb += self.blk_base.status.eq(soc.wb_mem_map["main_ram"] >> log2_int(data_width))
-        self.comb += self.mem_size.status.eq((256 * 1024 * 1024) >> log2_int(data_width)) # is it already available from mem_regions ?
+        self.comb += self.mem_size.status.eq((mem_size * 1024 * 1024) >> log2_int(data_width))
         
         self.blk_addr =   CSRStorage(32, description = "SDRAM Block address to read/write from Wishbone memory (block of size {})".format(data_width))
         self.dma_addr =   CSRStorage(32, description = "Host Base address where to write/read data (i.e. SPARC Virtual addr)")
