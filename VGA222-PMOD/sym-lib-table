@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name VGA222-PMOD-rescue)(type Legacy)(uri ${KIPRJMOD}/VGA222-PMOD-rescue.lib)(options "")(descr ""))
+)

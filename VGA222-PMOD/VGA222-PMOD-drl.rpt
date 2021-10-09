@@ -1,0 +1,25 @@
+Drill report for /home/dolbeau/SPARC/SBusFPGA/VGA222-PMOD/VGA222-PMOD.kicad_pcb
+Created on Sun Sep 12 12:00:42 2021
+
+Copper Layer Stackup:
+    =============================================================
+    L1 :  F.Cu                      front
+    L2 :  B.Cu                      back
+
+
+Drill file 'VGA222-PMOD-PTH.drl' contains
+    plated through holes:
+    =============================================================
+    T1  0.40mm  0.016"  (1 hole)
+    T2  1.00mm  0.039"  (12 holes)
+    T3  1.19mm  0.047"  (15 holes)
+    T4  3.05mm  0.120"  (2 holes)
+
+    Total plated holes count 30
+
+
+Drill file 'VGA222-PMOD-NPTH.drl' contains
+    unplated through holes:
+    =============================================================
+
+    Total unplated holes count 0

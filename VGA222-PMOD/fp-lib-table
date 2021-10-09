@@ -1,0 +1,4 @@
+(fp_lib_table
+  (lib (name parts)(type KiCad)(uri ${KIPRJMOD}/../../parts)(options "")(descr ""))
+  (lib (name For_SeeedStudio)(type KiCad)(uri /home/dolbeau/SPARC/SBusFPGA/sbus-to-ztex/For_SeeedStudio.pretty)(options "")(descr ""))
+)
