@@ -24,6 +24,14 @@
 
 ## How to rebuild
 
+* TBD
+
+## Known limitations
+
+* Currently, the board delays its powering-up by 20s after a cold start. That means that the host SPARCstation will POST without the board and not see it. The machine must be reset at the prompt, or the slot must be explictely probed, for the board to become visible. This is because so far, having the board start-up right away will prevent the SPARCstation from POSTing for unknown reasons.
+
+* ???
+
 TBD
 
 
