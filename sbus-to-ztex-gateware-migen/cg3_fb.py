@@ -203,9 +203,10 @@ class cg3(Module, AutoCSR):
 
         self.submodules.wishbone_fsm = wishbone_fsm = FSM(reset_state = "Reset")
         wishbone_fsm.act("Reset",
+                         NextValue(bus.ack, 0),
                          NextState("Idle"))
         wishbone_fsm.act("Idle",
-                         If(bus.cyc & bus.stb & bus.we & upd_cmap_fifo.writable, #write
+                         If(bus.cyc & bus.stb & bus.we & ~bus.ack & upd_cmap_fifo.writable, #write
                             # FIXME: should check for prefix?
                             Case(bus.adr[0:3], {
                                 # bt_addr
@@ -263,27 +264,30 @@ class cg3(Module, AutoCSR):
                                 6: [NextValue(fbc_vcontrol[1], (bus.dat_w & Cat(Replicate(bus.sel[3], 8), Replicate(bus.sel[2], 8), Replicate(bus.sel[1], 8), Replicate(bus.sel[0], 8))) | (fbc_vcontrol[1] & ~Cat(Replicate(bus.sel[3], 8), Replicate(bus.sel[2], 8), Replicate(bus.sel[1], 8), Replicate(bus.sel[0], 8)))) ],
                                 7: [NextValue(fbc_vcontrol[2], (bus.dat_w & Cat(Replicate(bus.sel[3], 8), Replicate(bus.sel[2], 8), Replicate(bus.sel[1], 8), Replicate(bus.sel[0], 8))) | (fbc_vcontrol[2] & ~Cat(Replicate(bus.sel[3], 8), Replicate(bus.sel[2], 8), Replicate(bus.sel[1], 8), Replicate(bus.sel[0], 8)))) ],
                             }),
-                            bus.ack.eq(1),
-                         ).Elif(bus.cyc & bus.stb & ~bus.we, #read
+                            NextValue(bus.ack, 1),
+                         ).Elif(bus.cyc & bus.stb & ~bus.we & ~bus.ack, #read
                                 Case(bus.adr[0:3], {
                                 # bt_addr
-                                0: [ bus.dat_r.eq(0), ],
+                                0: [ NextValue(bus.dat_r, 0) ],
                                 # bt_cmap
-                                1: [ bus.dat_r.eq(0),],
+                                1: [ NextValue(bus.dat_r, 0)],
                                 # bt_ctrl: unused ??
-                                2: [ bus.dat_r.eq(0),],
+                                2: [ NextValue(bus.dat_r, 0)],
                                 # bt_omap: unused ??
-                                3: [ bus.dat_r.eq(0),],
+                                3: [ NextValue(bus.dat_r, 0)],
                                 # fbc_ctrl & friends: 4 in one go
                                 # should be byte-accessed
                                 # CHECKME: byte ordering
-                                4: [ bus.dat_r.eq(Cat(fbc_cursor_end, fbc_cursor_start, fbc_status, fbc_ctrl))],
-                                5: [ bus.dat_r.eq(fbc_vcontrol[0]),],
-                                6: [ bus.dat_r.eq(fbc_vcontrol[1]),],
-                                7: [ bus.dat_r.eq(fbc_vcontrol[2]),],
+                                4: [ NextValue(bus.dat_r, Cat(fbc_cursor_end, fbc_cursor_start, fbc_status, fbc_ctrl))],
+                                5: [ NextValue(bus.dat_r, fbc_vcontrol[0])],
+                                6: [ NextValue(bus.dat_r, fbc_vcontrol[1])],
+                                7: [ NextValue(bus.dat_r, fbc_vcontrol[2])],
                             }),
-                            bus.ack.eq(1),
-                         ))
+                            NextValue(bus.ack, 1),
+                         ).Else(
+                             NextValue(bus.ack, 0),
+                         )
+        )
 
         wishbone_fsm.act("cmap_a",
                          If(upd_cmap_fifo.writable,
