@@ -102,12 +102,8 @@ ohci_sbus_attach(device_t parent, device_t self, void *aux)
 	/* Clamp at parent's burst sizes */
 	sc->sc_burst &= sbusburst;
 
-	if (0) { /* in PCI there's a test for some specific controller */
-		sc->sc.sc_flags = OHCIF_SUPERIO;
-	}
-
 	/* check if memory space access is enabled */
-	/* CHECKME: not needed ? */
+	/* not needed */
 
 	/* Map I/O registers */
 	if (sbus_bus_map(sc->sc.iot, sa->sa_slot, sa->sa_offset, sc->sc.sc_size,
@@ -116,16 +112,13 @@ ohci_sbus_attach(device_t parent, device_t self, void *aux)
 		return;
 	}
 
-	aprint_normal_dev(self, "nid 0x%x, bustag %p (0x%zx @ 0x%08lx), burst 0x%x (parent 0x%0x)\n",
+	aprint_normal_dev(self, "\nnid 0x%x, bustag %p (0x%zx @ 0x%08lx), burst 0x%x (parent 0x%0x)\n",
 			  sc->sc_node,
 			  sc->sc.iot,
 			  (size_t)sc->sc.sc_size,
 			  sc->sc.ioh,
 			  sc->sc_burst,
 			  sbsc->sc_burst);
-
-	/* we're SPECIAL!!! */
-	/* sc->sc.sc_endian = OHCI_BIG_ENDIAN; */
 
 	/* Disable interrupts, so we don't get any spurious ones. */
 	bus_space_write_4(sc->sc.iot, sc->sc.ioh, OHCI_INTERRUPT_DISABLE,
@@ -135,16 +128,17 @@ ohci_sbus_attach(device_t parent, device_t self, void *aux)
 	/* sc->sc.sc_bus.ub_dmatag = (void*)((char*)sc->sc.ioh + 0x10000); */
 
 	/* Enable the device. */
-	/* CHECKME: not needed ? */
+	/* not needed */
 
 	/* Map and establish the interrupt. */
 	if (sa->sa_nintr != 0) {
+		int ipl_pri = sbsc->sc_intr2ipl[sa->sa_pri];
 		sc->sc_ih = bus_intr_establish(sc->sc.iot, sa->sa_pri,
-					       IPL_NET, ohci_intr, sc); // checkme: interrupt priority
+					       ipl_pri, ohci_intr, sc);
 		if (sc->sc_ih == NULL) {
 			aprint_error_dev(self, "couldn't establish interrupt (%d)\n", sa->sa_nintr);
 		} else 
-			aprint_normal_dev(self, "interrupting at %d / %d / %d\n", sa->sa_nintr, sa->sa_pri, IPL_NET);
+			aprint_normal_dev(self, "interrupting at %d / %d / %d\n", sa->sa_nintr, sa->sa_pri, ipl_pri);
 	} else {
 		aprint_error_dev(self, "no interrupt defined in PROM\n");
 		goto fail;
