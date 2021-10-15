@@ -7,6 +7,7 @@ from sysconfig import get_platform
 from migen import *
 
 import cg3_fb
+import cg6_fb
 
 
 def get_header_map_stuff(gname, name, size, type="csr", reg=True):
@@ -75,6 +76,7 @@ def get_prom(soc,
              engine=False,
              i2c=False,
              cg3=False,
+             cg6=False,
              cg3_res=None):
     
     r = "fcode-version2\nfload prom_csr_{}.fth\n".format(version.replace(".", "_"))
@@ -97,7 +99,7 @@ def get_prom(soc,
     r += "  map-out-trng\n"
     r += ";\n"
     r += "disabletrng!\n"
-    if (usb or sdram or engine or i2c or cg3):
+    if (usb or sdram or engine or i2c or cg3 or cg6):
         r += "finish-device\nnew-device\n"
 
     if (usb):
@@ -117,14 +119,14 @@ def get_prom(soc,
         r += " map-out-usb_host_ctrl\n"
         r += ";\n"
         r += "my-reset!\n"
-        if (sdram or engine or i2c or cg3):
+        if (sdram or engine or i2c or cg3 or cg6):
             r += "finish-device\nnew-device\n"
         
     if (sdram):
         r += "\" RDOL,sdram\" device-name\n"
         r += get_header_map3_stuff("mregs", "ddrphy", "sdram", "exchange_with_mem", 4096, 4096, 4096)
         r += "fload sdram_init.fth\ninit!\n"
-        if (engine or i2c or cg3):
+        if (engine or i2c or cg3 or cg6):
             r += "finish-device\nnew-device\n"
         
     if (engine):
@@ -132,21 +134,24 @@ def get_prom(soc,
         r += ": sbusfpga_regionaddr_curve25519engine-microcode sbusfpga_regionaddr_curve25519engine ;\n"
         r += ": sbusfpga_regionaddr_curve25519engine-regfile sbusfpga_regionaddr_curve25519engine h# 10000 + ;\n"
         r += get_header_map3_stuff("curve25519engine", "curve25519engine-regs", "curve25519engine-microcode", "curve25519engine-regfile", 4096, 4096, 65536, type2="region", type3="region")
-        if (i2c or cg3):
+        if (i2c or cg3 or cg6):
             r += "finish-device\nnew-device\n"
         
     if (i2c):
         r += "\" RDOL,i2c\" device-name\n"
         r += get_header_map_stuff("i2c", "i2c", 64)
-        if (cg3):
+        if (cg3 or cg6):
             r += "finish-device\nnew-device\n"
         
-    if (cg3):
+    if (cg3 or cg6):
         hres = int(cg3_res.split("@")[0].split("x")[0])
         vres = int(cg3_res.split("@")[0].split("x")[1])
         hres_h=(f"{hres:x}").replace("0x", "")
         vres_h=(f"{vres:x}").replace("0x", "")
-        cg3_file = open("cg3.fth")
+        if (cg3):
+            cg3_file = open("cg3.fth")
+        else:
+            cg3_file = open("cg6.fth")
         cg3_lines = cg3_file.readlines()
         buf_size=cg3_fb.cg3_rounded_size(hres, vres)
         for line in cg3_lines:
@@ -154,10 +159,13 @@ def get_prom(soc,
         #r += "\" LITEX,fb\" device-name\n"
         #r += get_header_map2_stuff("cg3extraregs", "vid_fb", "vid_fb_vtg", 4096, 4096)
         #r += "fload fb_init.fth\nfb_init!\n"
-
         r += "\n"
-        r += get_header_map_stuff("cg3extraregs", "cg3", 4096, reg=False)
-        r += "fload cg3_init.fth\ncg3_init!\n"
+        if (cg3):
+            r += get_header_map_stuff("cg3extraregs", "cg3", 4096, reg=False)
+            r += "fload cg3_init.fth\ncg3_init!\n"
+        if (cg6):
+            r += get_header_map_stuff("cg6extraregs", "cg6", 4096, reg=False)
+            r += "fload cg6_init.fth\ncg6_init!\n"
         
     r += "end0\n"
 

@@ -1,4 +1,5 @@
 \ simplified version of the OpenBIOS cgthree code
+\ ... for the cg6
 
 : openbios-video-width
     h# SBUSFPGA_CG3_WIDTH
@@ -16,20 +17,20 @@
     h# SBUSFPGA_CG3_WIDTH
 ;
 
-h# sbusfpga_regionaddr_cg3_bt constant cg3-off-dac
-h# 20 constant /cg3-off-dac
+sbusfpga_regionaddr_cg6_bt constant cg6-off-dac
+h# 20 constant /cg6-off-dac
 
-h# 800000 constant cg3-off-fb
-h# SBUSFPGA_CG3_BUFSIZE constant /cg3-off-fb
+h# 800000 constant cg6-off-fb
+h# SBUSFPGA_CG3_BUFSIZE constant /cg6-off-fb
 
-: >cg3-reg-spec ( offset size -- encoded-reg )
+: >cg6-reg-spec ( offset size -- encoded-reg )
   >r 0 my-address d+ my-space encode-phys r> encode-int encode+
 ;
 
-: cg3-reg
-  \ A real cg3 rom appears to just map the entire region with a
+: cg6-reg
+  \ A real cg6 rom appears to just map the entire region with a
   \ single entry
-  h# 0 h# 1000000 >cg3-reg-spec
+  h# 0 h# 1000000 >cg6-reg-spec
   " reg" property
 ;
 
@@ -45,21 +46,21 @@ h# SBUSFPGA_CG3_BUFSIZE constant /cg3-off-fb
 \ DAC
 \
 
--1 value cg3-dac
+-1 value cg6-dac
 -1 value fb-addr
 
 : dac! ( data reg# -- )
-  cg3-dac + c!
+  cg6-dac + l!
 ;
 
 external
 
 : color!  ( r g b c# -- )
-  0 dac!       ( r g b )
+  h# 18 << 0 dac!       ( r g b )
   swap rot     ( b g r )
-  4 dac!       ( b g )
-  4 dac!       ( b )
-  4 dac!       (  )
+  h# 18 << 4 dac!       ( b g )
+  h# 18 << 4 dac!       ( b )
+  h# 18 << 4 dac!       (  )
 ;
 
 headerless
@@ -69,28 +70,33 @@ headerless
 \
 
 : dac-map
-  cg3-off-dac /cg3-off-dac do-map-in to cg3-dac
+  cg6-off-dac /cg6-off-dac do-map-in to cg6-dac
 ;
 
 : fb-map
-  cg3-off-fb /cg3-off-fb do-map-in to fb-addr
+  cg6-off-fb /cg6-off-fb do-map-in to fb-addr
 ;
 
 : map-regs
   dac-map fb-map
 ;
 
+fload fbc_init.fth
+
 \
 \ Installation
 \
 
-" cgthree" device-name
+" cgsix" device-name
 " display" device-type
 " RDOL,sbusfpga" model
 
-: qemu-cg3-driver-install ( -- )
-  cg3-dac -1 = if
+: qemu-cg6-driver-install ( -- )
+  cg6-dac -1 = if
     map-regs
+
+    map-in-fbc
+	init-fbc
 
     \ Initial pallette taken from Sun's "Writing FCode Programs"
     h# ff h# ff h# ff h# 0  color!    \ Background white
@@ -104,12 +110,22 @@ headerless
 
     openbios-video-width openbios-video-height over char-width / over char-height /
     fb8-install
+    ['] cg6-blink-screen      is blink-screen
+    ['] cg6-reset-screen      is reset-screen
+    ['] cg6-draw-char         is draw-character
+    ['] cg6-toggle-cursor     is toggle-cursor
+    ['] cg6-invert-screen     is invert-screen
+    ['] cg6-insert-characters is insert-characters
+    ['] cg6-delete-characters is delete-characters
+    ['] fbc-erase-screen      is erase-screen
+    ['] fbc-delete-lines      is delete-lines
+    ['] fbc-insert-lines      is insert-lines
   then
 ;
 
-: qemu-cg3-driver-init
+: qemu-cg6-driver-init
 
-  cg3-reg
+  cg6-reg
 
   openbios-video-height encode-int " height" property
   openbios-video-width encode-int " width" property
@@ -125,7 +141,9 @@ headerless
   " ISO8859-1" encode-string " character-set" property
   h# c encode-int " cursorshift" property
 
-  ['] qemu-cg3-driver-install is-install
+  h# SBUSFPGA_CG3_BUFSIZE encode-int " fbmapped" property
+
+  ['] qemu-cg6-driver-install is-install
 ;
 
-qemu-cg3-driver-init
+qemu-cg6-driver-init

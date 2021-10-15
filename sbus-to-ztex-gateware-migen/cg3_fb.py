@@ -32,7 +32,7 @@ def cg3_rounded_size(hres, vres):
 
 class VideoFrameBuffer256c(Module, AutoCSR):
     """Video FrameBuffer256c"""
-    def __init__(self, dram_port, upd_clut_fifo = None, hres=800, vres=600, base=0x00000000, fifo_depth=65536, clock_domain="sys", clock_faster_than_sys=False):
+    def __init__(self, dram_port, upd_clut_fifo = None, hres=800, vres=600, base=0x00000000, fifo_depth=65536, clock_domain="sys", clock_faster_than_sys=False, hwcursor=False, upd_overlay_fifo=False, upd_omap_fifo=False):
         clut = Array(Array(Signal(8, reset = (255-i)) for i in range(0, 256)) for j in range(0, 3))
 
         print(f"FRAMEBUFFER: dram_port.data_width = {dram_port.data_width}, {hres}x{vres}, 0x{base:x}, in {clock_domain}, clock_faster_than_sys={clock_faster_than_sys}")
@@ -46,8 +46,29 @@ class VideoFrameBuffer256c(Module, AutoCSR):
                upd_clut_fifo.re.eq(0),
             )
         ]
-        
-        self.vtg_sink  = vtg_sink = stream.Endpoint(video_timing_layout)
+
+        if (hwcursor):
+            self.vtg_sink  = vtg_sink = stream.Endpoint(video_timing_hwcursor_layout)
+            overlay = Array(Array(Array(Signal(1) for x in range(0,32)) for y in range(0,32)) for i in range(0, 2))
+            omap = Array(Array(Signal(8, reset = (255-i)) for i in range(0, 4)) for j in range(0, 3))
+            vga_sync += [
+                If(upd_overlay_fifo.readable,
+                    upd_overlay_fifo.re.eq(1),
+                    [ overlay[upd_overlay_fifo.dout[0]][upd_overlay_fifo.dout[1:6]][x].eq(upd_overlay_fifo.dout[6+x]) for x in range(0, 32)],
+                    ).Else(
+                        upd_overlay_fifo.re.eq(0),
+                    )
+            ]
+            vga_sync += [
+                If(upd_omap_fifo.readable,
+                   upd_omap_fifo.re.eq(1),
+                   omap[upd_omap_fifo.dout[0:2]][upd_omap_fifo.dout[2:4]].eq(upd_omap_fifo.dout[4:12]),
+                ).Else(
+                    upd_omap_fifo.re.eq(0),
+                )
+            ]
+        else:
+            self.vtg_sink  = vtg_sink = stream.Endpoint(video_timing_layout)
         self.source    = source   = stream.Endpoint(video_data_layout)
         self.underflow = Signal()
 
@@ -107,7 +128,11 @@ class VideoFrameBuffer256c(Module, AutoCSR):
                 vtg_sink.ready.eq(source.valid & source.ready),
             ),
             vtg_sink.connect(source, keep={"de", "hsync", "vsync"}),
-            If(vtg_sink.de,
+            If(vtg_sink.hwcursor & (overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx] | overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx]),
+               source.r.eq(omap[0][Cat(overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx], overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx])]),
+               source.g.eq(omap[0][Cat(overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx], overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx])]),
+               source.b.eq(omap[0][Cat(overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx], overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx])]),
+            ).Elif(vtg_sink.de,
                source.r.eq(clut[0][video_pipe_source.data]),
                source.g.eq(clut[1][video_pipe_source.data]),
                source.b.eq(clut[2][video_pipe_source.data])
@@ -197,9 +222,9 @@ class cg3(Module, AutoCSR):
         fbc_cursor_end = Signal(8) # 0x13 ?
         fbc_vcontrol = Array(Signal(8) for a in range(0, 3))
 
-        # current cmap logic for the CG3.
-        # the CG6 takes 32 bits write but only use the top 8 bits, for bt_addr & bt_cmap
-        # alto it uses the BT HW cursor (though probably not in the console?)
+        # current cmap logic for the CG3
+        # (the CG6 takes 32 bits write but only use the top 8 bits, for bt_addr & bt_cmap
+        #  also it uses the BT HW cursor (though probably not in the console?) )
 
         self.submodules.wishbone_fsm = wishbone_fsm = FSM(reset_state = "Reset")
         wishbone_fsm.act("Reset",
