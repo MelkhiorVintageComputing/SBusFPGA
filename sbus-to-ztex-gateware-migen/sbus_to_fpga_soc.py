@@ -460,7 +460,7 @@ class SBusFPGA(SoCCore):
                 self.bus.add_master(name="cg6_accel_r5_d", master=self.cg6_accel.dbus)
                 cg6_rom_file = "blit.raw"
                 cg6_rom_data = soc_core.get_mem_data(cg6_rom_file, "little")
-                self.add_ram("cg6_accel_rom", origin=self.mem_map["cg6_accel_rom"], size=2**12, contents=cg6_rom_data, mode="r")
+                self.add_ram("cg6_accel_rom", origin=self.mem_map["cg6_accel_rom"], size=2**13, contents=cg6_rom_data, mode="r")
                 self.add_ram("cg6_accel_ram", origin=self.mem_map["cg6_accel_ram"], size=2**12, mode="rw")
 
         print("IRQ to Device map:\n")

@@ -11,46 +11,47 @@ class CG6Accel(Module): # AutoCSR ?
         # for FBC and TEC - where we just ignore TEC
         self.bus = bus = wishbone.Interface()
         
-        
+        COORD_BITS=12
         fbc_config = Signal(32, reset = (0x60000000)) # bit 11-12 are for resolution, see the GX manual
         fbc_mode = Signal(32)
         fbc_clip = Signal(32)
         fbc_s = Signal(32)
         #fbc_font = Signal(32)
-        fbc_x = Array(Signal(32) for a in range(0, 4))
-        fbc_y = Array(Signal(32) for a in range(0, 4))
-        fbc_offx = Signal(32)
-        fbc_offy = Signal(32)
-        fbc_incx = Signal(32)
-        fbc_incy = Signal(32)
-        fbc_clipminx = Signal(32)
-        fbc_clipminy = Signal(32)
-        fbc_clipmaxx = Signal(32)
-        fbc_clipmaxy = Signal(32)
-        fbc_fg = Signal(32)
-        fbc_bg = Signal(32)
+        fbc_x = Array(Signal(COORD_BITS) for a in range(0, 4))
+        fbc_y = Array(Signal(COORD_BITS) for a in range(0, 4))
+        fbc_offx = Signal(COORD_BITS)
+        fbc_offy = Signal(COORD_BITS)
+        fbc_incx = Signal(COORD_BITS)
+        fbc_incy = Signal(COORD_BITS)
+        fbc_clipminx = Signal(COORD_BITS)
+        fbc_clipminy = Signal(COORD_BITS)
+        fbc_clipmaxx = Signal(COORD_BITS)
+        fbc_clipmaxy = Signal(COORD_BITS)
+        fbc_fg = Signal(8)
+        fbc_bg = Signal(8)
         fbc_alu = Signal(32)
-        fbc_arectx = Signal(32)
-        fbc_arecty = Signal(32)
+        fbc_pm = Signal(8)
+        fbc_arectx = Signal(COORD_BITS)
+        fbc_arecty = Signal(COORD_BITS)
         
         # extra stuff for compatibility
-        fbc_arectx_prev = Signal(32) # after fbc_arecty (600) - R/O
-        fbc_arecty_prev = Signal(32) # after fbc_arectx_prev (601) - R/O
+        fbc_arectx_prev = Signal(COORD_BITS) # after fbc_arecty (600) - R/O
+        fbc_arecty_prev = Signal(COORD_BITS) # after fbc_arectx_prev (601) - R/O
         fbc_r5_cmd = Signal(32) # to communicate with Vex (602)
         fbc_r5_status = Array(Signal(32) for a in range(0, 4))
         fbc_next_font = Signal(32)
-        fbc_next_x0 = Signal(12)
-        fbc_next_x1 = Signal(12)
-        fbc_next_y0 = Signal(12)
+        fbc_next_x0 = Signal(COORD_BITS)
+        fbc_next_x1 = Signal(COORD_BITS)
+        fbc_next_y0 = Signal(COORD_BITS)
 
         fbc_do_draw = Signal()
         fbc_do_blit = Signal()
         
         font_layout = [
             ("font", 32),
-            ("x0", 12),
-            ("x1", 12),
-            ("y0", 12),
+            ("x0", COORD_BITS),
+            ("x1", COORD_BITS),
+            ("y0", COORD_BITS),
         ]
         # depth is because the current 'font' is a bit slow, so we need to buffer a lot...
         self.submodules.fbc_fifo_font = SyncFIFOBuffered(width=layout_len(font_layout),depth=1024)
@@ -78,9 +79,9 @@ class CG6Accel(Module): # AutoCSR ?
                                 # 6: fbc_blit R/O 
                                 7: [ self.fbc_fifo_font.we.eq(1),
                                      fbc_fifo_font_in.font.eq(bus.dat_w),
-                                     fbc_fifo_font_in.x0.eq(fbc_x[0][0:12]),
-                                     fbc_fifo_font_in.x1.eq(fbc_x[1][0:12]),
-                                     fbc_fifo_font_in.y0.eq(fbc_y[0][0:12]),
+                                     fbc_fifo_font_in.x0.eq(fbc_x[0]),
+                                     fbc_fifo_font_in.x1.eq(fbc_x[1]),
+                                     fbc_fifo_font_in.y0.eq(fbc_y[0]),
                                      NextValue(fbc_x[0], fbc_x[0] + fbc_incx),
                                      NextValue(fbc_x[1], fbc_x[1] + fbc_incx),
                                      NextValue(fbc_y[0], fbc_y[0] + fbc_incy),
@@ -113,7 +114,7 @@ class CG6Accel(Module): # AutoCSR ?
                                 64: [ NextValue(fbc_fg, bus.dat_w) ],
                                 65: [ NextValue(fbc_bg, bus.dat_w) ],
                                 66: [ NextValue(fbc_alu, bus.dat_w) ],
-                                # 67: planemask reg
+                                67: [ NextValue(fbc_pm, bus.dat_w) ], # 67: planemask reg
                                 # 68: pixelmask reg
                                 # 69-70: <nothing>
                                 # 71: pattalign reg
@@ -131,10 +132,10 @@ class CG6Accel(Module): # AutoCSR ?
                                 # 579: <nothing>
                                 # 580-582: fbc_relrect[xyz] -> update absolute
                                 580: [ NextValue(fbc_arectx_prev, fbc_arectx),
-                                       NextValue(fbc_arectx, fbc_arectx + bus.dat_w),
+                                       NextValue(fbc_arectx, fbc_arectx + bus.dat_w[0:COORD_BITS]),
                                 ],
                                 581: [ NextValue(fbc_arecty_prev, fbc_arecty),
-                                       NextValue(fbc_arecty, fbc_arecty + bus.dat_w),
+                                       NextValue(fbc_arecty, fbc_arecty + bus.dat_w[0:COORD_BITS]),
                                 ],
                                 # 600-601: fbc_arect[xy]next, not directly writable
                                 602: [ NextValue(fbc_r5_cmd, bus.dat_w) ],
@@ -185,7 +186,8 @@ class CG6Accel(Module): # AutoCSR ?
                                         # 62-63: pad10
                                         64: [ NextValue(bus.dat_r, fbc_fg) ], # 0x100
                                         65: [ NextValue(bus.dat_r, fbc_bg) ], # 0x104
-                                        66: [ NextValue(bus.dat_r, fbc_alu) ],
+                                        66: [ NextValue(bus.dat_r, fbc_alu) ], # 0x108
+                                        67: [ NextValue(bus.dat_r, fbc_pm) ], # 0x10c
                                         576: [ NextValue(bus.dat_r, fbc_arectx),
                                               ],
                                         577: [ NextValue(bus.dat_r, fbc_arecty),
@@ -207,11 +209,11 @@ class CG6Accel(Module): # AutoCSR ?
                                               ],
                                         608: [ NextValue(bus.dat_r, fbc_next_font),
                                               ],
-                                        609: [ NextValue(bus.dat_r, Cat(fbc_next_x0, Signal(20, reset = 0))),
+                                        609: [ NextValue(bus.dat_r, fbc_next_x0),
                                               ],
-                                        610: [ NextValue(bus.dat_r, Cat(fbc_next_x1, Signal(20, reset = 0))),
+                                        610: [ NextValue(bus.dat_r, fbc_next_x1),
                                               ],
-                                        611: [ NextValue(bus.dat_r, Cat(fbc_next_y0, Signal(20, reset = 0))),
+                                        611: [ NextValue(bus.dat_r, fbc_next_y0),
                                               ],
                                         }),
                                    NextValue(bus.ack, 1),
@@ -240,8 +242,10 @@ class CG6Accel(Module): # AutoCSR ?
         #timeout_rst = 0xFFFFFFF
         #timeout = Signal(28, reset = timeout_rst)
 
-        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        #self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset);
+        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset);
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_r5_cmd[1]); # blitting
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_pm != 0); # planemasking
         
         self.sync += [
             self.fbc_fifo_font.re.eq(0),

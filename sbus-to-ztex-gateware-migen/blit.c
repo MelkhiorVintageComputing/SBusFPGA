@@ -311,7 +311,7 @@ struct control_blitter {
 /* the FBC, mapped at BASE_FDC */
 struct cg6_fbc {
 	u_int32_t fbc_config;		/* r/o CONFIG register */
-	u_int32_t fbc_mode;	/* mode setting */
+	volatile u_int32_t fbc_mode;	/* mode setting */
 	u_int32_t fbc_clip;		/* TEC clip check */
 	u_int32_t fbc_pad2[1];
 	u_int32_t fbc_s;		/* global status */
@@ -345,8 +345,9 @@ struct cg6_fbc {
 	u_int32_t fbc_pad10[2];
 	u_int32_t fbc_fg;		/* fg value for rop */
 	u_int32_t fbc_bg;
-	u_int32_t fbc_alu;		/* operation to be performed */
-	u_int32_t fbc_pad12[509];
+	volatile u_int32_t fbc_alu;		/* operation to be performed */
+	u_int32_t fbc_pm;       /* planemask */
+	u_int32_t fbc_pad12[508];
 	u_int32_t fbc_arectx;		/* rectangle drawing, x coord */
 	u_int32_t fbc_arecty;		/* rectangle drawing, y coord */
 	/* actually much more, but nothing more we need */
@@ -373,24 +374,45 @@ static inline void flush_cache(void) {
 
 typedef unsigned int unsigned_param_type;
 
-void rectfill(unsigned_param_type xd,
-			  unsigned_param_type yd,
-			  unsigned_param_type wi,
-			  unsigned_param_type re,
-			  unsigned_param_type color
+static void rectfill(const unsigned_param_type xd,
+			  const unsigned_param_type yd,
+			  const unsigned_param_type wi,
+			  const unsigned_param_type re,
+			  const unsigned_param_type color
 			  );
-void invert(unsigned_param_type xd,
-			unsigned_param_type yd,
-			unsigned_param_type wi,
-			unsigned_param_type re
+static void rectfill_pm(const unsigned_param_type xd,
+				 const unsigned_param_type yd,
+				 const unsigned_param_type wi,
+				 const unsigned_param_type re,
+				 const unsigned_param_type color,
+				 const unsigned char pm
+			  );
+static void xorrectfill(const unsigned_param_type xd,
+						const unsigned_param_type yd,
+						const unsigned_param_type wi,
+						const unsigned_param_type re,
+						const unsigned_param_type color
+						);
+static void xorrectfill_pm(const unsigned_param_type xd,
+						const unsigned_param_type yd,
+						const unsigned_param_type wi,
+						const unsigned_param_type re,
+						const unsigned_param_type color,
+						const unsigned char pm
+						);
+static void invert(const unsigned_param_type xd,
+			const unsigned_param_type yd,
+			const unsigned_param_type wi,
+			const unsigned_param_type re
 			);
-void bitblit(unsigned_param_type xs,
-			 unsigned_param_type ys,
-			 unsigned_param_type wi,
-			 unsigned_param_type re,
-			 unsigned_param_type xd,
-			 unsigned_param_type yd,
-			 unsigned char gxop
+static void bitblit(const unsigned_param_type xs,
+			 const unsigned_param_type ys,
+			 const unsigned_param_type wi,
+			 const unsigned_param_type re,
+			 const unsigned_param_type xd,
+			 const unsigned_param_type yd,
+			 const unsigned char pm,
+			 const unsigned char gxop
 			 );
 
 asm(".global _start\n"
@@ -402,7 +424,7 @@ asm(".global _start\n"
 	//"slli a0,a0,12\n" // 0x00001000, BASE_RAM_SIZE
 	//"add sp,sp,a0\n" // SP at the end of the SRAM
 	"nop\n"
-	"li sp, 0x00420ffc\n" // SP at the end of the SRAM - normally unused
+	"li sp, 0x00420ffc\n" // SP at the end of the SRAM
 	//"li a0, 0x00700968\n" // @ of r5_cmd
 	//"li a1, 0x00C0FFEE\n"
 	//"sw a1, 0(a0)\n"
@@ -434,38 +456,43 @@ asm(".global _start\n"
 void from_reset(void) {
 	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
 	unsigned int cmd = fbc->fbc_r5_cmd;
-
-	// we don't want stale data from the previous run
-	// (write are write-through so we should be OK on that aspect)
-	// maybe should be at the end to save time ?
-	// moved to _start
-	// flush_cache();
+	unsigned int alu = fbc->fbc_alu;
+	unsigned int mode = fbc->fbc_mode;
+	unsigned int use_planemask = ((alu & GX_PLANE_MASK) == GX_PLANE_MASK) ? 1 : 0;
 
 	switch (cmd & 0xF) {
 	case FUN_DRAW: {
-		switch (fbc->fbc_alu) {
+		switch (alu) {
 		case CG6_ALU_FILL:  // ____ff00 console
 		case CG6_ALU_COPY:  // ____cccc equivalent to fill if patterns == 1 (... which is the case with GX_PATTERN_ONES)
-		case ROP_FILL(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Draw/GXcopy in X11 FIXME: planemask ?
-			// //case ROP_FILL(GX_ROP_SET,  GX_ROP_SET): // ____ffff Draw/GXset in X11 FIXME: planemask ?
-		case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // ____cccc Blit/GXcopy in X11 FIXME: planemask ?
+		case ROP_FILL(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Draw/GXcopy in X11
+			// //case ROP_FILL(GX_ROP_SET,  GX_ROP_SET): // ____ffff Draw/GXset in X11
+		case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // ____cccc Blit/GXcopy in X11
 			{
-				switch (fbc->fbc_mode) {
+				switch (mode) {
 				case (GX_BLIT_SRC | GX_MODE_COLOR8): // console: rectfill & clearscreen
-				case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0): // X11 FIXME:planemask?
-					rectfill(fbc->fbc_arectx_prev,
-							 fbc->fbc_arecty_prev,
-							 1 + fbc->fbc_arectx - fbc->fbc_arectx_prev,
-							 1 + fbc->fbc_arecty - fbc->fbc_arecty_prev,
-							 fbc->fbc_fg);
+				case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0):
+					if (use_planemask)
+						rectfill_pm(fbc->fbc_arectx_prev,
+									fbc->fbc_arecty_prev,
+									1 + fbc->fbc_arectx - fbc->fbc_arectx_prev,
+									1 + fbc->fbc_arecty - fbc->fbc_arecty_prev,
+									fbc->fbc_fg,
+									fbc->fbc_pm);
+					else
+						rectfill(fbc->fbc_arectx_prev,
+								 fbc->fbc_arecty_prev,
+								 1 + fbc->fbc_arectx - fbc->fbc_arectx_prev,
+								 1 + fbc->fbc_arecty - fbc->fbc_arecty_prev,
+								 fbc->fbc_fg);
 					break;
 				default:
-					SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+					SHOW_PC_2VAL(alu, mode);
 					break;
 				}
 			} break;
-		case CG6_ALU_FLIP: { // console
-			switch (fbc->fbc_mode)
+		case CG6_ALU_FLIP: { // ____5555 console
+			switch (mode)
 				{
 				case (GX_BLIT_SRC | GX_MODE_COLOR8): // invert
 					invert(fbc->fbc_arectx_prev,
@@ -474,109 +501,133 @@ void from_reset(void) {
 						   1 + fbc->fbc_arecty - fbc->fbc_arecty_prev);
 					break;
 				default:
-					SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+					SHOW_PC_2VAL(alu, mode);
+					break;
+				}
+		} break;
+		case ROP_FILL(GX_ROP_NOOP,  GX_ROP_INVERT): { // ____55aa Draw/GXxor in X11
+			switch (mode)
+				{
+				case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0):
+					if (use_planemask)
+						xorrectfill_pm(fbc->fbc_arectx_prev,
+									fbc->fbc_arecty_prev,
+									1 + fbc->fbc_arectx - fbc->fbc_arectx_prev,
+									1 + fbc->fbc_arecty - fbc->fbc_arecty_prev,
+									fbc->fbc_fg,
+									fbc->fbc_pm);
+					else
+						xorrectfill(fbc->fbc_arectx_prev,
+									fbc->fbc_arecty_prev,
+									1 + fbc->fbc_arectx - fbc->fbc_arectx_prev,
+									1 + fbc->fbc_arecty - fbc->fbc_arecty_prev,
+									fbc->fbc_fg);
+						
+					break;
+				default:
+					SHOW_PC_2VAL(alu, mode);
 					break;
 				}
 		} break;
 		default:
-			SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+			SHOW_PC_2VAL(alu, mode);
 			break;
 		}
 	} break;
 	case FUN_BLIT: {
-		switch (fbc->fbc_alu)
+		switch (alu)
 			{
-			case CG6_ALU_COPY: // console
-			case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // Blit/GXcopy in X11
-			case ROP_BLIT(GX_ROP_SET,  GX_ROP_SET): // Blit/GXset in X11 FIXME: correct or not ?
+			case CG6_ALU_COPY: // ____cccc console
+			case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Blit/GXcopy in X11
 				{
-					switch (fbc->fbc_mode) {
+					switch (mode) {
 					case (GX_BLIT_SRC | GX_MODE_COLOR8): // console
 					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0): // X11 FIXME:planemask?
 						{
-							unsigned_param_type xs = fbc->fbc_x0;
-							unsigned_param_type ys = fbc->fbc_y0;
-							unsigned_param_type wi = fbc->fbc_x1 - xs + 1;
-							unsigned_param_type re = fbc->fbc_y1 - ys + 1;
-							unsigned_param_type xd = fbc->fbc_x2;
-							unsigned_param_type yd = fbc->fbc_y2;
-							unsigned_param_type wi_dup = fbc->fbc_x3 - xd + 1;
-							unsigned_param_type re_dup = fbc->fbc_y3 - yd + 1;
-#if 0
-							int do_blit = 1;
-							if (wi_dup != wi)
-								do_blit = 0;
-							if (re_dup != re)
-								do_blit = 0;
-					
-							if (xs > HRES)
-								do_blit = 0;
-							if (ys > VRES)
-								do_blit = 0;
-							if (xd > HRES)
-								do_blit = 0;
-							if (yd > VRES)
-								do_blit = 0;
-					
-							if (wi > HRES)
-								do_blit = 0;
-							if (re > VRES)
-								do_blit = 0;
-					
-							if ((xs+wi) > HRES)
-								do_blit = 0;
-							if ((ys+re) > VRES)
-								do_blit = 0;
-							if ((xd+wi) > HRES)
-								do_blit = 0;
-							if ((yd+re) > VRES)
-								do_blit = 0;
-							if (do_blit)
-#endif
-								bitblit(xs, ys, wi, re, xd, yd, 0x3); // GXcopy
+							const unsigned_param_type xs = fbc->fbc_x0;
+							const unsigned_param_type ys = fbc->fbc_y0;
+							const unsigned_param_type wi = fbc->fbc_x1 - xs + 1;
+							const unsigned_param_type re = fbc->fbc_y1 - ys + 1;
+							const unsigned_param_type xd = fbc->fbc_x2;
+							const unsigned_param_type yd = fbc->fbc_y2;
+							const unsigned_param_type wi_dup = fbc->fbc_x3 - xd + 1;
+							const unsigned_param_type re_dup = fbc->fbc_y3 - yd + 1;
+							if (use_planemask)
+								bitblit(xs, ys, wi, re, xd, yd, fbc->fbc_pm, 0x3); // GXcopy
+							else
+								bitblit(xs, ys, wi, re, xd, yd, 0xFF, 0x3); // GXcopy
 						}
 						break;
 					default:
-						SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+						SHOW_PC_2VAL(alu, mode);
 						break;
 					}	  
 				} break;
-			case ROP_BLIT(GX_ROP_NOOP,  GX_ROP_INVERT): // Blit/GXxor in X11
+			case ROP_BLIT(GX_ROP_SET,  GX_ROP_SET): // ____ffff Blit/GXset in X11
 				{
-					switch (fbc->fbc_mode) {
+					switch (mode) {
+					case (GX_BLIT_SRC | GX_MODE_COLOR8): // console
+					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0):
+						{
+							const unsigned_param_type xs = fbc->fbc_x0;
+							const unsigned_param_type ys = fbc->fbc_y0;
+							const unsigned_param_type wi = fbc->fbc_x1 - xs + 1;
+							const unsigned_param_type re = fbc->fbc_y1 - ys + 1;
+							const unsigned_param_type xd = fbc->fbc_x2;
+							const unsigned_param_type yd = fbc->fbc_y2;
+							const unsigned_param_type wi_dup = fbc->fbc_x3 - xd + 1;
+							const unsigned_param_type re_dup = fbc->fbc_y3 - yd + 1;
+							if (use_planemask)
+								rectfill_pm(xd, yd, wi, re, 0xff, fbc->fbc_pm); // GXset doesn't need the source ???
+							else
+								rectfill(xd, yd, wi, re, 0xff); // GXset doesn't need the source ???
+						}
+						break;
+					default:
+						SHOW_PC_2VAL(alu, mode);
+						break;
+					}	  
+				} break;
+			case ROP_BLIT(GX_ROP_NOOP,  GX_ROP_INVERT): // ____6666 Blit/GXxor in X11
+				{
+					switch (mode) {
 					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0): // X11 FIXME:planemask?
 						{
-							unsigned_param_type xs = fbc->fbc_x0;
-							unsigned_param_type ys = fbc->fbc_y0;
-							unsigned_param_type wi = fbc->fbc_x1 - xs + 1;
-							unsigned_param_type re = fbc->fbc_y1 - ys + 1;
-							unsigned_param_type xd = fbc->fbc_x2;
-							unsigned_param_type yd = fbc->fbc_y2;
-							unsigned_param_type wi_dup = fbc->fbc_x3 - xd + 1;
-							unsigned_param_type re_dup = fbc->fbc_y3 - yd + 1;
-							bitblit(xs, ys, wi, re, xd, yd, 0x6); // GXor
+							const unsigned_param_type xs = fbc->fbc_x0;
+							const unsigned_param_type ys = fbc->fbc_y0;
+							const unsigned_param_type wi = fbc->fbc_x1 - xs + 1;
+							const unsigned_param_type re = fbc->fbc_y1 - ys + 1;
+							const unsigned_param_type xd = fbc->fbc_x2;
+							const unsigned_param_type yd = fbc->fbc_y2;
+							const unsigned_param_type wi_dup = fbc->fbc_x3 - xd + 1;
+							const unsigned_param_type re_dup = fbc->fbc_y3 - yd + 1;
+							if (use_planemask)
+								bitblit(xs, ys, wi, re, xd, yd, fbc->fbc_pm, 0x6); // GXor
+							else
+								bitblit(xs, ys, wi, re, xd, yd, 0xFF, 0x6); // GXor
 						}
 						break;
 					
 					default:
-						SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+						SHOW_PC_2VAL(alu, mode);
 						break;
 					}
 				} break;
 			default:
-				SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+				SHOW_PC_2VAL(alu, mode);
 				break;
 			}
 	} break;
 	case FUN_FONT:
 		{
-			switch (fbc->fbc_alu)
+			switch (alu)
 				{
-				case CG6_ALU_COPY: { // console
-					case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // Blit/GXcopy in X11
-						switch (fbc->fbc_mode) {
+				case CG6_ALU_COPY: // console
+				case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // Blit/GXcopy in X11
+					{
+						switch (mode) {
 						case (GX_BLIT_NOSRC | GX_MODE_COLOR8): // console
-						case (GX_BLIT_NOSRC | GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0): // X11 FIXME:planemask?
+						case (GX_BLIT_NOSRC | GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0):
 							//case (GX_BLIT_SRC | GX_MODE_COLOR8): // what is SRC then?
 							{
 								// cgsix_putchar_aa
@@ -598,12 +649,19 @@ void from_reset(void) {
 									const unsigned int xoff = xds - xdsr;
 									if ((xde >= xds) && (xoff<we)) {
 										unsigned int bits = fbc->fbc_next_font;
+#if 1
+										unsigned int rbits;
+										asm("rev8 %0, %1\n" : "=r"(rbits) : "r"(bits));
+#endif
 										unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xdsr);
 										for (unsigned i = xoff ; i < we ; i++) {
+#if 0
 											unsigned char data = (bits >> (((we-1)-i) * 8)) & 0xFF;
-											//if (((dptr + i) >= ((unsigned char *)BASE_FB)) &&
-											//    ((dptr + i) <  ((1048576*2)+(unsigned char *)BASE_FB)))
 											dptr[i] = data;
+#else
+											dptr[i] = (unsigned char)rbits;
+											rbits >>= 8;
+#endif
 										}
 									}
 									cmd = (FUN_FONT_NEXT_REQ | FUN_FONT);
@@ -612,13 +670,13 @@ void from_reset(void) {
 							}
 							break;
 						default:
-							SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+							SHOW_PC_2VAL(alu, mode);
 							break;
 						}	  
-				} break;
+					} break;
 				case (GX_PATTERN_ONES | ROP_OSTP(GX_ROP_CLEAR, GX_ROP_SET)): // console, also X11 OpaqueStipple/GXcopy FIXME:planemask?
 					{
-						switch (fbc->fbc_mode) {
+						switch (mode) {
 						case (GX_BLIT_NOSRC | GX_MODE_COLOR1):
 							{
 								const unsigned int xdsm = fbc->fbc_clipminx;
@@ -643,7 +701,13 @@ void from_reset(void) {
 										unsigned int bits = fbc->fbc_next_font << xoff;
 										unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xdsr);
 										for (unsigned i = xoff ; i < we ; i++) {
+#if 0
 											if (bits & 0x80000000) dptr[i] = fg8; else dptr[i] = bg8;
+#else
+											unsigned char data;
+											asm("cmov %0, %1, %2, %3\n" : "=r"(data) : "r"(bits&0x80000000), "r"(fg8), "r"(bg8));
+											dptr[i] = data;
+#endif
 											bits <<= 1;
 										}
 									}
@@ -653,13 +717,13 @@ void from_reset(void) {
 							}
 							break;
 						default:
-							SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+							SHOW_PC_2VAL(alu, mode);
 							break;
 						}	  
 					} break;
 				case (GX_PATTERN_ONES | ROP_STIP(GX_ROP_CLEAR, GX_ROP_SET)): // X11 Stipple/GXcopy (not used in console) FIXME:planemask?
 					{
-						switch (fbc->fbc_mode)
+						switch (mode)
 							{
 							case (GX_BLIT_NOSRC | GX_MODE_COLOR1):
 								{
@@ -695,12 +759,12 @@ void from_reset(void) {
 								}
 								break;
 							default:
-								SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+								SHOW_PC_2VAL(alu, mode);
 								break;
 							}	  
 					} break;
 				default:
-					SHOW_PC_2VAL(fbc->fbc_alu, fbc->fbc_mode);
+					SHOW_PC_2VAL(alu, mode);
 					break;
 				}
 		} break;
@@ -719,68 +783,77 @@ void from_reset(void) {
 	goto done;
 }
 
-#define bitblit_proto_int(a, b, suf) \
-		void bitblit##a##b##suf(unsigned_param_type xs,					\
-								unsigned_param_type ys,					\
-								unsigned_param_type wi,					\
-								unsigned_param_type re,					\
-								unsigned_param_type xd,					\
-								unsigned_param_type yd					\
-								);
-#define bitblit_proto(suf) \
-		bitblit_proto_int(_fwd, _fwd, suf)	\
-		bitblit_proto_int(_bwd, _fwd, suf)	\
-		bitblit_proto_int(_fwd, _bwd, suf)	\
-		bitblit_proto_int(_bwd, _bwd, suf)
+#define bitblit_proto_int(a, b, suf)									\
+	static void bitblit##a##b##suf(const unsigned_param_type xs,				\
+							const unsigned_param_type ys,				\
+							const unsigned_param_type wi,				\
+							const unsigned_param_type re,				\
+							const unsigned_param_type xd,				\
+							const unsigned_param_type yd,				\
+							const unsigned char pm						\
+							)
+#define bitblit_proto(suf)						\
+	bitblit_proto_int(_fwd, _fwd, suf);			\
+	bitblit_proto_int(_bwd, _fwd, suf);			\
+	bitblit_proto_int(_fwd, _bwd, suf)
+//	bitblit_proto_int(_bwd, _bwd, suf);
 
-bitblit_proto(_copy)
-bitblit_proto(_xor)
+bitblit_proto(_copy);
+bitblit_proto(_xor);
+bitblit_proto(_copy_pm);
+bitblit_proto(_xor_pm);
 
-void bitblit(unsigned_param_type xs,
-			 unsigned_param_type ys,
-			 unsigned_param_type wi,
-			 unsigned_param_type re,
-			 unsigned_param_type xd,
-			 unsigned_param_type yd,
-			 unsigned char gxop
+
+#define ROUTE_BITBLIT_PM(pm, bb)					\
+	if (pm == 0xFF) bb(xs, ys, wi, re, xd, yd, pm); \
+	else bb##_pm(xs, ys, wi, re, xd, yd, pm)
+
+static void bitblit(const unsigned_param_type xs,
+			 const unsigned_param_type ys,
+			 const unsigned_param_type wi,
+			 const unsigned_param_type re,
+			 const unsigned_param_type xd,
+			 const unsigned_param_type yd,
+			 const unsigned char pm,
+			 const unsigned char gxop
 			 ) {
 	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
 	
 	if (ys > yd) {
 		switch(gxop) {
 		case 0x3: // GXcopy
-			bitblit_fwd_fwd_copy(xs, ys, wi, re, xd, yd);
+			ROUTE_BITBLIT_PM(pm, bitblit_fwd_fwd_copy);
 			break;
 		case 0x6: // GXxor
-			bitblit_fwd_fwd_xor(xs, ys, wi, re, xd, yd);
+			ROUTE_BITBLIT_PM(pm, bitblit_fwd_fwd_xor);
 			break;
 		}
 	} else if (ys < yd) {
 		switch(gxop) {
 		case 0x3: // GXcopy
-			bitblit_bwd_fwd_copy(xs, ys, wi, re, xd, yd);
+			ROUTE_BITBLIT_PM(pm, bitblit_bwd_fwd_copy);
 			break;
 		case 0x6: // GXxor
-			bitblit_bwd_fwd_xor(xs, ys, wi, re, xd, yd);
+			ROUTE_BITBLIT_PM(pm, bitblit_bwd_fwd_xor);
 			break;
 		}
 	} else { // ys == yd
 		if (xs > xd) {
 			switch(gxop) {
 			case 0x3: // GXcopy
-				bitblit_fwd_fwd_copy(xs, ys, wi, re, xd, yd);
+				ROUTE_BITBLIT_PM(pm, bitblit_fwd_fwd_copy);
 				break;
 			case 0x6: // GXxor
-				bitblit_fwd_fwd_xor(xs, ys, wi, re, xd, yd);
+				ROUTE_BITBLIT_PM(pm, bitblit_fwd_fwd_xor);
 				break;
 			}
 		} else if (xs < xd) {
 			switch(gxop) {
 			case 0x3: // GXcopy
-				bitblit_fwd_bwd_copy(xs, ys, wi, re, xd, yd);
+				ROUTE_BITBLIT_PM(pm, bitblit_fwd_bwd_copy);
 				break;
 			case 0x6: // GXxor
-				bitblit_fwd_bwd_xor(xs, ys, wi, re, xd, yd);
+				ROUTE_BITBLIT_PM(pm, bitblit_fwd_bwd_xor);
 				break;
 			}
 		} else { // xs == xd
@@ -789,7 +862,7 @@ void bitblit(unsigned_param_type xs,
 				/* don't bother */
 				break;
 			case 0x6:  // GXxor
-				rectfill(xd, yd, wi, re, 0);
+				rectfill(xd, yd, wi, re, 0); // FIXME: pixelmask
 				break;
 			}
 		}
@@ -797,11 +870,11 @@ void bitblit(unsigned_param_type xs,
  }
 
 
-void rectfill(unsigned_param_type xd,
-			  unsigned_param_type yd,
-			  unsigned_param_type wi,
-			  unsigned_param_type re,
-			  unsigned_param_type color
+static void rectfill(const unsigned_param_type xd,
+			  const unsigned_param_type yd,
+			  const unsigned_param_type wi,
+			  const unsigned_param_type re,
+			  const unsigned_param_type color
 			  ) {
 	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
 	unsigned int i, j;
@@ -827,10 +900,104 @@ void rectfill(unsigned_param_type xd,
 	}
 }
 
-void invert(unsigned_param_type xd,
-			unsigned_param_type yd,
-			unsigned_param_type wi,
-			unsigned_param_type re
+static void rectfill_pm(const unsigned_param_type xd,
+				 const unsigned_param_type yd,
+				 const unsigned_param_type wi,
+				 const unsigned_param_type re,
+				 const unsigned_param_type color,
+				 const unsigned char pm
+			  ) {
+	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
+	unsigned int i, j;
+	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
+	unsigned char *dptr_line = dptr;
+	unsigned char u8color = color;
+
+	for (j = 0 ; j < re ; j++) {
+		unsigned char *dptr_elt = dptr_line;
+		i = 0;
+		if ((xd & 0x3) == 0) {
+			unsigned int u32color = (unsigned int)u8color | ((unsigned int)u8color)<<8 | ((unsigned int)u8color)<<16 | ((unsigned int)u8color)<<24;
+			unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24;
+			for ( ; i < (wi&(~3)) ; i+=4) {
+				*(unsigned int*)dptr_elt = (u32color & u32pm) | (*(unsigned int*)dptr_elt & ~u32pm);
+				dptr_elt +=4;
+			}
+		}
+		for ( ; i < wi ; i++) {
+			*dptr_elt = (u8color & pm) | (*dptr_elt & ~pm);
+			dptr_elt ++;
+		}
+		dptr_line += HRES;
+	}
+}
+
+
+static void xorrectfill(const unsigned_param_type xd,
+			  const unsigned_param_type yd,
+			  const unsigned_param_type wi,
+			  const unsigned_param_type re,
+			  const unsigned_param_type color
+			  ) {
+	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
+	unsigned int i, j;
+	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
+	unsigned char *dptr_line = dptr;
+	unsigned char u8color = color & 0xFF;
+
+	for (j = 0 ; j < re ; j++) {
+		unsigned char *dptr_elt = dptr_line;
+		i = 0;
+		if ((xd & 0x3) == 0) {
+			unsigned int u32color = (unsigned int)u8color | ((unsigned int)u8color)<<8 | ((unsigned int)u8color)<<16 | ((unsigned int)u8color)<<24;
+			for ( ; i < (wi&(~3)) ; i+=4) {
+				*(unsigned int*)dptr_elt ^= u32color;
+				dptr_elt +=4;
+			}
+		}
+		for ( ; i < wi ; i++) {
+			*dptr_elt ^= u8color;
+			dptr_elt ++;
+		}
+		dptr_line += HRES;
+	}
+}
+static void xorrectfill_pm(const unsigned_param_type xd,
+				 const unsigned_param_type yd,
+				 const unsigned_param_type wi,
+				 const unsigned_param_type re,
+				 const unsigned_param_type color,
+				 const unsigned char pm
+			  ) {
+	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
+	unsigned int i, j;
+	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
+	unsigned char *dptr_line = dptr;
+	unsigned char u8color = color;
+
+	for (j = 0 ; j < re ; j++) {
+		unsigned char *dptr_elt = dptr_line;
+		i = 0;
+		if ((xd & 0x3) == 0) {
+			unsigned int u32color = (unsigned int)u8color | ((unsigned int)u8color)<<8 | ((unsigned int)u8color)<<16 | ((unsigned int)u8color)<<24;
+			unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24;
+			for ( ; i < (wi&(~3)) ; i+=4) {
+				*(unsigned int*)dptr_elt ^= (u32color & u32pm);
+				dptr_elt +=4;
+			}
+		}
+		for ( ; i < wi ; i++) {
+			*dptr_elt ^= (u8color & pm);
+			dptr_elt ++;
+		}
+		dptr_line += HRES;
+	}
+}
+
+static void invert(const unsigned_param_type xd,
+			const unsigned_param_type yd,
+			const unsigned_param_type wi,
+			const unsigned_param_type re
 			) {
 	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
 	unsigned int i, j;
@@ -855,247 +1022,155 @@ void invert(unsigned_param_type xd,
 }
 
 
-void bitblit_fwd_fwd_copy(unsigned_param_type xs,
-						  unsigned_param_type ys,
-						  unsigned_param_type wi,
-						  unsigned_param_type re,
-						  unsigned_param_type xd,
-						  unsigned_param_type yd
-						  ) {
-	unsigned int i, j;
-	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);
-	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
-	unsigned char *sptr_line = sptr;
-	unsigned char *dptr_line = dptr;
+// NOT using npm enables the use of 'cmix' in more cases
+#define COPY(d,s,pm,npm) (d) = (s)
+//#define COPY_PM(d,s,pm,npm) (d) = (((s) & (pm)) | ((d) & (npm)))
+#define COPY_PM(d,s,pm,npm) (d) = (((s) & (pm)) | ((d) & (~pm)))
+#define XOR(d,s,pm,npm) (d) = ((s) ^ (d))
+//#define XOR_PM(d,s,pm,npm) (d) = ((((s) ^ (d)) & (pm)) | ((d) & (npm)))
+#define XOR_PM(d,s,pm,npm) (d) = ((((s) ^ (d)) & (pm)) | ((d) & (~pm)))
 
-	// flush_cache(); // handled in boot()
-  
-	for (j = 0 ; j < re ; j++) {
-		unsigned char *sptr_elt = sptr_line;
-		unsigned char *dptr_elt = dptr_line;
-		i = 0;
-		/* this case is the console case */
-		if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {
-			for ( ; i < (wi&(~0xf)) ; i+= 16) {
-				((unsigned int*)dptr_elt)[0] = ((unsigned int*)sptr_elt)[0];
-				((unsigned int*)dptr_elt)[1] = ((unsigned int*)sptr_elt)[1];
-				((unsigned int*)dptr_elt)[2] = ((unsigned int*)sptr_elt)[2];
-				((unsigned int*)dptr_elt)[3] = ((unsigned int*)sptr_elt)[3];
-				dptr_elt += 16;
-				sptr_elt += 16;
-			}
-		}
-		if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {
-			for ( ; i < (wi&(~3)) ; i+= 4) {
-				((unsigned int*)dptr_elt)[0] = ((unsigned int*)sptr_elt)[0];
-				dptr_elt += 4;
-				sptr_elt += 4;
-			}
-		}
-		for ( ; i < wi ; i++) {
-			*dptr_elt = *sptr_elt;
-			dptr_elt ++;
-			sptr_elt ++;
-		}
-		sptr_line += HRES;
-		dptr_line += HRES;
+#define BLIT_FWD_FWD(NAME, OP)											\
+	static void bitblit_fwd_fwd_##NAME(const unsigned_param_type xs,			\
+							   const unsigned_param_type ys,			\
+							   const unsigned_param_type wi,			\
+							   const unsigned_param_type re,			\
+							   const unsigned_param_type xd,			\
+							   const unsigned_param_type yd,			\
+							   const unsigned char pm) {				\
+		unsigned int i, j;												\
+		unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
+		unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
+		unsigned char *sptr_line = sptr;								\
+		unsigned char *dptr_line = dptr;								\
+		/*const unsigned char npm = ~pm;*/								\
+																		\
+		for (j = 0 ; j < re ; j++) {									\
+			unsigned char *sptr_elt = sptr_line;						\
+			unsigned char *dptr_elt = dptr_line;						\
+			i = 0;														\
+			if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {				\
+			const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+			/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+				for ( ; i < (wi&(~0xf)) ; i+= 16) {						\
+					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+					OP(((unsigned int*)dptr_elt)[1], ((unsigned int*)sptr_elt)[1], u32pm, u32npm); \
+					OP(((unsigned int*)dptr_elt)[2], ((unsigned int*)sptr_elt)[2], u32pm, u32npm); \
+					OP(((unsigned int*)dptr_elt)[3], ((unsigned int*)sptr_elt)[3], u32pm, u32npm); \
+					dptr_elt += 16;										\
+					sptr_elt += 16;										\
+				}														\
+			}															\
+			if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {				\
+			const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+			/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+				for ( ; i < (wi&(~3)) ; i+= 4) {						\
+					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+					dptr_elt += 4;										\
+					sptr_elt += 4;										\
+				}														\
+			}															\
+			for ( ; i < wi ; i++) {										\
+				OP(*dptr_elt, *sptr_elt, pm, npm);						\
+				dptr_elt ++;											\
+				sptr_elt ++;											\
+			}															\
+			sptr_line += HRES;											\
+			dptr_line += HRES;											\
+		}																\
 	}
-}
 
-void bitblit_fwd_bwd_copy(unsigned_param_type xs,
-						  unsigned_param_type ys,
-						  unsigned_param_type wi,
-						  unsigned_param_type re,
-						  unsigned_param_type xd,
-						  unsigned_param_type yd
-						  ) {
-	unsigned int i, j;
-	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);
-	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
-	unsigned char *sptr_line = sptr + wi - 1;
-	unsigned char *dptr_line = dptr + wi - 1;
-
-	// flush_cache(); // handled in boot()
-  
-	for (j = 0 ; j < re ; j++) {
-		unsigned char *sptr_elt = sptr_line;
-		unsigned char *dptr_elt = dptr_line;
-		for (i = 0 ; i < wi ; i++) {
-			*dptr_elt = *sptr_elt;
-			dptr_elt --;
-			sptr_elt --;
-		}
-		sptr_line += HRES;
-		dptr_line += HRES;
+#define BLIT_FWD_BWD(NAME, OP) \
+	static void bitblit_fwd_bwd_##NAME(const unsigned_param_type xs,			\
+								const unsigned_param_type ys,			\
+								const unsigned_param_type wi,			\
+								const unsigned_param_type re,			\
+								const unsigned_param_type xd,			\
+								const unsigned_param_type yd,			\
+								const unsigned char pm					\
+								) {										\
+		unsigned int i, j;												\
+		unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
+		unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
+		unsigned char *sptr_line = sptr + wi - 1;						\
+		unsigned char *dptr_line = dptr + wi - 1;						\
+		const unsigned char npm = ~pm;									\
+																		\
+		for (j = 0 ; j < re ; j++) {									\
+			unsigned char *sptr_elt = sptr_line;						\
+			unsigned char *dptr_elt = dptr_line;						\
+			for (i = 0 ; i < wi ; i++) {								\
+				OP(*dptr_elt, *sptr_elt, pm, npm);						\
+				dptr_elt --;											\
+				sptr_elt --;											\
+			}															\
+			sptr_line += HRES;											\
+			dptr_line += HRES;											\
+		}																\
 	}
-}
-void bitblit_bwd_fwd_copy(unsigned_param_type xs,
-						  unsigned_param_type ys,
-						  unsigned_param_type wi,
-						  unsigned_param_type re,
-						  unsigned_param_type xd,
-						  unsigned_param_type yd
-						  ) {
-	unsigned int i, j;
-	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);
-	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
-	unsigned char *sptr_line = sptr + mul_HRES((re-1));
-	unsigned char *dptr_line = dptr + mul_HRES((re-1));
 
-	// flush_cache(); // handled in boot()
-  
-	for (j = 0 ; j < re ; j++) {
-		unsigned char *sptr_elt = sptr_line;
-		unsigned char *dptr_elt = dptr_line;
-		i = 0;
-		if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {
-			for ( ; i < (wi&(~0xf)) ; i+= 16) {
-				((unsigned int*)dptr_elt)[0] = ((unsigned int*)sptr_elt)[0];
-				((unsigned int*)dptr_elt)[1] = ((unsigned int*)sptr_elt)[1];
-				((unsigned int*)dptr_elt)[2] = ((unsigned int*)sptr_elt)[2];
-				((unsigned int*)dptr_elt)[3] = ((unsigned int*)sptr_elt)[3];
-				dptr_elt += 16;
-				sptr_elt += 16;
-			}
-		}
-		if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {
-			for ( ; i < (wi&(~3)) ; i+= 4) {
-				((unsigned int*)dptr_elt)[0] = ((unsigned int*)sptr_elt)[0];
-				dptr_elt += 4;
-				sptr_elt += 4;
-			}
-		}
-		for ( ; i < wi ; i++) {
-			*dptr_elt = *sptr_elt;
-			dptr_elt ++;
-			sptr_elt ++;
-		}
-		sptr_line -= HRES;
-		dptr_line -= HRES;
+#define BLIT_BWD_FWD(NAME, OP)											\
+	static void bitblit_bwd_fwd_##NAME(const unsigned_param_type xs,			\
+								const unsigned_param_type ys,			\
+								const unsigned_param_type wi,			\
+								const unsigned_param_type re,			\
+								const unsigned_param_type xd,			\
+								const unsigned_param_type yd,			\
+								const unsigned char pm					\
+								) {										\
+		unsigned int i, j;												\
+		unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
+		unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
+		unsigned char *sptr_line = sptr + mul_HRES((re-1));				\
+		unsigned char *dptr_line = dptr + mul_HRES((re-1));				\
+		const unsigned char npm = ~pm;									\
+																		\
+		for (j = 0 ; j < re ; j++) {									\
+			unsigned char *sptr_elt = sptr_line;						\
+			unsigned char *dptr_elt = dptr_line;						\
+			i = 0;														\
+			if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {				\
+				for ( ; i < (wi&(~0xf)) ; i+= 16) {						\
+			const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+			/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+					OP(((unsigned int*)dptr_elt)[1], ((unsigned int*)sptr_elt)[1], u32pm, u32npm); \
+					OP(((unsigned int*)dptr_elt)[2], ((unsigned int*)sptr_elt)[2], u32pm, u32npm); \
+					OP(((unsigned int*)dptr_elt)[3], ((unsigned int*)sptr_elt)[3], u32pm, u32npm); \
+					dptr_elt += 16;										\
+					sptr_elt += 16;										\
+				}														\
+			}															\
+			if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {				\
+				for ( ; i < (wi&(~3)) ; i+= 4) {						\
+					const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+					/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+					dptr_elt += 4;										\
+					sptr_elt += 4;										\
+				}														\
+			}															\
+			for ( ; i < wi ; i++) {										\
+				OP(*dptr_elt, *sptr_elt, pm, npm);						\
+				dptr_elt ++;											\
+				sptr_elt ++;											\
+			}															\
+			sptr_line -= HRES;											\
+			dptr_line -= HRES;											\
+		}																\
 	}
-}
 
 
+#define BLIT_ALLDIR(NAME, OP)				\
+	BLIT_FWD_FWD(NAME, OP)					\
+	BLIT_FWD_BWD(NAME, OP)					\
+	BLIT_BWD_FWD(NAME, OP)					\
+	
 
-void bitblit_fwd_fwd_xor(unsigned_param_type xs,
-						  unsigned_param_type ys,
-						  unsigned_param_type wi,
-						  unsigned_param_type re,
-						  unsigned_param_type xd,
-						  unsigned_param_type yd
-						  ) {
-	unsigned int i, j;
-	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);
-	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
-	unsigned char *sptr_line = sptr;
-	unsigned char *dptr_line = dptr;
-
-	// flush_cache(); // handled in boot()
-  
-	for (j = 0 ; j < re ; j++) {
-		unsigned char *sptr_elt = sptr_line;
-		unsigned char *dptr_elt = dptr_line;
-		i = 0;
-		/* this case is the console case */
-		if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {
-			for ( ; i < (wi&(~0xf)) ; i+= 16) {
-				((unsigned int*)dptr_elt)[0] ^= ((unsigned int*)sptr_elt)[0];
-				((unsigned int*)dptr_elt)[1] ^= ((unsigned int*)sptr_elt)[1];
-				((unsigned int*)dptr_elt)[2] ^= ((unsigned int*)sptr_elt)[2];
-				((unsigned int*)dptr_elt)[3] ^= ((unsigned int*)sptr_elt)[3];
-				dptr_elt += 16;
-				sptr_elt += 16;
-			}
-		}
-		if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {
-			for ( ; i < (wi&(~3)) ; i+= 4) {
-				((unsigned int*)dptr_elt)[0] ^= ((unsigned int*)sptr_elt)[0];
-				dptr_elt += 4;
-				sptr_elt += 4;
-			}
-		}
-		for ( ; i < wi ; i++) {
-			*dptr_elt ^= *sptr_elt;
-			dptr_elt ++;
-			sptr_elt ++;
-		}
-		sptr_line += HRES;
-		dptr_line += HRES;
-	}
-}
-
-void bitblit_fwd_bwd_xor(unsigned_param_type xs,
-						  unsigned_param_type ys,
-						  unsigned_param_type wi,
-						  unsigned_param_type re,
-						  unsigned_param_type xd,
-						  unsigned_param_type yd
-						  ) {
-	unsigned int i, j;
-	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);
-	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
-	unsigned char *sptr_line = sptr + wi - 1;
-	unsigned char *dptr_line = dptr + wi - 1;
-
-	// flush_cache(); // handled in boot()
-  
-	for (j = 0 ; j < re ; j++) {
-		unsigned char *sptr_elt = sptr_line;
-		unsigned char *dptr_elt = dptr_line;
-		for (i = 0 ; i < wi ; i++) {
-			*dptr_elt ^= *sptr_elt;
-			dptr_elt --;
-			sptr_elt --;
-		}
-		sptr_line += HRES;
-		dptr_line += HRES;
-	}
-}
-void bitblit_bwd_fwd_xor(unsigned_param_type xs,
-						  unsigned_param_type ys,
-						  unsigned_param_type wi,
-						  unsigned_param_type re,
-						  unsigned_param_type xd,
-						  unsigned_param_type yd
-						  ) {
-	unsigned int i, j;
-	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);
-	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
-	unsigned char *sptr_line = sptr + mul_HRES((re-1));
-	unsigned char *dptr_line = dptr + mul_HRES((re-1));
-
-	// flush_cache(); // handled in boot()
-  
-	for (j = 0 ; j < re ; j++) {
-		unsigned char *sptr_elt = sptr_line;
-		unsigned char *dptr_elt = dptr_line;
-		i = 0;
-		if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {
-			for ( ; i < (wi&(~0xf)) ; i+= 16) {
-				((unsigned int*)dptr_elt)[0] ^= ((unsigned int*)sptr_elt)[0];
-				((unsigned int*)dptr_elt)[1] ^= ((unsigned int*)sptr_elt)[1];
-				((unsigned int*)dptr_elt)[2] ^= ((unsigned int*)sptr_elt)[2];
-				((unsigned int*)dptr_elt)[3] ^= ((unsigned int*)sptr_elt)[3];
-				dptr_elt += 16;
-				sptr_elt += 16;
-			}
-		}
-		if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {
-			for ( ; i < (wi&(~3)) ; i+= 4) {
-				((unsigned int*)dptr_elt)[0] ^= ((unsigned int*)sptr_elt)[0];
-				dptr_elt += 4;
-				sptr_elt += 4;
-			}
-		}
-		for ( ; i < wi ; i++) {
-			*dptr_elt ^= *sptr_elt;
-			dptr_elt ++;
-			sptr_elt ++;
-		}
-		sptr_line -= HRES;
-		dptr_line -= HRES;
-	}
-}
+BLIT_ALLDIR(copy, COPY)
+BLIT_ALLDIR(xor, XOR)
+BLIT_ALLDIR(copy_pm, COPY_PM)
+BLIT_ALLDIR(xor_pm, XOR_PM)
 
 #if 0
 		else if ((xd & 0xf) == 0) {
@@ -1133,12 +1208,13 @@ void bitblit_bwd_fwd_xor(unsigned_param_type xs,
 #endif
 
 #if 0
-void bitblit_bwd_bwd_copy(unsigned_param_type xs,
-						  unsigned_param_type ys,
-						  unsigned_param_type wi,
-						  unsigned_param_type re,
-						  unsigned_param_type xd,
-						  unsigned_param_type yd
+static void bitblit_bwd_bwd_copy(const unsigned_param_type xs,
+						  const unsigned_param_type ys,
+						  const unsigned_param_type wi,
+						  const unsigned_param_type re,
+						  const unsigned_param_type xd,
+						  const unsigned_param_type yd,
+						  const unsigned char pm
 						  ) {
 	unsigned int i, j;
 	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);

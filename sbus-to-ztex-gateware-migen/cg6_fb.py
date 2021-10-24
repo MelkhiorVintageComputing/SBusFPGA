@@ -152,8 +152,8 @@ class cg6(Module, AutoCSR):
         self.comb += vtg.hwcursor_x.eq(hwcursor_x)
         self.comb += vtg.hwcursor_y.eq(hwcursor_y)
 
-        pad_SBUS_DATA_OE_LED = soc.platform.request("SBUS_DATA_OE_LED")
-        self.comb += pad_SBUS_DATA_OE_LED.eq((hwcursor_x < 1280) & (hwcursor_y < 1024));
+        #pad_SBUS_DATA_OE_LED = soc.platform.request("SBUS_DATA_OE_LED")
+        #self.comb += pad_SBUS_DATA_OE_LED.eq((hwcursor_x < 1280) & (hwcursor_y < 1024));
         
         self.bus2 = bus2 = wishbone.Interface()
         self.submodules.wishbone_fsm2 = wishbone_fsm2 = FSM(reset_state = "Reset")
