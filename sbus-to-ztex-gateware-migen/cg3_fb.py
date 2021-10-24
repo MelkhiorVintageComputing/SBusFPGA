@@ -72,6 +72,26 @@ class VideoFrameBuffer256c(Module, AutoCSR):
         self.source    = source   = stream.Endpoint(video_data_layout)
         self.underflow = Signal()
 
+        #source_buf_ready = Signal()
+        source_buf_valid = Signal()
+        source_buf_de = Signal()
+        source_buf_hsync = Signal()
+        source_buf_vsync = Signal()
+        data_buf = Signal(8)
+        if (hwcursor):
+            hwcursor_buf = Signal()
+            hwcursorx_buf = Signal(5)
+            hwcursory_buf = Signal(5)
+        
+        #source_out_ready = Signal()
+        source_out_valid = Signal()
+        source_out_de = Signal()
+        source_out_hsync = Signal()
+        source_out_vsync = Signal()
+        source_out_r = Signal(8)
+        source_out_g = Signal(8)
+        source_out_b = Signal(8)
+
         # # #
 
         # Video DMA.
@@ -102,48 +122,75 @@ class VideoFrameBuffer256c(Module, AutoCSR):
             self.submodules.cdc = stream.ClockDomainCrossing([("data", 8)], cd_from="sys", cd_to=clock_domain)
             self.comb += self.conv.source.connect(self.cdc.sink)
             video_pipe_source = self.cdc.source
-
-        #counter = Signal(11)
-        #vga_sync += If(vtg_sink.de,
-        #               If(counter == (hres-1),
-        #                  counter.eq(0)
-        #               ).Else(            
-        #                   counter.eq(counter + 1))).Else(
-        #                       counter.eq(0))
         
         # Video Generation.
         self.comb += [
-            #vtg_sink.ready.eq(1),
-            #vtg_sink.connect(source, keep={"de", "hsync", "vsync"}),
-            #If(vtg_sink.de,
-            #   source.r.eq(Cat(Signal(6, reset = 0), counter[2:4])),
-            #   source.g.eq(Cat(Signal(6, reset = 0), counter[4:6])),
-            #   source.b.eq(Cat(Signal(6, reset = 0), counter[6:8])),
-            #).Else(source.r.eq(0),
-            #       source.g.eq(0),
-            #       source.b.eq(0),)
             vtg_sink.ready.eq(1),
             If(vtg_sink.valid & vtg_sink.de,
-                video_pipe_source.connect(source, keep={"valid", "ready"}),
-                vtg_sink.ready.eq(source.valid & source.ready),
+               source_buf_valid.eq(video_pipe_source.valid),
+               #video_pipe_source.ready.eq(source_buf_ready),# ready flow the other way
+               video_pipe_source.connect(source, keep={"ready"}), # source.ready is set to 1 by the sink anyway, bypass the cycle delay
+               #vtg_sink.ready.eq(source_buf_valid & source_buf_ready),
+               vtg_sink.ready.eq(source_buf_valid & source.ready),
             ),
-            vtg_sink.connect(source, keep={"de", "hsync", "vsync"}),
-            If(vtg_sink.hwcursor & (overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx] | overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx]),
-               source.r.eq(omap[0][Cat(overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx], overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx])]),
-               source.g.eq(omap[0][Cat(overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx], overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx])]),
-               source.b.eq(omap[0][Cat(overlay[0][vtg_sink.hwcursory][vtg_sink.hwcursorx], overlay[1][vtg_sink.hwcursory][vtg_sink.hwcursorx])]),
-            ).Elif(vtg_sink.de,
-               source.r.eq(clut[0][video_pipe_source.data]),
-               source.g.eq(clut[1][video_pipe_source.data]),
-               source.b.eq(clut[2][video_pipe_source.data])
-               #source.r.eq(video_pipe_source.data),
-               #source.g.eq(video_pipe_source.data),
-               #source.b.eq(video_pipe_source.data),
-            ).Else(
-               source.r.eq(0),
-               source.g.eq(0),
-               source.b.eq(0)
-            )
+            source_buf_de.eq(vtg_sink.de),
+            source_buf_hsync.eq(vtg_sink.hsync),
+            source_buf_vsync.eq(vtg_sink.vsync),
+            data_buf.eq(video_pipe_source.data),
+        ]
+        if (hwcursor):
+            self.comb += [
+                hwcursor_buf.eq(vtg_sink.hwcursor),
+                hwcursorx_buf.eq(vtg_sink.hwcursorx),
+                hwcursory_buf.eq(vtg_sink.hwcursory),
+        ]
+
+        vga_sync += [
+            source_out_de.eq(source_buf_de),
+            source_out_hsync.eq(source_buf_hsync),
+            source_out_vsync.eq(source_buf_vsync),
+            source_out_valid.eq(source_buf_valid),
+            #source_buf_ready.eq(source_out_ready), # ready flow the other way
+        ]
+
+        if (hwcursor):
+            vga_sync += [
+                If(hwcursor_buf & (overlay[0][hwcursory_buf][hwcursorx_buf] | overlay[1][hwcursory_buf][hwcursorx_buf]),
+                   source_out_r.eq(omap[0][Cat(overlay[0][hwcursory_buf][hwcursorx_buf], overlay[1][hwcursory_buf][hwcursorx_buf])]),
+                   source_out_g.eq(omap[1][Cat(overlay[0][hwcursory_buf][hwcursorx_buf], overlay[1][hwcursory_buf][hwcursorx_buf])]),
+                   source_out_b.eq(omap[2][Cat(overlay[0][hwcursory_buf][hwcursorx_buf], overlay[1][hwcursory_buf][hwcursorx_buf])]),
+                ).Elif(source_buf_de,
+                       source_out_r.eq(clut[0][data_buf]),
+                       source_out_g.eq(clut[1][data_buf]),
+                       source_out_b.eq(clut[2][data_buf])
+                ).Else(
+                    source_out_r.eq(0),
+                    source_out_g.eq(0),
+                    source_out_b.eq(0)
+                )
+                ]
+        else:
+            vga_sync += [
+                If(source_buf_de,
+                   source_out_r.eq(clut[0][data_buf]),
+                   source_out_g.eq(clut[1][data_buf]),
+                   source_out_b.eq(clut[2][data_buf])
+                ).Else(
+                    source_out_r.eq(0),
+                    source_out_g.eq(0),
+                    source_out_b.eq(0)
+                )
+            ]
+
+        self.comb += [
+            source.de.eq(source_out_de),
+            source.hsync.eq(source_out_hsync),
+            source.vsync.eq(source_out_vsync),
+            source.valid.eq(source_out_valid),
+            #source_out_ready.eq(source.ready), # ready flow the other way
+            source.r.eq(source_out_r),
+            source.g.eq(source_out_g),
+            source.b.eq(source_out_b),
         ]
 
         # Underflow.
