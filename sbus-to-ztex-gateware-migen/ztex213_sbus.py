@@ -280,6 +280,9 @@ class Platform(XilinxPlatform):
         }[version]
         self.irq_device_map = dict()
         self.device_irq_map = dict()
+        self.speedgrade = -1
+        if (device[-1] == '2'):
+            self.speedgrade = -2
         
         XilinxPlatform.__init__(self, device, _io, connectors, toolchain="vivado")
         self.add_extension(sbus_io)

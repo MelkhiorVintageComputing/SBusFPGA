@@ -25,21 +25,24 @@ from sbus_to_fpga_trng import *
 
 from litedram.frontend.dma import *
 
-from engine import Engine;
+from engine import Engine
 from migen.genlib.cdc import BusSynchronizer
-from migen.genlib.resetsync import AsyncResetSynchronizer;
+from migen.genlib.resetsync import AsyncResetSynchronizer
 
 # betrusted-io/gateware
-from gateware import i2c;
+from gateware import i2c
 
-import sbus_to_fpga_export;
-import sbus_to_fpga_prom;
+import sbus_to_fpga_export
+import sbus_to_fpga_prom
 
 from litex.soc.cores.video import VideoVGAPHY
-import cg3_fb;
-import cg6_fb;
-import cg6_accel;
-#import cgtrois;
+import cg3_fb
+import cg6_fb
+import cg6_accel
+#import cgtrois
+
+# Wishbone stuff
+from sbus_wb import WishboneDomainCrossingMaster
 
 # CRG ----------------------------------------------------------------------------------------------
 
@@ -101,7 +104,7 @@ class _CRG(Module):
         num_adv = 0
         num_clk = 0
 
-        self.submodules.pll = pll = S7MMCM(speedgrade=-1)
+        self.submodules.pll = pll = S7MMCM(speedgrade=platform.speedgrade)
         #pll.register_clkin(clk48, 48e6)
         pll.register_clkin(self.clk48_bufg, 48e6)
         pll.create_clkout(self.cd_sys,       sys_clk_freq, gated_replicas={self.cd_clk100_gated : pll.locked & self.curve25519_on})
@@ -131,7 +134,7 @@ class _CRG(Module):
         num_adv = num_adv + 1
         num_clk = 0
         
-        #self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=-1)
+        #self.submodules.curve25519_pll = curve25519_pll = S7MMCM(speedgrade=platform.speedgrade)
         #curve25519_clk_freq = 90e6
         ##self.curve25519_on = Signal()
         ##curve25519_pll.register_clkin(clk48, 48e6)
@@ -162,7 +165,7 @@ class _CRG(Module):
 
         # USB
         if (usb):
-            self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=-1)
+            self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=platform.speedgrade)
             #usb_pll.register_clkin(clk48, 48e6)
             usb_pll.register_clkin(self.clk48_bufg, 48e6)
             usb_pll.create_clkout(self.cd_usb, usb_clk_freq, margin = 0)
@@ -174,7 +177,7 @@ class _CRG(Module):
             num_clk = 0
 
         if (sdram):
-            self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=-1)
+            self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=platform.speedgrade)
             #pll_idelay.register_clkin(clk48, 48e6)
             pll_idelay.register_clkin(self.clk48_bufg, 48e6)
             pll_idelay.create_clkout(self.cd_idelay, 200e6, margin = 0)
@@ -186,7 +189,7 @@ class _CRG(Module):
             num_clk = 0
 
         if (cg3):
-            self.submodules.video_pll = video_pll = S7MMCM(speedgrade=-1)
+            self.submodules.video_pll = video_pll = S7MMCM(speedgrade=platform.speedgrade)
             video_pll.register_clkin(self.clk48_bufg, 48e6)
             video_pll.create_clkout(self.cd_vga, pix_clk, margin = 0.0005)
             platform.add_platform_command("create_generated_clock -name vga_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
@@ -211,7 +214,7 @@ class SBusFPGA(SoCCore):
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
-    def __init__(self, version, sys_clk_freq, usb, sdram, engine, i2c, cg3, cg6, cg3_res, **kwargs):
+    def __init__(self, variant, version, sys_clk_freq, usb, sdram, engine, i2c, cg3, cg6, cg3_res, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -221,7 +224,7 @@ class SBusFPGA(SoCCore):
         
         self.sys_clk_freq = sys_clk_freq
     
-        self.platform = platform = ztex213_sbus.Platform(variant="ztex2.13a", version = version)
+        self.platform = platform = ztex213_sbus.Platform(variant = variant, version = version)
 
         if ((cg3 or cg6) and (version == "V1.2")):
             platform.add_extension(ztex213_sbus._vga_pmod_io_v1_2)
@@ -365,8 +368,8 @@ class SBusFPGA(SoCCore):
         # we need to cross clock domains
         wishbone_slave_sbus = wishbone.Interface(data_width=self.bus.data_width)
         wishbone_master_sys = wishbone.Interface(data_width=self.bus.data_width)
-        self.submodules.wishbone_master_sbus = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_master_sys, cd_master="sbus", cd_slave="sys")
-        self.submodules.wishbone_slave_sys   = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_slave_sbus, cd_master="sys", cd_slave="sbus")
+        self.submodules.wishbone_master_sbus = WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_master_sys, cd_master="sbus", cd_slave="sys")
+        self.submodules.wishbone_slave_sys   = WishboneDomainCrossingMaster(platform=self.platform, slave=wishbone_slave_sbus, cd_master="sys", cd_slave="sbus")
 
         # SPARCstation 20 slave interface to the main memory are limited to 32-bytes burst (32-bits wide, 8 word long)
         # burst_size=16 should work on Ultra systems, but then they probably should go for 64-bits ET as well...
@@ -411,7 +414,7 @@ class SBusFPGA(SoCCore):
                                 cg3_base=(self.wb_mem_map["main_ram"] + avail_sdram))
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
-        self.submodules.sbus_bus_stat = SBusFPGABusStat(sbus_bus = self.sbus_bus)
+        self.submodules.sbus_bus_stat = SBusFPGABusStat(soc = self, sbus_bus = self.sbus_bus)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
 
@@ -430,7 +433,7 @@ class SBusFPGA(SoCCore):
         # Actually renaming 'sys' doesn't work - unless we can CDC the CSRs as well
         if (engine):
             self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None))) # , "sys":"clk100"
-            #self.submodules.curve25519engine_wishbone_cdc = wishbone.WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
+            #self.submodules.curve25519engine_wishbone_cdc = WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
             #self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
             self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
             self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
@@ -481,7 +484,8 @@ class SBusFPGA(SoCCore):
 def main():
     parser = argparse.ArgumentParser(description="SbusFPGA")
     parser.add_argument("--build", action="store_true", help="Build bitstream")
-    parser.add_argument("--version", default="V1.0", help="SBusFPGA board version (default V1.0)")
+    parser.add_argument("--variant", default="ztex2.13a", help="ZTex board variant (default ztex2.13a)")
+    parser.add_argument("--version", default="V1.2", help="SBusFPGA board version (default V1.2)")
     parser.add_argument("--sys-clk-freq", default=100e6, help="SBusFPGA system clock (default 100e6 = 100 MHz)")
     parser.add_argument("--sdram", action="store_true", help="add a SDRAM controller (mandatory) [all]")
     parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
@@ -509,6 +513,7 @@ def main():
         assert(False)
     
     soc = SBusFPGA(**soc_core_argdict(args),
+                   variant=args.variant,
                    version=args.version,
                    sys_clk_freq=int(float(args.sys_clk_freq)),
                    sdram=args.sdram,
