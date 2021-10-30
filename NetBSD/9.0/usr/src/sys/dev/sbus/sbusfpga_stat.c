@@ -211,11 +211,13 @@ static void sbusfpga_stat_display(void *args) {
 	if ((c2 == c) || (c2 == 0)){
 		device_printf(sc->sc_dev, "Statistics didn't update\n");
 	} else {
-		device_printf(sc->sc_dev, "%u: slave %u %u %u %u\n",
+		device_printf(sc->sc_dev, "%u: slave %u %u %u %u\n", // [0x%08x @ 0x%08x] 
 					  c2,
 					  sbus_bus_stat_stat_slave_start_counter_read(sc),
 					  sbus_bus_stat_stat_slave_done_counter_read(sc),
 					  sbus_bus_stat_stat_slave_rerun_counter_read(sc),
+					  //sbus_bus_stat_stat_slave_rerun_last_pa_read(sc),
+					  //sbus_bus_stat_stat_slave_rerun_last_state_read(sc),
 					  sbus_bus_stat_stat_slave_early_error_counter_read(sc));
 		device_printf(sc->sc_dev, "%u: master %u %u %u %u (0x%08x)\n",
 					  c2,

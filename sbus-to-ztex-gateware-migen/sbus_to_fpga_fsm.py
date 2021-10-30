@@ -47,7 +47,7 @@ CG3_PIXELS_ADDR2_BIGPFX = Signal(8, reset = 0x09) # cg3_pixels, remapped, second
 CG3_PIXELS_ADDR2_BIGVAL = 0x09
 
 wishbone_default_timeout = 120 ##
-sbus_default_timeout = 50 ## must be below 255
+sbus_default_timeout = 50 ## must be below 255/2 (two waits)
 sbus_default_master_throttle = 3
 
 def siz_is_word(siz):
@@ -319,8 +319,10 @@ class SBusFPGABus(Module):
         wishbone_master_timeout = Signal(log2_int(wishbone_default_timeout, False))
         wishbone_slave_timeout = Signal(log2_int(wishbone_default_timeout, False))
         sbus_slave_timeout = Signal(log2_int(sbus_default_timeout, False))
+        self.sync += If(sbus_slave_timeout != 0, sbus_slave_timeout.eq(sbus_slave_timeout - 1))
 
         sbus_master_throttle = Signal(log2_int(sbus_default_master_throttle, False))
+        self.sync += If(sbus_master_throttle != 0, sbus_master_throttle .eq(sbus_master_throttle - 1))
         
         #self.submodules.led_display = LedDisplay(platform.request_all("user_led"))
         
@@ -414,6 +416,8 @@ class SBusFPGABus(Module):
         stat_slave_done_counter = Signal(32)
         stat_slave_rerun_counter = Signal(32)
         stat_slave_early_error_counter = Signal(32)
+        #self.stat_slave_rerun_last_pa = stat_slave_rerun_last_pa = Signal(32)
+        #self.stat_slave_rerun_last_state = stat_slave_rerun_last_state = Signal(32)
         
         stat_master_start_counter = Signal(32)
         stat_master_done_counter = Signal(32)
@@ -1114,6 +1118,8 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN),
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WORD | LED_RERUN_LATE),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000001),
                              NextState("Slave_Error")
                       )
         )
@@ -1126,12 +1132,15 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.we, 0),
                          NextValue(self.wishbone_master.adr, sbus_last_pa[2:32]),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
+                         NextValue(sbus_slave_timeout, sbus_default_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_Burst_Wait_For_Data")
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WORD),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000002),
                              NextState("Slave_Error")
                       )
         )
@@ -1175,6 +1184,8 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_LATE),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000003),
                              NextState("Slave_Error")
                       )
         )
@@ -1187,12 +1198,15 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.we, 0),
                          NextValue(self.wishbone_master.adr, sbus_last_pa[2:32]),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
+                         NextValue(sbus_slave_timeout, sbus_default_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_HWord_Wait_For_Data")
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000004),
                              NextState("Slave_Error")
                       )
         )
@@ -1234,6 +1248,8 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_LATE),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000005),
                              NextState("Slave_Error")
                       )
         )
@@ -1246,12 +1262,15 @@ class SBusFPGABus(Module):
                          NextValue(self.wishbone_master.we, 0),
                          NextValue(self.wishbone_master.adr, sbus_last_pa[2:32]),
                          NextValue(wishbone_master_timeout, wishbone_default_timeout),
+                         NextValue(sbus_slave_timeout, sbus_default_timeout),
                          #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0), SBUS_3V3_PA_i, Signal(4, reset = 0))),
                          NextState("Slave_Ack_Read_Reg_Byte_Wait_For_Data")
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000006),
                              NextState("Slave_Error")
                       )
         )
@@ -1305,6 +1324,8 @@ class SBusFPGABus(Module):
                              #NextValue(self.led_display.value, Cat(Signal(8, reset = LED_RERUN | LED_RERUN_WRITE | LED_RERUN_WORD), sbus_last_pa)),
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WRITE | LED_RERUN_WORD),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000007),
                              NextState("Slave_Error")
                       )
         )
@@ -1348,6 +1369,8 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WRITE),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000008),
                              NextState("Slave_Error")
                       )
         )
@@ -1391,6 +1414,8 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WRITE),
                              NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
+                             #NextValue(stat_slave_rerun_last_state, 0x00000009),
                              NextState("Slave_Error")
                       )
         )
@@ -1764,45 +1789,45 @@ class SBusFPGABus(Module):
                             NextValue(wishbone_slave_timeout, wishbone_slave_timeout -1)
                         ),
                         If(self.wishbone_slave.ack & self.wishbone_slave.we,
-                           If((~self.wishbone_slave.stb), # | (wishbone_slave_timeout == 0), #~self.wishbone_slave.cyc & 
+                           #If((~self.wishbone_slave.stb), # | (wishbone_slave_timeout == 0), #~self.wishbone_slave.cyc & 
                               NextValue(self.wishbone_slave.ack, 0),
                               NextValue(wishbone_slave_timeout, 0)
-                           )
+                           #)
                         ),
                         If(self.wishbone_slave.ack & ~self.wishbone_slave.we,
-                           If((~self.wishbone_slave.stb), # | (wishbone_slave_timeout == 0), #~self.wishbone_slave.cyc & 
+                           #If((~self.wishbone_slave.stb), # | (wishbone_slave_timeout == 0), #~self.wishbone_slave.cyc & 
                               NextValue(self.wishbone_slave.ack, 0),
                               NextValue(wishbone_slave_timeout, 0)
-                           )
+                           #)
                         ),
                         If(self.wishbone_slave.err,
-                           If((~self.wishbone_slave.stb), # | (wishbone_slave_timeout == 0), #~self.wishbone_slave.cyc & 
+                           #If((~self.wishbone_slave.stb), # | (wishbone_slave_timeout == 0), #~self.wishbone_slave.cyc & 
                               NextValue(self.wishbone_slave.err, 0),
                               NextValue(wishbone_slave_timeout, 0)
-                           )
+                           #)
                         )
         )
 
-        self.submodules.sbus_slave_wait_fsm = sbus_slave_wait_fsm = FSM(reset_state="Reset")
-        sbus_slave_wait_fsm.act("Reset",
-                        NextState("Idle")
-        )
-        sbus_slave_wait_fsm.act("Idle",
-                        If(sbus_slave_timeout != 0,
-                            NextValue(sbus_slave_timeout, sbus_slave_timeout -1)
-                        ),
-        )
+        #self.submodules.sbus_slave_wait_fsm = sbus_slave_wait_fsm = FSM(reset_state="Reset")
+        #sbus_slave_wait_fsm.act("Reset",
+        #                NextState("Idle")
+        #)
+        #sbus_slave_wait_fsm.act("Idle",
+        #                If(sbus_slave_timeout != 0,
+        #                    NextValue(sbus_slave_timeout, sbus_slave_timeout -1)
+        #                ),
+        #)
 
         # ##### FIXME: debug only?
-        self.submodules.sbus_master_throttle_fsm = sbus_master_throttle_fsm = FSM(reset_state="Reset")
-        sbus_master_throttle_fsm.act("Reset",
-                        NextState("Idle")
-        )
-        sbus_master_throttle_fsm.act("Idle",
-                        If(sbus_master_throttle != 0,
-                            NextValue(sbus_master_throttle, sbus_master_throttle -1)
-                        ),
-        )
+        #self.submodules.sbus_master_throttle_fsm = sbus_master_throttle_fsm = FSM(reset_state="Reset")
+        #sbus_master_throttle_fsm.act("Reset",
+        #                NextState("Idle")
+        #)
+        #sbus_master_throttle_fsm.act("Idle",
+        #                If(sbus_master_throttle != 0,
+        #                    NextValue(sbus_master_throttle, sbus_master_throttle -1)
+        #                ),
+        #)
 
         # ##### Slave read buffering FSM ####
         last_read_word_idx = Signal(2)
