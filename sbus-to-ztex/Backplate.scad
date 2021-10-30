@@ -61,13 +61,13 @@ primary ()
 {
 
     USBCABLE_HOLLOWOUT_WIDTH = 10;
-    USBCABLE_HOLLOWOUT_LENGTH = 16;
+    USBCABLE_HOLLOWOUT_LENGTH = 16.5;
     USBCABLE_HOLLOWOUT_OFFSETX = -7.5+0.001;
-    USBCABLE_HOLLOWOUT_OFFSETY = -16;
+    USBCABLE_HOLLOWOUT_OFFSETY = -16.5;
     USBCABLE_HOLLOWOUT2_WIDTH = 21;
     USBCABLE_HOLLOWOUT2_LENGTH = 6;
     USBCABLE_HOLLOWOUT2_OFFSETX = -12.5;
-    USBCABLE_HOLLOWOUT2_OFFSETY = -16;
+    USBCABLE_HOLLOWOUT2_OFFSETY = -16.5;
     
     
   union () // A
@@ -87,6 +87,15 @@ difference() { // B
 	}
       } // union
     }
+    
+    /* to fix the board to the machine */
+    FIX_HOLES_STUB_LENGTH=3;
+    translate ([-SBUS_WIDTH/2+(SBUS_WIDTH-SBUS_BACKPLATE_HOLESTOHOLES)/2,
+        -MY_FULL_LENGTH / 2 + SBUS_BACKPLATE_THICKNESS / 2+FIX_HOLES_STUB_LENGTH/2,
+        -SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+7.08]) rotate([90,0,0]) color ("black") cylinder (h = FIX_HOLES_STUB_LENGTH, r1 = 2, r2 = 2, center = true);
+    translate ([+SBUS_WIDTH/2-(SBUS_WIDTH-SBUS_BACKPLATE_HOLESTOHOLES)/2,
+        -MY_FULL_LENGTH / 2 + SBUS_BACKPLATE_THICKNESS / 2+FIX_HOLES_STUB_LENGTH/2,
+        -SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+7.08]) rotate([90,0,0]) color ("black") cylinder (h = FIX_HOLES_STUB_LENGTH, r1 = 2, r2 = 2, center = true);
     
     /* USB plug (StarTech cable) */
     union() {
@@ -118,6 +127,14 @@ difference() { // B
 	}
     
     
+    /* to fix the board to the machine */
+    translate ([-SBUS_WIDTH/2+(SBUS_WIDTH-SBUS_BACKPLATE_HOLESTOHOLES)/2,
+        -MY_FULL_LENGTH / 2 + SBUS_BACKPLATE_THICKNESS / 2,
+        -SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+7.08]) rotate([90,0,0]) color ("yellow") cylinder (h = 10, r1 = 1.5, r2 = 1.5, center = true);
+    translate ([+SBUS_WIDTH/2-(SBUS_WIDTH-SBUS_BACKPLATE_HOLESTOHOLES)/2,
+        -MY_FULL_LENGTH / 2 + SBUS_BACKPLATE_THICKNESS / 2,
+        -SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+7.08]) rotate([90,0,0]) color ("yellow") cylinder (h = 10, r1 = 1.5, r2 = 1.5, center = true);
+    
     /* USB plug (StarTech cable) */
     union() {
         color ("yellow") 
@@ -143,7 +160,7 @@ difference() { // B
     FIXHOLE2_Y_OFFSET = SBUS_WIDTH - 66.82;
     FIXHOLE3_Y_OFFSET = 32;
 
-    FIXHOLE_RAD = 1.55;
+    FIXHOLE_RAD = 1.5;
 
     SERIAL_HOLLOWOUT_WIDTH = 18;
     SERIAL_HOLLOWOUT_LENGTH = 5;
@@ -152,7 +169,7 @@ difference() { // B
     PMOD_HOLLOWOUT_WIDTH = 18;
     PMOD_HOLLOWOUT_LENGTH = 9;
     PMOD_HOLLOWOUT_OFFSETX = (31 - SBUS_WIDTH) + PMOD_HOLLOWOUT_WIDTH / 2;
-    PMOD_HOLLOWOUT_OFFSETY = 10;
+    PMOD_HOLLOWOUT_OFFSETY = 7;
 
     USB_HOLLOWOUT_WIDTH = 14;
     USB_HOLLOWOUT_LENGTH = 5;
@@ -193,7 +210,7 @@ difference() { // B
       union () // J
       {
       
-      /* fixing holes */
+      /* fixing holes (PCB to 3D printed part) */
 	translate ([-SBUS_WIDTH / 2 + FIXHOLE1_Y_OFFSET, MY_FULL_LENGTH / 2 + FIXHOLE_X_OFFSET, 0]) {
 	  color ("yellow") cylinder (h = 50, r1 = FIXHOLE_RAD, r2 = FIXHOLE_RAD, center = true);
 	}
@@ -363,9 +380,9 @@ module vga_support() {
         
         color ("violet") 
       translate ([-SBUS_WIDTH/2+31,
-        -MY_FULL_LENGTH/2+5/2,
+        -MY_FULL_LENGTH/2+5/2+1,
         0.00000000001 - SBUS_THICKNESS / 2 - (SBUS_BACKPLATE_PROTUSION_HEIGHT + SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM) / 2])
-	  cube ([31.8+8, 5,	/*SBUS_THICKNESS */
+	  cube ([31.8+8, 3,	/*SBUS_THICKNESS */
 		 SBUS_BACKPLATE_PROTUSION_HEIGHT + SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM], center = true);
         color ("violet") 
       translate ([-SBUS_WIDTH/2+31,
