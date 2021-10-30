@@ -28,7 +28,15 @@ cg3_timings = {
 }
 
 def cg3_rounded_size(hres, vres):
-    return int(1048576 * ceil(((hres * vres) + 0) / 1048576))
+    mib = int(ceil(((hres * vres) + 0) / 1048576))
+    if (mib == 3):
+        mib = 4
+    if (mib > 4 and mib < 8):
+        mib = 8
+    if (mib > 8 or mib < 1):
+        print(f"{mib} mebibytes framebuffer not supported")
+        assert(False)
+    return int(1048576 * mib)
 
 class VideoFrameBuffer256c(Module, AutoCSR):
     """Video FrameBuffer256c"""

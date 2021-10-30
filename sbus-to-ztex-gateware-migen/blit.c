@@ -13,7 +13,10 @@
 #define VRES 1024
 #warning "Using default VRES"
 #endif
-#define BASE_FB   0x8FE00000 // FIXME : should be generated ; 2+ MiB of SDRAM as framebuffer
+#ifndef BASE_FB
+#define BASE_FB  0x8FE00000 // FIXME : should be generated ; 2+ MiB of SDRAM as framebuffer
+#warning "Using default BASE_FB"
+#endif
 
 #define BASE_ROM 0x00410000 // FIXME : should be generated ; 4-64 KiB of Wishbone ROM ? ; also in the LDS file ; also in the Vex config
 

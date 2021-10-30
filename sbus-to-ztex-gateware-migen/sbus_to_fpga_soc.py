@@ -271,7 +271,7 @@ class SBusFPGA(SoCCore):
             "cg6_accel_ram":    0x00420000, # R5 microcode working space (stack)
             "cg6_fbc":          0x00700000, # required for compatibility
             #"cg6_tec":          0x00701000, # required for compatibility
-            "cg3_pixels":       0x00800000, # required for compatibility, 1-2 MiB for now (2nd MiB is 0x00900000) (cg3 and cg6 idem)
+            "cg3_pixels":       0x00800000, # required for compatibility, 1/2/4/8 MiB for now (up to 0x00FFFFFF inclusive) (cg3 and cg6 idem)
             "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible),
             "video_framebuffer":0x80000000 + 0x10000000 - cg3_fb_size, # FIXME
             "usb_fake_dma":     0xfc000000, # required to match DVMA virtual addresses

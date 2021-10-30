@@ -2,6 +2,7 @@
 
 HRES=${1:-1280}
 VRES=${2:-1024}
+BASE_FB=0x8FE00000
 
 GCCDIR=~/LITEX/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14
 GCCPFX=riscv64-unknown-elf-
@@ -19,9 +20,11 @@ OBJCOPY=${GCCDIR}/bin/${GCCPFX}objcopy
 OPT=-Os #-fno-inline
 ARCH=rv32i_zba_zbb_zbt
 
+PARAM="-DHRES=${HRES} -DVRES=${VRES} -DBASE_FB=${BASE_FB}"
+
 if test "x$1" != "xASM"; then
-	$GCC $OPT -S -o blit.s -DHRES=${HRES} -DVRES=${VRES} -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit.c
+	$GCC $OPT -S -o blit.s $PARAM -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit.c
 fi
-$GCC     $OPT -c -o blit.o -DHRES=${HRES} -DVRES=${VRES} -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit.s &&
-$GCCLINK $OPT    -o blit   -DHRES=${HRES} -DVRES=${VRES} -march=$ARCH -mabi=ilp32 -T blit.lds  -nostartfiles blit.o &&
+$GCC     $OPT -c -o blit.o $PARAM -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit.s &&
+$GCCLINK $OPT    -o blit   $PARAM -march=$ARCH -mabi=ilp32 -T blit.lds  -nostartfiles blit.o &&
 $OBJCOPY  -O binary -j .text -j .rodata blit blit.raw
