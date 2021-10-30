@@ -369,7 +369,7 @@ struct cg6_fbc {
 void from_reset(void) __attribute__ ((noreturn)); // nothrow, 
 
 static inline void flush_cache(void) {
-	asm volatile(".word 0x0000500F\n"); // flush the Dcache so that we get updated data
+	//asm volatile(".word 0x0000500F\n"); // flush the Dcache so that we get updated data
 }
 
 typedef unsigned int unsigned_param_type;
@@ -415,6 +415,9 @@ static void bitblit(const unsigned_param_type xs,
 			 const unsigned char gxop
 			 );
 
+static void print_hexword(unsigned int v, unsigned int bx, unsigned int by);
+static void show_status_on_screen(void);
+
 asm(".global _start\n"
 	"_start:\n"
 	// ".word 0x0000500F\n" // flush cache ; should not be needed after reset
@@ -437,6 +440,8 @@ asm(".global _start\n"
 
 #define imax(a,b) ((a>b)?(a):(b))
 #define imin(a,b) ((a<b)?(a):(b))
+
+//#define TRACE_ON_SCREEN
 
 #define DEBUG
 #ifdef DEBUG
@@ -466,7 +471,6 @@ void from_reset(void) {
 		case CG6_ALU_FILL:  // ____ff00 console
 		case CG6_ALU_COPY:  // ____cccc equivalent to fill if patterns == 1 (... which is the case with GX_PATTERN_ONES)
 		case ROP_FILL(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Draw/GXcopy in X11
-			// //case ROP_FILL(GX_ROP_SET,  GX_ROP_SET): // ____ffff Draw/GXset in X11
 		case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // ____cccc Blit/GXcopy in X11
 			{
 				switch (mode) {
@@ -491,7 +495,7 @@ void from_reset(void) {
 					break;
 				}
 			} break;
-		case CG6_ALU_FLIP: { // ____5555 console
+		case CG6_ALU_FLIP: { // ____5555 console -> put ~dst everywhere
 			switch (mode)
 				{
 				case (GX_BLIT_SRC | GX_MODE_COLOR8): // invert
@@ -505,7 +509,7 @@ void from_reset(void) {
 					break;
 				}
 		} break;
-		case ROP_FILL(GX_ROP_NOOP,  GX_ROP_INVERT): { // ____55aa Draw/GXxor in X11
+		case ROP_FILL(GX_ROP_NOOP,  GX_ROP_INVERT): { // ____55aa Draw/GXxor in X11 -> put ~dst if src is 1, put dst if src is 0
 			switch (mode)
 				{
 				case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0):
@@ -537,12 +541,12 @@ void from_reset(void) {
 	case FUN_BLIT: {
 		switch (alu)
 			{
-			case CG6_ALU_COPY: // ____cccc console
-			case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Blit/GXcopy in X11
+			case CG6_ALU_COPY: // ____cccc console -> put the src
+			case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Blit/GXcopy in X11 -> put 1 if src is 1, put 0 if src is 0 (!)
 				{
 					switch (mode) {
 					case (GX_BLIT_SRC | GX_MODE_COLOR8): // console
-					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0): // X11 FIXME:planemask?
+					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0):
 						{
 							const unsigned_param_type xs = fbc->fbc_x0;
 							const unsigned_param_type ys = fbc->fbc_y0;
@@ -563,7 +567,7 @@ void from_reset(void) {
 						break;
 					}	  
 				} break;
-			case ROP_BLIT(GX_ROP_SET,  GX_ROP_SET): // ____ffff Blit/GXset in X11
+			case ROP_BLIT(GX_ROP_SET,  GX_ROP_SET): // ____ffff Blit/GXset in X11 -> put 1 everywhere
 				{
 					switch (mode) {
 					case (GX_BLIT_SRC | GX_MODE_COLOR8): // console
@@ -588,10 +592,10 @@ void from_reset(void) {
 						break;
 					}	  
 				} break;
-			case ROP_BLIT(GX_ROP_NOOP,  GX_ROP_INVERT): // ____6666 Blit/GXxor in X11
+			case ROP_BLIT(GX_ROP_NOOP,  GX_ROP_INVERT): // ____6666 Blit/GXxor in X11 -> xor everywhere
 				{
 					switch (mode) {
-					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0): // X11 FIXME:planemask?
+					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE0_ENABLE | GX_BWRITE1_DISABLE | GX_BREAD_0 | GX_BDISP_0):
 						{
 							const unsigned_param_type xs = fbc->fbc_x0;
 							const unsigned_param_type ys = fbc->fbc_y0;
@@ -647,7 +651,13 @@ void from_reset(void) {
 									const unsigned int yd =   fbc->fbc_next_y0;
 									const unsigned int we =   xde - xdsr + 1;
 									const unsigned int xoff = xds - xdsr;
-									if ((xde >= xds) && (xoff<we)) {
+									if ((xoff == 0) && (we == 4) && ((xdsr & 0x3) == 0)) {
+										unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xdsr);
+										unsigned int bits = fbc->fbc_next_font;
+										unsigned int rbits;
+										asm("rev8 %0, %1\n" : "=r"(rbits) : "r"(bits));
+										*((unsigned int*)dptr) = rbits;
+									} else if ((xde >= xds) && (xoff<we)) {
 										unsigned int bits = fbc->fbc_next_font;
 #if 1
 										unsigned int rbits;
@@ -674,7 +684,7 @@ void from_reset(void) {
 							break;
 						}	  
 					} break;
-				case (GX_PATTERN_ONES | ROP_OSTP(GX_ROP_CLEAR, GX_ROP_SET)): // console, also X11 OpaqueStipple/GXcopy FIXME:planemask?
+				case (GX_PATTERN_ONES | ROP_OSTP(GX_ROP_CLEAR, GX_ROP_SET)): // ____fc30 console, also X11 OpaqueStipple/GXcopy FIXME:planemask?
 					{
 						switch (mode) {
 						case (GX_BLIT_NOSRC | GX_MODE_COLOR1):
@@ -772,8 +782,12 @@ void from_reset(void) {
 		break;
 	}
 
-	// make sure we have nothing left in the cache
  finish:
+#ifdef TRACE_ON_SCREEN
+	show_status_on_screen();
+#endif
+	
+	// make sure we have nothing left in the cache
 	flush_cache();
 
 	fbc->fbc_r5_cmd = FUN_DONE;
@@ -784,7 +798,7 @@ void from_reset(void) {
 }
 
 #define bitblit_proto_int(a, b, suf)									\
-	static void bitblit##a##b##suf(const unsigned_param_type xs,				\
+	static void bitblit##a##b##suf(const unsigned_param_type xs,		\
 							const unsigned_param_type ys,				\
 							const unsigned_param_type wi,				\
 							const unsigned_param_type re,				\
@@ -862,7 +876,7 @@ static void bitblit(const unsigned_param_type xs,
 				/* don't bother */
 				break;
 			case 0x6:  // GXxor
-				rectfill(xd, yd, wi, re, 0); // FIXME: pixelmask
+				rectfill_pm(xd, yd, wi, re, 0, pm);
 				break;
 			}
 		}
@@ -1238,3 +1252,101 @@ static void bitblit_bwd_bwd_copy(const unsigned_param_type xs,
 }
 #endif
 
+#ifdef TRACE_ON_SCREEN
+#include "blit_font.h"
+
+static void print_hex(unsigned char v, unsigned char* line_fb);
+static void print_hex(unsigned char v, unsigned char* line_fb) {
+	unsigned int x, y;
+	const unsigned char *pbits = font + v * 8;
+	for (y = 0 ; y < 8 ; y++) { // line in char
+		const unsigned char bits = pbits[y];
+		for (x = 0 ; x < 8 ; x++) { // bits in line
+			unsigned char data = - ((bits>>(7-x))&1); // 0xff or 0x00
+			line_fb[x] = data;
+		}
+		line_fb += HRES;
+	}
+}
+
+static void print_hexword(unsigned int v, unsigned int bx, unsigned int by) {
+	unsigned int i, j;
+#if 0
+	unsigned int x, y;
+#endif
+	unsigned char* base_fb = (((unsigned char *)BASE_FB) + mul_HRES(by) + bx);
+
+	for (i = 0 ; i < 8 ; i++) { // nibbles in v
+		unsigned char* line_fb = base_fb;
+		unsigned int bidx = (v >> (28-i*4) & 0xF);
+#if 0
+		const unsigned char *pbits = font + bidx * 8;
+		for (y = 0 ; y < 8 ; y++) { // line in char
+			const unsigned char bits = pbits[y];
+			for (x = 0 ; x < 8 ; x++) { // bits in line
+				unsigned char data = - ((bits>>(7-x))&1); // 0xff or 0x00
+				line_fb[x] = data;
+			}
+			line_fb += HRES;
+		}
+#else
+		print_hex(bidx, line_fb);
+#endif
+		base_fb += 8;
+	}
+}
+
+static void show_status_on_screen(void) {
+	struct cg6_fbc* fbc = (struct cg6_fbc*)BASE_FBC;
+	unsigned int cmd = fbc->fbc_r5_cmd;
+	unsigned int alu = fbc->fbc_alu;
+	unsigned int mode = fbc->fbc_mode;
+	unsigned int bx = 0;
+	unsigned int by = 768 + ((cmd & 0xF)*32);
+	unsigned char* base_fb = (((unsigned char *)BASE_FB) + mul_HRES(by) + bx);
+
+	print_hex(cmd & 0xF, base_fb);
+	bx += 16;
+	print_hexword(alu, bx, by);
+	bx += 72;
+	print_hexword(mode, bx, by);
+	bx -= 72;
+	by +=  8;
+	if ((cmd & 0xF) == FUN_DRAW) {
+		print_hexword(fbc->fbc_arectx_prev, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_arecty_prev, bx, by);
+		bx -= 72;
+		by +=  8;
+		print_hexword(fbc->fbc_arectx, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_arecty, bx, by);
+		bx -= 72;
+		by +=  8;
+		print_hexword(fbc->fbc_pm, bx, by);
+		bx -= 88;
+	} else if ((cmd &  0xF) == FUN_BLIT) {
+		print_hexword(fbc->fbc_x0, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_y0, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_x1, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_y1, bx, by);
+		bx -= 216;
+		by +=  8;
+		print_hexword(fbc->fbc_x2, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_y2, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_x3, bx, by);
+		bx += 72;
+		print_hexword(fbc->fbc_y3, bx, by);
+		bx -= 216;
+		by +=  8;
+		print_hexword(fbc->fbc_pm, bx, by);
+		bx -= 88;
+	}
+	print_hexword(fbc->fbc_s, bx, by);
+}
+#endif

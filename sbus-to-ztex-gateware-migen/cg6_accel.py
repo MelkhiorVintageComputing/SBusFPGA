@@ -25,8 +25,8 @@ class CG6Accel(Module): # AutoCSR ?
         fbc_incy = Signal(COORD_BITS)
         fbc_clipminx = Signal(COORD_BITS)
         fbc_clipminy = Signal(COORD_BITS)
-        fbc_clipmaxx = Signal(COORD_BITS)
-        fbc_clipmaxy = Signal(COORD_BITS)
+        fbc_clipmaxx = Signal(COORD_BITS+1) # need the 13th bit as X11 uses 4096 for clipmaxx (console uses 4095)
+        fbc_clipmaxy = Signal(COORD_BITS+1) # need the 13th bit as X11 uses 4096 for clipmaxx (console uses 4095)
         fbc_fg = Signal(8)
         fbc_bg = Signal(8)
         fbc_alu = Signal(32)
@@ -34,7 +34,7 @@ class CG6Accel(Module): # AutoCSR ?
         fbc_arectx = Signal(COORD_BITS)
         fbc_arecty = Signal(COORD_BITS)
         
-        # extra stuff for compatibility
+        # extra stuff for the Vex core
         fbc_arectx_prev = Signal(COORD_BITS) # after fbc_arecty (600) - R/O
         fbc_arecty_prev = Signal(COORD_BITS) # after fbc_arectx_prev (601) - R/O
         fbc_r5_cmd = Signal(32) # to communicate with Vex (602)
@@ -44,8 +44,13 @@ class CG6Accel(Module): # AutoCSR ?
         fbc_next_x1 = Signal(COORD_BITS)
         fbc_next_y0 = Signal(COORD_BITS)
 
+        # do-some-work flags
         fbc_do_draw = Signal()
         fbc_do_blit = Signal()
+
+        # for GX global status register fbc_s
+        GX_FULL_BIT = 29
+        GX_INPROGRESS_BIT = 28
         
         font_layout = [
             ("font", 32),
@@ -54,7 +59,13 @@ class CG6Accel(Module): # AutoCSR ?
             ("y0", COORD_BITS),
         ]
         # depth is because the current 'font' is a bit slow, so we need to buffer a lot...
-        self.submodules.fbc_fifo_font = SyncFIFOBuffered(width=layout_len(font_layout),depth=1024)
+        self.submodules.fbc_fifo_font = SyncFIFOBuffered(width=layout_len(font_layout),depth=2048)
+
+        #fifo_overflow = Signal()
+        #self.comb += fifo_overflow.eq(self.fbc_fifo_font.we & ~self.fbc_fifo_font.writable)
+
+        #draw_blit_overflow = Signal()
+        
         fbc_fifo_font_in = Record(font_layout)
         fbc_fifo_font_out = Record(font_layout)
         self.comb += [
@@ -67,14 +78,16 @@ class CG6Accel(Module): # AutoCSR ?
                          NextValue(bus.ack, 0),
                          NextState("Idle"))
         wishbone_fsm.act("Idle",
+                         self.fbc_fifo_font.we.eq(0),
                          If(bus.cyc & bus.stb & bus.we & ~bus.ack, #write
-                            Case(bus.adr[0:10], {
+                            Case(bus.adr[0:11], {
                                 "default": [ ],
                                 # 0: fbc_config R/O
                                 1: [ NextValue(fbc_mode, bus.dat_w) ],
                                 2: [ NextValue(fbc_clip, bus.dat_w) ],
                                 # 3: <nothing>, pad2
-                                4: [ NextValue(fbc_s, bus.dat_w) ], # 0x010
+                                4: [ # NextValue(fbc_s, bus.dat_w)
+                                   ], # 0x010
                                 # 5: fbc_draw R/O
                                 # 6: fbc_blit R/O 
                                 7: [ self.fbc_fifo_font.we.eq(1),
@@ -147,23 +160,28 @@ class CG6Accel(Module): # AutoCSR ?
                             }),
                             NextValue(bus.ack, 1),
                             ).Elif(bus.cyc & bus.stb & ~bus.we & ~bus.ack, #read
-                                   Case(bus.adr[0:10], {
+                                   Case(bus.adr[0:11], {
                                         "default": [ NextValue(bus.dat_r, 0xDEADBEEF) ],
                                         0: [ NextValue(bus.dat_r, fbc_config) ],
                                         1: [ NextValue(bus.dat_r, fbc_mode) ],
                                         2: [ NextValue(bus.dat_r, fbc_clip) ],
                                         # 3: pad2
-                                        4: [ NextValue(bus.dat_r, fbc_s) ],
+                                        4: [ NextValue(bus.dat_r, fbc_s),
+                                             #NextValue(bus.dat_r, Replicate(fbc_s[GX_INPROGRESS_BIT] | fbc_do_draw | fbc_do_blit | self.fbc_fifo_font.readable, 32)) ],
+                                        ],
                                         # 5: fbc_draw R/O -> start a "draw" on R
-                                        5: [ NextValue(fbc_do_draw, 1),
-                                             NextValue(bus.dat_r, 0)
+                                        5: [ NextValue(fbc_do_draw, ~fbc_s[GX_INPROGRESS_BIT]), # ignore command while working
+                                             NextValue(bus.dat_r, 0),
+                                             #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_do_draw | fbc_do_blit),
+                                             #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_s[GX_INPROGRESS_BIT]),
                                         ],
                                         # 6: fbc_blit R/O -> start a "blit" on R
-                                        6: [ NextValue(fbc_do_blit, 1),
-                                             NextValue(bus.dat_r, 0)
+                                        6: [ NextValue(fbc_do_blit, ~fbc_s[GX_INPROGRESS_BIT]), # ignore command while working
+                                             NextValue(bus.dat_r, 0),
+                                             #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_do_draw | fbc_do_blit),
+                                             #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_s[GX_INPROGRESS_BIT]),
                                         ],
                                         # 7: fbc_font W/O -> start a "font" on W
-                                        # 7: [ NextValue(bus.dat_r, fbc_font) ],
                                         # 8-31: pad3
                                         32: [ NextValue(bus.dat_r, fbc_x[0]) ], # 0x080
                                         33: [ NextValue(bus.dat_r, fbc_y[0]) ],
@@ -232,20 +250,31 @@ class CG6Accel(Module): # AutoCSR ?
         FUN_FONT_NEXT_REQ_BIT = 29
         FUN_FONT_NEXT_DONE_BIT = 28
 
-        # for GX global status register
-        #GX_FULL_BIT = 29
-        GX_INPROGRESS_BIT = 28
-
         # to hold the Vex in reset
         # could be sent to fbc_s[GX_INPROGRESS_BIT] ?
         local_reset = Signal(reset = 1)
         #timeout_rst = 0xFFFFFFF
         #timeout = Signal(28, reset = timeout_rst)
 
-        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset);
-        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_r5_cmd[1]); # blitting
-        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_pm != 0); # planemasking
+        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset)
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_r5_cmd[1]) # blitting
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_pm != 0) # planemasking
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fifo_overflow)
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_s[GX_INPROGRESS_BIT])
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_s[GX_INPROGRESS_BIT])
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(draw_blit_overflow)
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_do_draw & fbc_s[GX_INPROGRESS_BIT])
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_do_blit & fbc_s[GX_INPROGRESS_BIT])
+        
+        self.sync += fbc_s[GX_FULL_BIT].eq(fbc_do_draw | fbc_do_blit | self.fbc_fifo_font.readable)
+        self.sync += fbc_s[27].eq(fbc_do_draw)
+        self.sync += fbc_s[26].eq(fbc_do_blit)
+        self.sync += fbc_s[25].eq(self.fbc_fifo_font.readable)
+        self.sync += fbc_s[24].eq(~local_reset)
+        #self.sync += fbc_s[0].eq(draw_blit_overflow)
+
+        #fbc_s[GX_FULL_BIT].eq(fbc_do_draw | fbc_do_blit | self.fbc_fifo_font.readable)
         
         self.sync += [
             self.fbc_fifo_font.re.eq(0),
@@ -324,9 +353,9 @@ class CG6Accel(Module): # AutoCSR ?
                                   i_iBusWishbone_DAT_MISO = ibus.dat_r,
                                   o_iBusWishbone_DAT_MOSI = ibus.dat_w,
                                   o_iBusWishbone_SEL = ibus.sel,
-                                  i_iBusWishbone_ERR = ibus.err,
-                                  o_iBusWishbone_CTI = ibus.cti,
-                                  o_iBusWishbone_BTE = ibus.bte,
+                                  #i_iBusWishbone_ERR = ibus.err,
+                                  #o_iBusWishbone_CTI = ibus.cti,
+                                  #o_iBusWishbone_BTE = ibus.bte,
                                   o_dBusWishbone_CYC = dbus.cyc,
                                   o_dBusWishbone_STB = dbus.stb,
                                   i_dBusWishbone_ACK = dbus.ack,

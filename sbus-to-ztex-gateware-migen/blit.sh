@@ -21,4 +21,4 @@ if test "x$1" != "xASM"; then
 fi
 $GCC     $OPT -c -o blit.o -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit.s &&
 $GCCLINK $OPT    -o blit   -march=$ARCH -mabi=ilp32 -T blit.lds  -nostartfiles blit.o &&
-$OBJCOPY  -O binary -j .text blit blit.raw
+$OBJCOPY  -O binary -j .text -j .rodata blit blit.raw
