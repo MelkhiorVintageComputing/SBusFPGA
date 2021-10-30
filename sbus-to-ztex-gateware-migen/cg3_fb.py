@@ -145,24 +145,44 @@ class VideoFrameBuffer256c(Module, AutoCSR):
                 hwcursory_buf.eq(vtg_sink.hwcursory),
         ]
 
-        vga_sync += [
-            source_out_de.eq(source_buf_de),
-            source_out_hsync.eq(source_buf_hsync),
-            source_out_vsync.eq(source_buf_vsync),
-            source_out_valid.eq(source_buf_valid),
-            #source_buf_ready.eq(source_out_ready), # ready flow the other way
-        ]
-
         if (hwcursor):
+            source_mid_valid = Signal()
+            source_mid_de = Signal()
+            source_mid_hsync = Signal()
+            source_mid_vsync = Signal()
+            data_mid = Signal(8)
+        
+            hwcursor_color_idx = Signal(2)
+
+            # first cycle, buffer everything and look up the cursor overlay color
             vga_sync += [
-                If(hwcursor_buf & (overlay[0][hwcursory_buf][hwcursorx_buf] | overlay[1][hwcursory_buf][hwcursorx_buf]),
-                   source_out_r.eq(omap[0][Cat(overlay[0][hwcursory_buf][hwcursorx_buf], overlay[1][hwcursory_buf][hwcursorx_buf])]),
-                   source_out_g.eq(omap[1][Cat(overlay[0][hwcursory_buf][hwcursorx_buf], overlay[1][hwcursory_buf][hwcursorx_buf])]),
-                   source_out_b.eq(omap[2][Cat(overlay[0][hwcursory_buf][hwcursorx_buf], overlay[1][hwcursory_buf][hwcursorx_buf])]),
-                ).Elif(source_buf_de,
-                       source_out_r.eq(clut[0][data_buf]),
-                       source_out_g.eq(clut[1][data_buf]),
-                       source_out_b.eq(clut[2][data_buf])
+                source_mid_de.eq(source_buf_de),
+                source_mid_hsync.eq(source_buf_hsync),
+                source_mid_vsync.eq(source_buf_vsync),
+                source_mid_valid.eq(source_buf_valid),
+                data_mid.eq(data_buf),
+                If(hwcursor_buf,
+                   hwcursor_color_idx.eq(Cat(overlay[0][hwcursory_buf][hwcursorx_buf], overlay[1][hwcursory_buf][hwcursorx_buf])),
+                ).Else(
+                    hwcursor_color_idx.eq(0),
+                )
+            ]
+
+            #second cycle, produce the pixel by doing CLUT lookup
+            vga_sync += [
+                source_out_de.eq(source_mid_de),
+                source_out_hsync.eq(source_mid_hsync),
+                source_out_vsync.eq(source_mid_vsync),
+                source_out_valid.eq(source_mid_valid),
+                #source_buf_ready.eq(source_out_ready), # ready flow the other way
+                If(hwcursor_color_idx != 0,
+                   source_out_r.eq(omap[0][hwcursor_color_idx]),
+                   source_out_g.eq(omap[1][hwcursor_color_idx]),
+                   source_out_b.eq(omap[2][hwcursor_color_idx]),
+                ).Elif(source_mid_de,
+                       source_out_r.eq(clut[0][data_mid]),
+                       source_out_g.eq(clut[1][data_mid]),
+                       source_out_b.eq(clut[2][data_mid])
                 ).Else(
                     source_out_r.eq(0),
                     source_out_g.eq(0),
@@ -171,6 +191,11 @@ class VideoFrameBuffer256c(Module, AutoCSR):
                 ]
         else:
             vga_sync += [
+                source_out_de.eq(source_buf_de),
+                source_out_hsync.eq(source_buf_hsync),
+                source_out_vsync.eq(source_buf_vsync),
+                source_out_valid.eq(source_buf_valid),
+                #source_buf_ready.eq(source_out_ready), # ready flow the other way
                 If(source_buf_de,
                    source_out_r.eq(clut[0][data_buf]),
                    source_out_g.eq(clut[1][data_buf]),
