@@ -5,9 +5,18 @@
 */
 
 
-#define HRES 1280 // FIXME : should be generated
+#ifndef HRES
+#define HRES 1280
+#warning "Using default HRES"
+#endif
+#ifndef VRES
 #define VRES 1024
-#define BASE_FB   0x8FE00000 // FIXME : should be generated ; 2+ MiB of SDRAM as framebuffer
+#warning "Using default VRES"
+#endif
+#ifndef BASE_FB
+#define BASE_FB  0x8FE00000 // FIXME : should be generated ; 2+ MiB of SDRAM as framebuffer
+#warning "Using default BASE_FB"
+#endif
 
 #define BASE_ROM 0x00410000 // FIXME : should be generated ; 4-64 KiB of Wishbone ROM ? ; also in the LDS file ; also in the Vex config
 
@@ -369,7 +378,7 @@ struct cg6_fbc {
 void from_reset(void) __attribute__ ((noreturn)); // nothrow, 
 
 static inline void flush_cache(void) {
-	//asm volatile(".word 0x0000500F\n"); // flush the Dcache so that we get updated data
+	asm volatile(".word 0x0000500F\n"); // flush the Dcache so that we get updated data
 }
 
 typedef unsigned int unsigned_param_type;
