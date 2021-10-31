@@ -350,6 +350,7 @@ class SBusFPGA(SoCCore):
         if (cg3 or cg6):
             if (avail_sdram >= cg3_fb_size):
                 avail_sdram = avail_sdram - cg3_fb_size
+                base_fb = self.wb_mem_map["main_ram"] + avail_sdram
             else:
                 print("***** ERROR ***** Can't have a FrameBuffer without main ram\n")
                 assert(False)
@@ -411,7 +412,7 @@ class SBusFPGA(SoCCore):
                                 version=version,
                                 burst_size=burst_size,
                                 cg3_fb_size=cg3_fb_size,
-                                cg3_base=(self.wb_mem_map["main_ram"] + avail_sdram))
+                                cg3_base=base_fb)
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
         self.submodules.sbus_bus_stat = SBusFPGABusStat(soc = self, sbus_bus = self.sbus_bus)
@@ -456,7 +457,7 @@ class SBusFPGA(SoCCore):
                 
 
             if (cg6):
-                self.submodules.cg6_accel = cg6_accel.CG6Accel(self.platform)
+                self.submodules.cg6_accel = cg6_accel.CG6Accel(soc = self, base_fb = base_fb, hres = hres, vres = vres)
                 self.bus.add_slave("cg6_fbc", self.cg6_accel.bus, SoCRegion(origin=self.mem_map.get("cg6_fbc", None), size=0x2000, cached=False))
                 self.bus.add_slave("cg6_fhc", self.cg6.bus2, SoCRegion(origin=self.mem_map.get("cg6_fhc", None), size=0x2000, cached=False))
                 self.bus.add_master(name="cg6_accel_r5_i", master=self.cg6_accel.ibus)

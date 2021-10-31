@@ -219,7 +219,7 @@ class SBusFPGABus(Module):
         ADDR_BIGPFX_LOW = CG3_KEPT_UPPER_BIT ## x MiB per bigprefix
         ADDR_BIGPFX_LENGTH = (1 + ADDR_BIGPFX_HIGH - ADDR_BIGPFX_LOW)
         
-        CG3_REMAPPED_BASE=cg3_base >> CG3_KEPT_UPPER_BIT # we always remapped to the appropriate range (e.g. the 2 MiB is mapped four times consecutively)
+        CG3_REMAPPED_BASE=cg3_base >> CG3_KEPT_UPPER_BIT
 
         print(f"CG3 remapping: {cg3_fb_size//1048576} Mib starting at prefix {CG3_REMAPPED_BASE:x} ({(CG3_REMAPPED_BASE<<CG3_KEPT_UPPER_BIT):x})")
         

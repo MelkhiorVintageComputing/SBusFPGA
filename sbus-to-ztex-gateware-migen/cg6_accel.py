@@ -5,20 +5,24 @@ from litex.soc.interconnect.csr import *
 
 from litex.soc.interconnect import wishbone
 
-class CG6Accel(Module): # AutoCSR ?
-    def __init__(self, platform):
+#from cg6_blit import CG6Blit
 
+class CG6Accel(Module): # AutoCSR ?
+    def __init__(self, soc, base_fb, hres, vres):
+        platform = soc.platform
+        
         # for FBC and TEC - where we just ignore TEC
         self.bus = bus = wishbone.Interface()
         
-        COORD_BITS=12
+        self.COORD_BITS = COORD_BITS = 12
+
         fbc_config = Signal(32, reset = (0x60000000)) # bit 11-12 are for resolution, see the GX manual
         fbc_mode = Signal(32)
         fbc_clip = Signal(32)
         fbc_s = Signal(32)
         #fbc_font = Signal(32)
-        fbc_x = Array(Signal(COORD_BITS) for a in range(0, 4))
-        fbc_y = Array(Signal(COORD_BITS) for a in range(0, 4))
+        self.fbc_x = fbc_x = Array(Signal(COORD_BITS) for a in range(0, 4))
+        self.fbc_y = fbc_y = Array(Signal(COORD_BITS) for a in range(0, 4))
         fbc_offx = Signal(COORD_BITS)
         fbc_offy = Signal(COORD_BITS)
         fbc_incx = Signal(COORD_BITS)
@@ -29,20 +33,22 @@ class CG6Accel(Module): # AutoCSR ?
         fbc_clipmaxy = Signal(COORD_BITS+1) # need the 13th bit as X11 uses 4096 for clipmaxx (console uses 4095)
         fbc_fg = Signal(8)
         fbc_bg = Signal(8)
-        fbc_alu = Signal(32)
-        fbc_pm = Signal(8)
+        self.fbc_alu = fbc_alu = Signal(32)
+        self.fbc_pm = fbc_pm = Signal(8)
         fbc_arectx = Signal(COORD_BITS)
         fbc_arecty = Signal(COORD_BITS)
         
         # extra stuff for the Vex core
         fbc_arectx_prev = Signal(COORD_BITS) # after fbc_arecty (600) - R/O
         fbc_arecty_prev = Signal(COORD_BITS) # after fbc_arectx_prev (601) - R/O
-        fbc_r5_cmd = Signal(32) # to communicate with Vex (602)
+        self.fbc_r5_cmd = fbc_r5_cmd = Signal(32) # to communicate with Vex (602)
         fbc_r5_status = Array(Signal(32) for a in range(0, 4))
         fbc_next_font = Signal(32)
         fbc_next_x0 = Signal(COORD_BITS)
         fbc_next_x1 = Signal(COORD_BITS)
         fbc_next_y0 = Signal(COORD_BITS)
+
+        #self.submodules.cg6_blit = CG6Blit(accel = self, soc = soc, base_fb = base_fb, hres = hres, vres = vres)
 
         # do-some-work flags
         fbc_do_draw = Signal()
@@ -256,8 +262,8 @@ class CG6Accel(Module): # AutoCSR ?
         #timeout_rst = 0xFFFFFFF
         #timeout = Signal(28, reset = timeout_rst)
 
-        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        #self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset)
+        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset)
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_r5_cmd[1]) # blitting
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_pm != 0) # planemasking
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fifo_overflow)
@@ -267,11 +273,11 @@ class CG6Accel(Module): # AutoCSR ?
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_do_draw & fbc_s[GX_INPROGRESS_BIT])
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_do_blit & fbc_s[GX_INPROGRESS_BIT])
         
-        self.sync += fbc_s[GX_FULL_BIT].eq(fbc_do_draw | fbc_do_blit | self.fbc_fifo_font.readable)
-        self.sync += fbc_s[27].eq(fbc_do_draw)
-        self.sync += fbc_s[26].eq(fbc_do_blit)
-        self.sync += fbc_s[25].eq(self.fbc_fifo_font.readable)
-        self.sync += fbc_s[24].eq(~local_reset)
+        #self.sync += fbc_s[GX_FULL_BIT].eq(fbc_do_draw | fbc_do_blit | self.fbc_fifo_font.readable)
+        #self.sync += fbc_s[27].eq(fbc_do_draw)
+        #self.sync += fbc_s[26].eq(fbc_do_blit)
+        #self.sync += fbc_s[25].eq(self.fbc_fifo_font.readable)
+        #self.sync += fbc_s[24].eq(~local_reset)
         #self.sync += fbc_s[0].eq(draw_blit_overflow)
 
         #fbc_s[GX_FULL_BIT].eq(fbc_do_draw | fbc_do_blit | self.fbc_fifo_font.readable)
@@ -324,6 +330,8 @@ class CG6Accel(Module): # AutoCSR ?
                    #fbc_s[GX_FULL_BIT].eq(1),
                    local_reset.eq(0),
                    #timeout.eq(timeout_rst),
+
+                   ##self.cg6_blit.go.eq(1),
             )
             #).Elif((timeout == 0) & fbc_s[GX_INPROGRESS_BIT], # OUPS
             #       fbc_r5_cmd.eq(0),
@@ -353,9 +361,9 @@ class CG6Accel(Module): # AutoCSR ?
                                   i_iBusWishbone_DAT_MISO = ibus.dat_r,
                                   o_iBusWishbone_DAT_MOSI = ibus.dat_w,
                                   o_iBusWishbone_SEL = ibus.sel,
-                                  #i_iBusWishbone_ERR = ibus.err,
-                                  #o_iBusWishbone_CTI = ibus.cti,
-                                  #o_iBusWishbone_BTE = ibus.bte,
+                                  i_iBusWishbone_ERR = ibus.err,
+                                  o_iBusWishbone_CTI = ibus.cti,
+                                  o_iBusWishbone_BTE = ibus.bte,
                                   o_dBusWishbone_CYC = dbus.cyc,
                                   o_dBusWishbone_STB = dbus.stb,
                                   i_dBusWishbone_ACK = dbus.ack,
