@@ -4,7 +4,6 @@
  ~/LITEX/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14/bin/riscv64-unknown-elf-objcopy  -O binary -j .text blit blit.raw
 */
 
-
 #ifndef HRES
 #define HRES 1280
 #warning "Using default HRES"
@@ -908,13 +907,17 @@ static void rectfill(const unsigned_param_type xd,
 	for (j = 0 ; j < re ; j++) {
 		unsigned char *dptr_elt = dptr_line;
 		i = 0;
-		if ((xd & 0x3) == 0) {
+		for ( ; i < wi && ((unsigned int)dptr_elt&0x3)!=0; i++) {
+			*dptr_elt = u8color;
+			dptr_elt ++;
+		}
+		if (wi > 3) {
 			unsigned int u32color = (unsigned int)u8color | ((unsigned int)u8color)<<8 | ((unsigned int)u8color)<<16 | ((unsigned int)u8color)<<24;
-			for ( ; i < (wi&(~3)) ; i+=4) {
+			for ( ; i < (wi-3) ; i+=4) {
 				*(unsigned int*)dptr_elt = u32color;
 				dptr_elt +=4;
 			}
-		}
+		}	
 		for ( ; i < wi ; i++) {
 			*dptr_elt = u8color;
 			dptr_elt ++;
@@ -939,10 +942,14 @@ static void rectfill_pm(const unsigned_param_type xd,
 	for (j = 0 ; j < re ; j++) {
 		unsigned char *dptr_elt = dptr_line;
 		i = 0;
-		if ((xd & 0x3) == 0) {
+		for ( ; i < wi && ((unsigned int)dptr_elt&0x3)!=0; i++) {
+			*dptr_elt = (u8color & pm) | (*dptr_elt & ~pm);
+			dptr_elt ++;
+		}
+		if (wi > 3) {
 			unsigned int u32color = (unsigned int)u8color | ((unsigned int)u8color)<<8 | ((unsigned int)u8color)<<16 | ((unsigned int)u8color)<<24;
 			unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24;
-			for ( ; i < (wi&(~3)) ; i+=4) {
+			for ( ; i < (wi-3) ; i+=4) {
 				*(unsigned int*)dptr_elt = (u32color & u32pm) | (*(unsigned int*)dptr_elt & ~u32pm);
 				dptr_elt +=4;
 			}
@@ -971,13 +978,17 @@ static void xorrectfill(const unsigned_param_type xd,
 	for (j = 0 ; j < re ; j++) {
 		unsigned char *dptr_elt = dptr_line;
 		i = 0;
-		if ((xd & 0x3) == 0) {
+		for ( ; i < wi && ((unsigned int)dptr_elt&0x3)!=0; i++) {
+			*dptr_elt ^= u8color;
+			dptr_elt ++;
+		}
+		if (wi > 3) {
 			unsigned int u32color = (unsigned int)u8color | ((unsigned int)u8color)<<8 | ((unsigned int)u8color)<<16 | ((unsigned int)u8color)<<24;
-			for ( ; i < (wi&(~3)) ; i+=4) {
+			for ( ; i < (wi-3) ; i+=4) {
 				*(unsigned int*)dptr_elt ^= u32color;
 				dptr_elt +=4;
 			}
-		}
+		}	
 		for ( ; i < wi ; i++) {
 			*dptr_elt ^= u8color;
 			dptr_elt ++;
@@ -1001,10 +1012,14 @@ static void xorrectfill_pm(const unsigned_param_type xd,
 	for (j = 0 ; j < re ; j++) {
 		unsigned char *dptr_elt = dptr_line;
 		i = 0;
-		if ((xd & 0x3) == 0) {
+		for ( ; i < wi && ((unsigned int)dptr_elt&0x3)!=0; i++) {
+			*dptr_elt ^= (u8color & pm);
+			dptr_elt ++;
+		}
+		if (wi > 3) {
 			unsigned int u32color = (unsigned int)u8color | ((unsigned int)u8color)<<8 | ((unsigned int)u8color)<<16 | ((unsigned int)u8color)<<24;
 			unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24;
-			for ( ; i < (wi&(~3)) ; i+=4) {
+			for ( ; i < (wi-3) ; i+=4) {
 				*(unsigned int*)dptr_elt ^= (u32color & u32pm);
 				dptr_elt +=4;
 			}
@@ -1030,8 +1045,12 @@ static void invert(const unsigned_param_type xd,
 	for (j = 0 ; j < re ; j++) {
 		unsigned char *dptr_elt = dptr_line;
 		i = 0;
-		if ((xd & 0x3) == 0) {
-			for ( ; i < (wi&(~3)) ; i+=4) {
+		for ( ; i < wi && ((unsigned int)dptr_elt&0x3)!=0; i++) {
+			*dptr_elt = ~(*dptr_elt);
+			dptr_elt ++;
+		}
+		if (wi > 3) {
+			for ( ; i < (wi-3) ; i+=4) {
 				*(unsigned int*)dptr_elt = ~(*(unsigned int*)dptr_elt);
 				dptr_elt +=4;
 			}
@@ -1054,64 +1073,83 @@ static void invert(const unsigned_param_type xd,
 #define XOR_PM(d,s,pm,npm) (d) = ((((s) ^ (d)) & (pm)) | ((d) & (~pm)))
 
 #define BLIT_FWD_FWD(NAME, OP)											\
-	static void bitblit_fwd_fwd_##NAME(const unsigned_param_type xs,			\
-							   const unsigned_param_type ys,			\
-							   const unsigned_param_type wi,			\
-							   const unsigned_param_type re,			\
-							   const unsigned_param_type xd,			\
-							   const unsigned_param_type yd,			\
-							   const unsigned char pm) {				\
-		unsigned int i, j;												\
-		unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
-		unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
-		unsigned char *sptr_line = sptr;								\
-		unsigned char *dptr_line = dptr;								\
-		/*const unsigned char npm = ~pm;*/								\
+	static void bitblit_fwd_fwd_##NAME(const unsigned_param_type xs,	\
+									   const unsigned_param_type ys,	\
+									   const unsigned_param_type wi,	\
+									   const unsigned_param_type re,	\
+									   const unsigned_param_type xd,	\
+									   const unsigned_param_type yd,	\
+									   const unsigned char pm) {		\
+	unsigned int i, j;													\
+	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
+	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
+	unsigned char *sptr_line = sptr;									\
+	unsigned char *dptr_line = dptr;									\
+	/*const unsigned char npm = ~pm;*/									\
 																		\
-		for (j = 0 ; j < re ; j++) {									\
-			unsigned char *sptr_elt = sptr_line;						\
-			unsigned char *dptr_elt = dptr_line;						\
-			i = 0;														\
-			if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {				\
-			const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
-			/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
-				for ( ; i < (wi&(~0xf)) ; i+= 16) {						\
-					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
-					OP(((unsigned int*)dptr_elt)[1], ((unsigned int*)sptr_elt)[1], u32pm, u32npm); \
-					OP(((unsigned int*)dptr_elt)[2], ((unsigned int*)sptr_elt)[2], u32pm, u32npm); \
-					OP(((unsigned int*)dptr_elt)[3], ((unsigned int*)sptr_elt)[3], u32pm, u32npm); \
-					dptr_elt += 16;										\
-					sptr_elt += 16;										\
+	for (j = 0 ; j < re ; j++) {										\
+		unsigned char *sptr_elt = sptr_line;							\
+		unsigned char *dptr_elt = dptr_line;							\
+		i = 0;															\
+		if (wi>3) {														\
+			if ((xs & 0x3) || (xd & 0x3)) {								\
+				for ( ; i < wi && ((unsigned int)dptr_elt&0x3)!=0; i++) { \
+					OP(*dptr_elt, *sptr_elt, pm, npm);					\
+					dptr_elt ++;										\
+					sptr_elt ++;										\
 				}														\
-			}															\
-			if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {				\
-			const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
-			/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+				unsigned char *sptr_elt_al = (unsigned char*)((unsigned int)sptr_elt & ~0x3); \
+				unsigned int fsr_cst = 8*((unsigned int)sptr_elt & 0x3); \
+				unsigned int src0 = ((unsigned int*)sptr_elt_al)[0];	\
+				unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+				for ( ; i < (wi-3) ; i+=4) {							\
+					unsigned int src1 = ((unsigned int*)sptr_elt_al)[1]; \
+					unsigned int val;									\
+					asm("fsr %0, %1, %2, %3\n" : "=r"(val) : "r"(src0), "r"(src1), "r"(fsr_cst)); \
+					OP(*(unsigned int*)dptr_elt, val, u32pm, u32npm);	\
+					src0 = src1;										\
+					dptr_elt += 4;										\
+					sptr_elt_al += 4;									\
+				}														\
+				sptr_elt = sptr_elt_al + ((unsigned int)sptr_elt & 0x3); \
+			} else {													\
+				const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+				/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+				if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {			\
+					for ( ; i < (wi&(~0xf)) ; i+= 16) {					\
+						OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+						OP(((unsigned int*)dptr_elt)[1], ((unsigned int*)sptr_elt)[1], u32pm, u32npm); \
+						OP(((unsigned int*)dptr_elt)[2], ((unsigned int*)sptr_elt)[2], u32pm, u32npm); \
+						OP(((unsigned int*)dptr_elt)[3], ((unsigned int*)sptr_elt)[3], u32pm, u32npm); \
+						dptr_elt += 16;									\
+						sptr_elt += 16;									\
+					}													\
+				}														\
 				for ( ; i < (wi&(~3)) ; i+= 4) {						\
 					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
 					dptr_elt += 4;										\
 					sptr_elt += 4;										\
 				}														\
 			}															\
-			for ( ; i < wi ; i++) {										\
-				OP(*dptr_elt, *sptr_elt, pm, npm);						\
-				dptr_elt ++;											\
-				sptr_elt ++;											\
-			}															\
-			sptr_line += HRES;											\
-			dptr_line += HRES;											\
 		}																\
+		for ( ; i < wi ; i++) {											\
+			OP(*dptr_elt, *sptr_elt, pm, npm);							\
+			dptr_elt ++;												\
+			sptr_elt ++;												\
+		}																\
+		sptr_line += HRES;												\
+		dptr_line += HRES;												\
+	}																	\
 	}
 
 #define BLIT_FWD_BWD(NAME, OP) \
-	static void bitblit_fwd_bwd_##NAME(const unsigned_param_type xs,			\
-								const unsigned_param_type ys,			\
-								const unsigned_param_type wi,			\
-								const unsigned_param_type re,			\
-								const unsigned_param_type xd,			\
-								const unsigned_param_type yd,			\
-								const unsigned char pm					\
-								) {										\
+	static void bitblit_fwd_bwd_##NAME(const unsigned_param_type xs,	\
+									   const unsigned_param_type ys,	\
+									   const unsigned_param_type wi,	\
+									   const unsigned_param_type re,	\
+									   const unsigned_param_type xd,	\
+									   const unsigned_param_type yd,	\
+									   const unsigned char pm) {		\
 		unsigned int i, j;												\
 		unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
 		unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
@@ -1133,54 +1171,77 @@ static void invert(const unsigned_param_type xd,
 	}
 
 #define BLIT_BWD_FWD(NAME, OP)											\
-	static void bitblit_bwd_fwd_##NAME(const unsigned_param_type xs,			\
-								const unsigned_param_type ys,			\
-								const unsigned_param_type wi,			\
-								const unsigned_param_type re,			\
-								const unsigned_param_type xd,			\
-								const unsigned_param_type yd,			\
-								const unsigned char pm					\
-								) {										\
-		unsigned int i, j;												\
-		unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
-		unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
-		unsigned char *sptr_line = sptr + mul_HRES((re-1));				\
-		unsigned char *dptr_line = dptr + mul_HRES((re-1));				\
-		const unsigned char npm = ~pm;									\
+	static void bitblit_bwd_fwd_##NAME(const unsigned_param_type xs,	\
+									   const unsigned_param_type ys,	\
+									   const unsigned_param_type wi,	\
+									   const unsigned_param_type re,	\
+									   const unsigned_param_type xd,	\
+									   const unsigned_param_type yd,	\
+									   const unsigned char pm) {		\
+	unsigned int i, j;													\
+	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
+	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
+	unsigned char *sptr_line = sptr + mul_HRES((re-1));					\
+	unsigned char *dptr_line = dptr + mul_HRES((re-1));					\
+	const unsigned char npm = ~pm;										\
 																		\
-		for (j = 0 ; j < re ; j++) {									\
-			unsigned char *sptr_elt = sptr_line;						\
-			unsigned char *dptr_elt = dptr_line;						\
-			i = 0;														\
-			if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {				\
-				for ( ; i < (wi&(~0xf)) ; i+= 16) {						\
-			const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
-			/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
-					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
-					OP(((unsigned int*)dptr_elt)[1], ((unsigned int*)sptr_elt)[1], u32pm, u32npm); \
-					OP(((unsigned int*)dptr_elt)[2], ((unsigned int*)sptr_elt)[2], u32pm, u32npm); \
-					OP(((unsigned int*)dptr_elt)[3], ((unsigned int*)sptr_elt)[3], u32pm, u32npm); \
-					dptr_elt += 16;										\
-					sptr_elt += 16;										\
+	for (j = 0 ; j < re ; j++) {										\
+		unsigned char *sptr_elt = sptr_line;							\
+		unsigned char *dptr_elt = dptr_line;							\
+		i = 0;															\
+		if (wi>3) {														\
+			if ((xs & 0x3) || (xd & 0x3)) {								\
+				for ( ; i < wi && ((unsigned int)dptr_elt&0x3)!=0; i++) { \
+					OP(*dptr_elt, *sptr_elt, pm, npm);					\
+					dptr_elt ++;										\
+					sptr_elt ++;										\
 				}														\
-			}															\
-			if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {				\
-				for ( ; i < (wi&(~3)) ; i+= 4) {						\
-					const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
-					/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
-					OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+				unsigned char *sptr_elt_al = (unsigned char*)((unsigned int)sptr_elt & ~0x3); \
+				unsigned int fsr_cst = 8*((unsigned int)sptr_elt & 0x3); \
+				unsigned int src0 = ((unsigned int*)sptr_elt_al)[0];	\
+				unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+				for ( ; i < (wi-3) ; i+=4) {							\
+					unsigned int src1 = ((unsigned int*)sptr_elt_al)[1]; \
+					unsigned int val;									\
+					asm("fsr %0, %1, %2, %3\n" : "=r"(val) : "r"(src0), "r"(src1), "r"(fsr_cst)); \
+					OP(*(unsigned int*)dptr_elt, val, u32pm, u32npm);	\
+					src0 = src1;										\
 					dptr_elt += 4;										\
-					sptr_elt += 4;										\
+					sptr_elt_al += 4;									\
+				}														\
+				sptr_elt = sptr_elt_al + ((unsigned int)sptr_elt & 0x3); \
+			} else {													\
+				if (((xs & 0xf) == 0) && ((xd & 0xf) == 0)) {			\
+					for ( ; i < (wi&(~0xf)) ; i+= 16) {					\
+						const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+						/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+						OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+						OP(((unsigned int*)dptr_elt)[1], ((unsigned int*)sptr_elt)[1], u32pm, u32npm); \
+						OP(((unsigned int*)dptr_elt)[2], ((unsigned int*)sptr_elt)[2], u32pm, u32npm); \
+						OP(((unsigned int*)dptr_elt)[3], ((unsigned int*)sptr_elt)[3], u32pm, u32npm); \
+						dptr_elt += 16;									\
+						sptr_elt += 16;									\
+					}													\
+				}														\
+				if (((xs & 0x3) == 0) && ((xd & 0x3) == 0)) {			\
+					for ( ; i < (wi&(~3)) ; i+= 4) {					\
+						const unsigned int u32pm = (unsigned int)pm | ((unsigned int)pm)<<8 | ((unsigned int)pm)<<16 | ((unsigned int)pm)<<24; \
+						/*const unsigned int u32npm = (unsigned int)npm | ((unsigned int)npm)<<8 | ((unsigned int)npm)<<16 | ((unsigned int)npm)<<24;*/ \
+						OP(((unsigned int*)dptr_elt)[0], ((unsigned int*)sptr_elt)[0], u32pm, u32npm); \
+						dptr_elt += 4;									\
+						sptr_elt += 4;									\
+					}													\
 				}														\
 			}															\
-			for ( ; i < wi ; i++) {										\
-				OP(*dptr_elt, *sptr_elt, pm, npm);						\
-				dptr_elt ++;											\
-				sptr_elt ++;											\
-			}															\
-			sptr_line -= HRES;											\
-			dptr_line -= HRES;											\
 		}																\
+		for ( ; i < wi ; i++) {											\
+			OP(*dptr_elt, *sptr_elt, pm, npm);							\
+			dptr_elt ++;												\
+			sptr_elt ++;												\
+		}																\
+		sptr_line -= HRES;												\
+		dptr_line -= HRES;												\
+	}																	\
 	}
 
 
