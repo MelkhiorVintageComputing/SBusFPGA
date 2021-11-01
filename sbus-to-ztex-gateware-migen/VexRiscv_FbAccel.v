@@ -18,11 +18,12 @@
 `define CG6CtrlminmaxEnum_defaultEncoding_CTRL_MAXU 1'b0
 `define CG6CtrlminmaxEnum_defaultEncoding_CTRL_MINU 1'b1
 
-`define CG6CtrlEnum_defaultEncoding_type [1:0]
-`define CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD 2'b00
-`define CG6CtrlEnum_defaultEncoding_CTRL_minmax 2'b01
-`define CG6CtrlEnum_defaultEncoding_CTRL_ternary 2'b10
-`define CG6CtrlEnum_defaultEncoding_CTRL_REV8 2'b11
+`define CG6CtrlEnum_defaultEncoding_type [2:0]
+`define CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD 3'b000
+`define CG6CtrlEnum_defaultEncoding_CTRL_minmax 3'b001
+`define CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB 3'b010
+`define CG6CtrlEnum_defaultEncoding_CTRL_ternary 3'b011
+`define CG6CtrlEnum_defaultEncoding_CTRL_REV8 3'b100
 
 `define ShiftCtrlEnum_defaultEncoding_type [1:0]
 `define ShiftCtrlEnum_defaultEncoding_DISABLE_1 2'b00
@@ -227,112 +228,110 @@ module VexRiscv (
   wire       [0:0]    _zz_293;
   wire                _zz_294;
   wire       [0:0]    _zz_295;
-  wire       [26:0]   _zz_296;
+  wire       [27:0]   _zz_296;
   wire       [31:0]   _zz_297;
   wire                _zz_298;
-  wire       [1:0]    _zz_299;
-  wire       [1:0]    _zz_300;
+  wire       [0:0]    _zz_299;
+  wire       [0:0]    _zz_300;
   wire                _zz_301;
   wire       [0:0]    _zz_302;
-  wire       [22:0]   _zz_303;
+  wire       [23:0]   _zz_303;
   wire       [31:0]   _zz_304;
   wire       [31:0]   _zz_305;
-  wire       [31:0]   _zz_306;
-  wire                _zz_307;
-  wire       [0:0]    _zz_308;
-  wire       [1:0]    _zz_309;
-  wire                _zz_310;
-  wire       [1:0]    _zz_311;
-  wire       [1:0]    _zz_312;
-  wire                _zz_313;
-  wire       [0:0]    _zz_314;
-  wire       [18:0]   _zz_315;
-  wire       [31:0]   _zz_316;
+  wire                _zz_306;
+  wire       [0:0]    _zz_307;
+  wire       [2:0]    _zz_308;
+  wire       [0:0]    _zz_309;
+  wire       [0:0]    _zz_310;
+  wire                _zz_311;
+  wire       [0:0]    _zz_312;
+  wire       [19:0]   _zz_313;
+  wire       [31:0]   _zz_314;
+  wire                _zz_315;
+  wire                _zz_316;
   wire       [31:0]   _zz_317;
-  wire       [31:0]   _zz_318;
-  wire       [31:0]   _zz_319;
-  wire       [31:0]   _zz_320;
-  wire       [31:0]   _zz_321;
-  wire       [31:0]   _zz_322;
-  wire       [31:0]   _zz_323;
-  wire       [31:0]   _zz_324;
-  wire       [31:0]   _zz_325;
-  wire                _zz_326;
-  wire       [0:0]    _zz_327;
-  wire       [0:0]    _zz_328;
-  wire                _zz_329;
+  wire                _zz_318;
+  wire                _zz_319;
+  wire                _zz_320;
+  wire       [0:0]    _zz_321;
+  wire       [0:0]    _zz_322;
+  wire                _zz_323;
+  wire       [0:0]    _zz_324;
+  wire       [16:0]   _zz_325;
+  wire       [31:0]   _zz_326;
+  wire       [31:0]   _zz_327;
+  wire       [31:0]   _zz_328;
+  wire       [0:0]    _zz_329;
   wire       [0:0]    _zz_330;
-  wire       [15:0]   _zz_331;
-  wire       [31:0]   _zz_332;
-  wire       [31:0]   _zz_333;
+  wire                _zz_331;
+  wire       [0:0]    _zz_332;
+  wire       [13:0]   _zz_333;
   wire       [31:0]   _zz_334;
   wire       [31:0]   _zz_335;
-  wire                _zz_336;
-  wire       [0:0]    _zz_337;
+  wire       [31:0]   _zz_336;
+  wire                _zz_337;
   wire       [0:0]    _zz_338;
-  wire                _zz_339;
-  wire       [0:0]    _zz_340;
-  wire       [11:0]   _zz_341;
-  wire       [31:0]   _zz_342;
-  wire       [0:0]    _zz_343;
-  wire       [3:0]    _zz_344;
-  wire       [3:0]    _zz_345;
-  wire       [3:0]    _zz_346;
-  wire                _zz_347;
+  wire       [0:0]    _zz_339;
+  wire                _zz_340;
+  wire       [0:0]    _zz_341;
+  wire       [9:0]    _zz_342;
+  wire                _zz_343;
+  wire       [0:0]    _zz_344;
+  wire       [1:0]    _zz_345;
+  wire       [0:0]    _zz_346;
+  wire       [1:0]    _zz_347;
   wire       [0:0]    _zz_348;
-  wire       [7:0]    _zz_349;
-  wire       [31:0]   _zz_350;
-  wire       [31:0]   _zz_351;
+  wire       [0:0]    _zz_349;
+  wire       [1:0]    _zz_350;
+  wire       [1:0]    _zz_351;
   wire                _zz_352;
   wire       [0:0]    _zz_353;
-  wire       [0:0]    _zz_354;
-  wire       [0:0]    _zz_355;
-  wire       [0:0]    _zz_356;
-  wire                _zz_357;
-  wire       [0:0]    _zz_358;
-  wire       [0:0]    _zz_359;
-  wire       [0:0]    _zz_360;
-  wire       [0:0]    _zz_361;
-  wire                _zz_362;
-  wire       [0:0]    _zz_363;
-  wire       [4:0]    _zz_364;
-  wire       [31:0]   _zz_365;
-  wire       [31:0]   _zz_366;
-  wire       [31:0]   _zz_367;
-  wire       [31:0]   _zz_368;
-  wire       [31:0]   _zz_369;
-  wire       [31:0]   _zz_370;
+  wire       [5:0]    _zz_354;
+  wire       [31:0]   _zz_355;
+  wire       [31:0]   _zz_356;
+  wire       [31:0]   _zz_357;
+  wire                _zz_358;
+  wire                _zz_359;
+  wire                _zz_360;
+  wire                _zz_361;
+  wire       [31:0]   _zz_362;
+  wire       [31:0]   _zz_363;
+  wire                _zz_364;
+  wire                _zz_365;
+  wire       [0:0]    _zz_366;
+  wire       [0:0]    _zz_367;
+  wire                _zz_368;
+  wire       [0:0]    _zz_369;
+  wire       [3:0]    _zz_370;
   wire       [31:0]   _zz_371;
   wire       [31:0]   _zz_372;
   wire       [31:0]   _zz_373;
   wire       [31:0]   _zz_374;
   wire       [31:0]   _zz_375;
   wire       [31:0]   _zz_376;
-  wire                _zz_377;
-  wire       [1:0]    _zz_378;
-  wire       [1:0]    _zz_379;
-  wire                _zz_380;
+  wire       [31:0]   _zz_377;
+  wire       [31:0]   _zz_378;
+  wire       [0:0]    _zz_379;
+  wire       [0:0]    _zz_380;
   wire       [0:0]    _zz_381;
-  wire       [2:0]    _zz_382;
-  wire       [31:0]   _zz_383;
-  wire       [31:0]   _zz_384;
-  wire       [31:0]   _zz_385;
+  wire       [0:0]    _zz_382;
+  wire                _zz_383;
+  wire       [0:0]    _zz_384;
+  wire       [1:0]    _zz_385;
   wire       [31:0]   _zz_386;
   wire       [31:0]   _zz_387;
   wire       [31:0]   _zz_388;
-  wire       [0:0]    _zz_389;
-  wire       [1:0]    _zz_390;
+  wire                _zz_389;
+  wire       [0:0]    _zz_390;
   wire       [0:0]    _zz_391;
-  wire       [0:0]    _zz_392;
-  wire                _zz_393;
-  wire                _zz_394;
-  wire       [31:0]   _zz_395;
-  wire       [31:0]   _zz_396;
-  wire       [31:0]   _zz_397;
-  wire       [31:0]   _zz_398;
+  wire                _zz_392;
+  wire       [0:0]    _zz_393;
+  wire       [0:0]    _zz_394;
+  wire       [0:0]    _zz_395;
+  wire       [0:0]    _zz_396;
+  wire                _zz_397;
+  wire                _zz_398;
   wire                _zz_399;
-  wire                _zz_400;
-  wire                _zz_401;
   wire       [31:0]   execute_BRANCH_CALC;
   wire                execute_BRANCH_DO;
   wire       [31:0]   execute_CG6_FINAL_OUTPUT;
@@ -731,7 +730,7 @@ module VexRiscv (
   wire                _zz_95;
   reg        [31:0]   _zz_96;
   reg        [31:0]   writeBack_DBusCachedPlugin_rspFormated;
-  wire       [33:0]   _zz_97;
+  wire       [34:0]   _zz_97;
   wire                _zz_98;
   wire                _zz_99;
   wire                _zz_100;
@@ -923,10 +922,10 @@ module VexRiscv (
   reg [71:0] _zz_6_string;
   reg [71:0] _zz_7_string;
   reg [71:0] _zz_8_string;
-  reg [95:0] decode_CG6Ctrl_string;
-  reg [95:0] _zz_9_string;
-  reg [95:0] _zz_10_string;
-  reg [95:0] _zz_11_string;
+  reg [103:0] decode_CG6Ctrl_string;
+  reg [103:0] _zz_9_string;
+  reg [103:0] _zz_10_string;
+  reg [103:0] _zz_11_string;
   reg [71:0] _zz_12_string;
   reg [71:0] _zz_13_string;
   reg [71:0] decode_SHIFT_CTRL_string;
@@ -955,8 +954,8 @@ module VexRiscv (
   reg [95:0] _zz_31_string;
   reg [31:0] execute_BRANCH_CTRL_string;
   reg [31:0] _zz_32_string;
-  reg [95:0] execute_CG6Ctrl_string;
-  reg [95:0] _zz_37_string;
+  reg [103:0] execute_CG6Ctrl_string;
+  reg [103:0] _zz_37_string;
   reg [71:0] execute_CG6Ctrlternary_string;
   reg [71:0] _zz_38_string;
   reg [71:0] execute_CG6Ctrlminmax_string;
@@ -978,7 +977,7 @@ module VexRiscv (
   reg [31:0] _zz_52_string;
   reg [71:0] _zz_53_string;
   reg [71:0] _zz_54_string;
-  reg [95:0] _zz_55_string;
+  reg [103:0] _zz_55_string;
   reg [71:0] _zz_56_string;
   reg [39:0] _zz_57_string;
   reg [23:0] _zz_58_string;
@@ -993,7 +992,7 @@ module VexRiscv (
   reg [23:0] _zz_106_string;
   reg [39:0] _zz_107_string;
   reg [71:0] _zz_108_string;
-  reg [95:0] _zz_109_string;
+  reg [103:0] _zz_109_string;
   reg [71:0] _zz_110_string;
   reg [71:0] _zz_111_string;
   reg [31:0] _zz_112_string;
@@ -1004,7 +1003,7 @@ module VexRiscv (
   reg [39:0] decode_to_execute_ALU_BITWISE_CTRL_string;
   reg [71:0] decode_to_execute_SHIFT_CTRL_string;
   reg [71:0] execute_to_memory_SHIFT_CTRL_string;
-  reg [95:0] decode_to_execute_CG6Ctrl_string;
+  reg [103:0] decode_to_execute_CG6Ctrl_string;
   reg [71:0] decode_to_execute_CG6Ctrlminmax_string;
   reg [71:0] decode_to_execute_CG6Ctrlternary_string;
   reg [31:0] decode_to_execute_BRANCH_CTRL_string;
@@ -1087,113 +1086,111 @@ module VexRiscv (
   assign _zz_292 = ((decode_INSTRUCTION & 32'h02000000) == 32'h0);
   assign _zz_293 = 1'b0;
   assign _zz_294 = (((decode_INSTRUCTION & _zz_297) == 32'h02004000) != 1'b0);
-  assign _zz_295 = (_zz_102 != 1'b0);
+  assign _zz_295 = (_zz_101 != 1'b0);
   assign _zz_296 = {(_zz_298 != 1'b0),{(_zz_299 != _zz_300),{_zz_301,{_zz_302,_zz_303}}}};
   assign _zz_297 = 32'h02004000;
   assign _zz_298 = ((decode_INSTRUCTION & 32'h00002000) == 32'h0);
-  assign _zz_299 = {((decode_INSTRUCTION & _zz_304) == 32'h04000000),_zz_98};
-  assign _zz_300 = 2'b00;
-  assign _zz_301 = ({_zz_98,(_zz_305 == _zz_306)} != 2'b00);
-  assign _zz_302 = ({_zz_307,{_zz_308,_zz_309}} != 4'b0000);
-  assign _zz_303 = {(_zz_310 != 1'b0),{(_zz_311 != _zz_312),{_zz_313,{_zz_314,_zz_315}}}};
-  assign _zz_304 = 32'h04000000;
-  assign _zz_305 = (decode_INSTRUCTION & 32'h24000000);
-  assign _zz_306 = 32'h0;
-  assign _zz_307 = ((decode_INSTRUCTION & 32'h08004064) == 32'h08004020);
-  assign _zz_308 = _zz_102;
-  assign _zz_309 = {(_zz_316 == _zz_317),(_zz_318 == _zz_319)};
-  assign _zz_310 = ((decode_INSTRUCTION & 32'h0c007014) == 32'h00005010);
-  assign _zz_311 = {(_zz_320 == _zz_321),(_zz_322 == _zz_323)};
-  assign _zz_312 = 2'b00;
-  assign _zz_313 = ((_zz_324 == _zz_325) != 1'b0);
-  assign _zz_314 = (_zz_326 != 1'b0);
-  assign _zz_315 = {(_zz_327 != _zz_328),{_zz_329,{_zz_330,_zz_331}}};
-  assign _zz_316 = (decode_INSTRUCTION & 32'h20003014);
-  assign _zz_317 = 32'h20001010;
-  assign _zz_318 = (decode_INSTRUCTION & 32'h20004064);
-  assign _zz_319 = 32'h20004020;
-  assign _zz_320 = (decode_INSTRUCTION & 32'h04007014);
-  assign _zz_321 = 32'h00001010;
-  assign _zz_322 = (decode_INSTRUCTION & 32'h64003014);
-  assign _zz_323 = 32'h40001010;
-  assign _zz_324 = (decode_INSTRUCTION & 32'h00000064);
-  assign _zz_325 = 32'h00000024;
-  assign _zz_326 = ((decode_INSTRUCTION & 32'h00001000) == 32'h00001000);
-  assign _zz_327 = ((decode_INSTRUCTION & 32'h00003000) == 32'h00002000);
-  assign _zz_328 = 1'b0;
-  assign _zz_329 = ({(_zz_332 == _zz_333),(_zz_334 == _zz_335)} != 2'b00);
-  assign _zz_330 = 1'b0;
-  assign _zz_331 = {(_zz_336 != 1'b0),{(_zz_337 != _zz_338),{_zz_339,{_zz_340,_zz_341}}}};
-  assign _zz_332 = (decode_INSTRUCTION & 32'h00002010);
-  assign _zz_333 = 32'h00002000;
-  assign _zz_334 = (decode_INSTRUCTION & 32'h00005000);
-  assign _zz_335 = 32'h00001000;
-  assign _zz_336 = ((decode_INSTRUCTION & 32'h00004048) == 32'h00004008);
-  assign _zz_337 = ((decode_INSTRUCTION & 32'h00000024) == 32'h00000020);
-  assign _zz_338 = 1'b0;
-  assign _zz_339 = (((decode_INSTRUCTION & _zz_342) == 32'h00000020) != 1'b0);
-  assign _zz_340 = (_zz_101 != 1'b0);
-  assign _zz_341 = {({_zz_343,_zz_344} != 5'h0),{(_zz_345 != _zz_346),{_zz_347,{_zz_348,_zz_349}}}};
-  assign _zz_342 = 32'h00000020;
-  assign _zz_343 = _zz_99;
-  assign _zz_344 = {(_zz_350 == _zz_351),{_zz_352,{_zz_353,_zz_354}}};
-  assign _zz_345 = {_zz_101,{_zz_100,{_zz_355,_zz_356}}};
-  assign _zz_346 = 4'b0000;
-  assign _zz_347 = ({_zz_99,_zz_357} != 2'b00);
-  assign _zz_348 = ({_zz_358,_zz_359} != 2'b00);
-  assign _zz_349 = {(_zz_360 != _zz_361),{_zz_362,{_zz_363,_zz_364}}};
-  assign _zz_350 = (decode_INSTRUCTION & 32'h00002030);
-  assign _zz_351 = 32'h00002010;
-  assign _zz_352 = ((decode_INSTRUCTION & _zz_365) == 32'h00002020);
-  assign _zz_353 = (_zz_366 == _zz_367);
-  assign _zz_354 = (_zz_368 == _zz_369);
-  assign _zz_355 = (_zz_370 == _zz_371);
-  assign _zz_356 = (_zz_372 == _zz_373);
-  assign _zz_357 = ((decode_INSTRUCTION & _zz_374) == 32'h00000020);
-  assign _zz_358 = _zz_99;
-  assign _zz_359 = _zz_98;
-  assign _zz_360 = (_zz_375 == _zz_376);
-  assign _zz_361 = 1'b0;
-  assign _zz_362 = (_zz_377 != 1'b0);
-  assign _zz_363 = (_zz_378 != _zz_379);
-  assign _zz_364 = {_zz_380,{_zz_381,_zz_382}};
-  assign _zz_365 = 32'h08002020;
-  assign _zz_366 = (decode_INSTRUCTION & 32'h00001030);
-  assign _zz_367 = 32'h00000010;
-  assign _zz_368 = (decode_INSTRUCTION & 32'h20001020);
-  assign _zz_369 = 32'h00000020;
-  assign _zz_370 = (decode_INSTRUCTION & 32'h0000000c);
-  assign _zz_371 = 32'h00000004;
-  assign _zz_372 = (decode_INSTRUCTION & 32'h00000028);
-  assign _zz_373 = 32'h0;
-  assign _zz_374 = 32'h00000070;
-  assign _zz_375 = (decode_INSTRUCTION & 32'h00004014);
-  assign _zz_376 = 32'h00004010;
-  assign _zz_377 = ((decode_INSTRUCTION & 32'h00006014) == 32'h00002010);
-  assign _zz_378 = {(_zz_383 == _zz_384),(_zz_385 == _zz_386)};
-  assign _zz_379 = 2'b00;
-  assign _zz_380 = ((_zz_387 == _zz_388) != 1'b0);
-  assign _zz_381 = ({_zz_389,_zz_390} != 3'b000);
-  assign _zz_382 = {(_zz_391 != _zz_392),{_zz_393,_zz_394}};
-  assign _zz_383 = (decode_INSTRUCTION & 32'h00000004);
-  assign _zz_384 = 32'h0;
-  assign _zz_385 = (decode_INSTRUCTION & 32'h00000018);
-  assign _zz_386 = 32'h0;
-  assign _zz_387 = (decode_INSTRUCTION & 32'h00000058);
-  assign _zz_388 = 32'h0;
+  assign _zz_299 = ((decode_INSTRUCTION & 32'h00400020) == 32'h0);
+  assign _zz_300 = 1'b0;
+  assign _zz_301 = ({_zz_102,(_zz_304 == _zz_305)} != 2'b00);
+  assign _zz_302 = ({_zz_102,_zz_306} != 2'b00);
+  assign _zz_303 = {({_zz_307,_zz_308} != 4'b0000),{(_zz_309 != _zz_310),{_zz_311,{_zz_312,_zz_313}}}};
+  assign _zz_304 = (decode_INSTRUCTION & 32'h00004000);
+  assign _zz_305 = 32'h0;
+  assign _zz_306 = ((decode_INSTRUCTION & 32'h20000000) == 32'h0);
+  assign _zz_307 = ((decode_INSTRUCTION & _zz_314) == 32'h08004020);
+  assign _zz_308 = {_zz_101,{_zz_315,_zz_316}};
+  assign _zz_309 = ((decode_INSTRUCTION & _zz_317) == 32'h00005010);
+  assign _zz_310 = 1'b0;
+  assign _zz_311 = ({_zz_318,_zz_319} != 2'b00);
+  assign _zz_312 = (_zz_320 != 1'b0);
+  assign _zz_313 = {(_zz_321 != _zz_322),{_zz_323,{_zz_324,_zz_325}}};
+  assign _zz_314 = 32'h08004064;
+  assign _zz_315 = ((decode_INSTRUCTION & 32'h20003014) == 32'h20001010);
+  assign _zz_316 = ((decode_INSTRUCTION & 32'h20004064) == 32'h20004020);
+  assign _zz_317 = 32'h0c007014;
+  assign _zz_318 = ((decode_INSTRUCTION & 32'h64003014) == 32'h40001010);
+  assign _zz_319 = ((decode_INSTRUCTION & 32'h44007014) == 32'h00001010);
+  assign _zz_320 = ((decode_INSTRUCTION & 32'h00000064) == 32'h00000024);
+  assign _zz_321 = ((decode_INSTRUCTION & _zz_326) == 32'h00001000);
+  assign _zz_322 = 1'b0;
+  assign _zz_323 = ((_zz_327 == _zz_328) != 1'b0);
+  assign _zz_324 = ({_zz_329,_zz_330} != 2'b00);
+  assign _zz_325 = {1'b0,{_zz_331,{_zz_332,_zz_333}}};
+  assign _zz_326 = 32'h00001000;
+  assign _zz_327 = (decode_INSTRUCTION & 32'h00003000);
+  assign _zz_328 = 32'h00002000;
+  assign _zz_329 = ((decode_INSTRUCTION & 32'h00002010) == 32'h00002000);
+  assign _zz_330 = ((decode_INSTRUCTION & 32'h00005000) == 32'h00001000);
+  assign _zz_331 = (((decode_INSTRUCTION & _zz_334) == 32'h00004008) != 1'b0);
+  assign _zz_332 = ((_zz_335 == _zz_336) != 1'b0);
+  assign _zz_333 = {(_zz_337 != 1'b0),{(_zz_338 != _zz_339),{_zz_340,{_zz_341,_zz_342}}}};
+  assign _zz_334 = 32'h00004048;
+  assign _zz_335 = (decode_INSTRUCTION & 32'h00000024);
+  assign _zz_336 = 32'h00000020;
+  assign _zz_337 = ((decode_INSTRUCTION & 32'h00000020) == 32'h00000020);
+  assign _zz_338 = _zz_100;
+  assign _zz_339 = 1'b0;
+  assign _zz_340 = ({_zz_98,{_zz_343,{_zz_344,_zz_345}}} != 5'h0);
+  assign _zz_341 = ({_zz_100,{_zz_346,_zz_347}} != 4'b0000);
+  assign _zz_342 = {({_zz_348,_zz_349} != 2'b00),{(_zz_350 != _zz_351),{_zz_352,{_zz_353,_zz_354}}}};
+  assign _zz_343 = ((decode_INSTRUCTION & _zz_355) == 32'h00002010);
+  assign _zz_344 = (_zz_356 == _zz_357);
+  assign _zz_345 = {_zz_358,_zz_359};
+  assign _zz_346 = _zz_99;
+  assign _zz_347 = {_zz_360,_zz_361};
+  assign _zz_348 = _zz_98;
+  assign _zz_349 = (_zz_362 == _zz_363);
+  assign _zz_350 = {_zz_98,_zz_364};
+  assign _zz_351 = 2'b00;
+  assign _zz_352 = (_zz_365 != 1'b0);
+  assign _zz_353 = (_zz_366 != _zz_367);
+  assign _zz_354 = {_zz_368,{_zz_369,_zz_370}};
+  assign _zz_355 = 32'h00002030;
+  assign _zz_356 = (decode_INSTRUCTION & 32'h08002020);
+  assign _zz_357 = 32'h00002020;
+  assign _zz_358 = ((decode_INSTRUCTION & _zz_371) == 32'h00000010);
+  assign _zz_359 = ((decode_INSTRUCTION & _zz_372) == 32'h00000020);
+  assign _zz_360 = ((decode_INSTRUCTION & _zz_373) == 32'h00000004);
+  assign _zz_361 = ((decode_INSTRUCTION & _zz_374) == 32'h0);
+  assign _zz_362 = (decode_INSTRUCTION & 32'h00000070);
+  assign _zz_363 = 32'h00000020;
+  assign _zz_364 = ((decode_INSTRUCTION & _zz_375) == 32'h0);
+  assign _zz_365 = ((decode_INSTRUCTION & _zz_376) == 32'h00004010);
+  assign _zz_366 = (_zz_377 == _zz_378);
+  assign _zz_367 = 1'b0;
+  assign _zz_368 = ({_zz_379,_zz_380} != 2'b00);
+  assign _zz_369 = (_zz_381 != _zz_382);
+  assign _zz_370 = {_zz_383,{_zz_384,_zz_385}};
+  assign _zz_371 = 32'h00001030;
+  assign _zz_372 = 32'h20001020;
+  assign _zz_373 = 32'h0000000c;
+  assign _zz_374 = 32'h00000028;
+  assign _zz_375 = 32'h00000020;
+  assign _zz_376 = 32'h00004014;
+  assign _zz_377 = (decode_INSTRUCTION & 32'h00006014);
+  assign _zz_378 = 32'h00002010;
+  assign _zz_379 = ((decode_INSTRUCTION & _zz_386) == 32'h0);
+  assign _zz_380 = ((decode_INSTRUCTION & _zz_387) == 32'h0);
+  assign _zz_381 = ((decode_INSTRUCTION & _zz_388) == 32'h0);
+  assign _zz_382 = 1'b0;
+  assign _zz_383 = ({_zz_389,{_zz_390,_zz_391}} != 3'b000);
+  assign _zz_384 = (_zz_392 != 1'b0);
+  assign _zz_385 = {(_zz_393 != _zz_394),(_zz_395 != _zz_396)};
+  assign _zz_386 = 32'h00000004;
+  assign _zz_387 = 32'h00000018;
+  assign _zz_388 = 32'h00000058;
   assign _zz_389 = ((decode_INSTRUCTION & 32'h00000044) == 32'h00000040);
-  assign _zz_390 = {((decode_INSTRUCTION & _zz_395) == 32'h00002010),((decode_INSTRUCTION & _zz_396) == 32'h40000030)};
-  assign _zz_391 = ((decode_INSTRUCTION & 32'h00000014) == 32'h00000004);
-  assign _zz_392 = 1'b0;
-  assign _zz_393 = (((decode_INSTRUCTION & _zz_397) == 32'h00000004) != 1'b0);
-  assign _zz_394 = (((decode_INSTRUCTION & _zz_398) == 32'h00001008) != 1'b0);
-  assign _zz_395 = 32'h00002014;
-  assign _zz_396 = 32'h40000034;
-  assign _zz_397 = 32'h00000044;
-  assign _zz_398 = 32'h00005048;
-  assign _zz_399 = execute_INSTRUCTION[31];
-  assign _zz_400 = execute_INSTRUCTION[31];
-  assign _zz_401 = execute_INSTRUCTION[7];
+  assign _zz_390 = ((decode_INSTRUCTION & 32'h00002014) == 32'h00002010);
+  assign _zz_391 = ((decode_INSTRUCTION & 32'h40000034) == 32'h40000030);
+  assign _zz_392 = ((decode_INSTRUCTION & 32'h00000014) == 32'h00000004);
+  assign _zz_393 = ((decode_INSTRUCTION & 32'h00000044) == 32'h00000004);
+  assign _zz_394 = 1'b0;
+  assign _zz_395 = ((decode_INSTRUCTION & 32'h00005048) == 32'h00001008);
+  assign _zz_396 = 1'b0;
+  assign _zz_397 = execute_INSTRUCTION[31];
+  assign _zz_398 = execute_INSTRUCTION[31];
+  assign _zz_399 = execute_INSTRUCTION[7];
   always @ (posedge clk) begin
     if(_zz_278) begin
       _zz_214 <= RegFilePlugin_regFile[decode_RegFilePlugin_regFileReadAddress1];
@@ -1445,38 +1442,42 @@ module VexRiscv (
   end
   always @(*) begin
     case(decode_CG6Ctrl)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : decode_CG6Ctrl_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : decode_CG6Ctrl_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : decode_CG6Ctrl_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : decode_CG6Ctrl_string = "CTRL_REV8   ";
-      default : decode_CG6Ctrl_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : decode_CG6Ctrl_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : decode_CG6Ctrl_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : decode_CG6Ctrl_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : decode_CG6Ctrl_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : decode_CG6Ctrl_string = "CTRL_REV8    ";
+      default : decode_CG6Ctrl_string = "?????????????";
     endcase
   end
   always @(*) begin
     case(_zz_9)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_9_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_9_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_9_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_9_string = "CTRL_REV8   ";
-      default : _zz_9_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_9_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_9_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : _zz_9_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_9_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_9_string = "CTRL_REV8    ";
+      default : _zz_9_string = "?????????????";
     endcase
   end
   always @(*) begin
     case(_zz_10)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_10_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_10_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_10_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_10_string = "CTRL_REV8   ";
-      default : _zz_10_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_10_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_10_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : _zz_10_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_10_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_10_string = "CTRL_REV8    ";
+      default : _zz_10_string = "?????????????";
     endcase
   end
   always @(*) begin
     case(_zz_11)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_11_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_11_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_11_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_11_string = "CTRL_REV8   ";
-      default : _zz_11_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_11_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_11_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : _zz_11_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_11_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_11_string = "CTRL_REV8    ";
+      default : _zz_11_string = "?????????????";
     endcase
   end
   always @(*) begin
@@ -1717,20 +1718,22 @@ module VexRiscv (
   end
   always @(*) begin
     case(execute_CG6Ctrl)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : execute_CG6Ctrl_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : execute_CG6Ctrl_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : execute_CG6Ctrl_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : execute_CG6Ctrl_string = "CTRL_REV8   ";
-      default : execute_CG6Ctrl_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : execute_CG6Ctrl_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : execute_CG6Ctrl_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : execute_CG6Ctrl_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : execute_CG6Ctrl_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : execute_CG6Ctrl_string = "CTRL_REV8    ";
+      default : execute_CG6Ctrl_string = "?????????????";
     endcase
   end
   always @(*) begin
     case(_zz_37)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_37_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_37_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_37_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_37_string = "CTRL_REV8   ";
-      default : _zz_37_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_37_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_37_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : _zz_37_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_37_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_37_string = "CTRL_REV8    ";
+      default : _zz_37_string = "?????????????";
     endcase
   end
   always @(*) begin
@@ -1907,11 +1910,12 @@ module VexRiscv (
   end
   always @(*) begin
     case(_zz_55)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_55_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_55_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_55_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_55_string = "CTRL_REV8   ";
-      default : _zz_55_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_55_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_55_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : _zz_55_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_55_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_55_string = "CTRL_REV8    ";
+      default : _zz_55_string = "?????????????";
     endcase
   end
   always @(*) begin
@@ -2034,11 +2038,12 @@ module VexRiscv (
   end
   always @(*) begin
     case(_zz_109)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_109_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_109_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_109_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_109_string = "CTRL_REV8   ";
-      default : _zz_109_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : _zz_109_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : _zz_109_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : _zz_109_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : _zz_109_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : _zz_109_string = "CTRL_REV8    ";
+      default : _zz_109_string = "?????????????";
     endcase
   end
   always @(*) begin
@@ -2126,11 +2131,12 @@ module VexRiscv (
   end
   always @(*) begin
     case(decode_to_execute_CG6Ctrl)
-      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : decode_to_execute_CG6Ctrl_string = "CTRL_SH2ADD ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : decode_to_execute_CG6Ctrl_string = "CTRL_minmax ";
-      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : decode_to_execute_CG6Ctrl_string = "CTRL_ternary";
-      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : decode_to_execute_CG6Ctrl_string = "CTRL_REV8   ";
-      default : decode_to_execute_CG6Ctrl_string = "????????????";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SH2ADD : decode_to_execute_CG6Ctrl_string = "CTRL_SH2ADD  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_minmax : decode_to_execute_CG6Ctrl_string = "CTRL_minmax  ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : decode_to_execute_CG6Ctrl_string = "CTRL_SEXTdotB";
+      `CG6CtrlEnum_defaultEncoding_CTRL_ternary : decode_to_execute_CG6Ctrl_string = "CTRL_ternary ";
+      `CG6CtrlEnum_defaultEncoding_CTRL_REV8 : decode_to_execute_CG6Ctrl_string = "CTRL_REV8    ";
+      default : decode_to_execute_CG6Ctrl_string = "?????????????";
     endcase
   end
   always @(*) begin
@@ -2172,7 +2178,7 @@ module VexRiscv (
   assign decode_PREDICTION_HAD_BRANCHED2 = IBusCachedPlugin_decodePrediction_cmd_hadBranch;
   assign decode_SRC2_FORCE_ZERO = (decode_SRC_ADD_ZERO && (! decode_SRC_USE_SUB_LESS));
   assign execute_RS3 = decode_to_execute_RS3;
-  assign decode_REGFILE_WRITE_VALID_ODD = _zz_97[33];
+  assign decode_REGFILE_WRITE_VALID_ODD = _zz_97[34];
   assign _zz_1 = _zz_2;
   assign decode_CG6Ctrlternary = _zz_3;
   assign _zz_4 = _zz_5;
@@ -2214,7 +2220,7 @@ module VexRiscv (
   assign execute_RS1 = decode_to_execute_RS1;
   assign execute_BRANCH_COND_RESULT = _zz_162;
   assign execute_BRANCH_CTRL = _zz_32;
-  assign decode_RS3_USE = _zz_97[27];
+  assign decode_RS3_USE = _zz_97[28];
   assign decode_RS2_USE = _zz_97[14];
   assign decode_RS1_USE = _zz_97[5];
   assign _zz_33 = execute_REGFILE_WRITE_DATA_ODD;
@@ -3050,12 +3056,12 @@ module VexRiscv (
   assign DBusCachedPlugin_mmuBus_rsp_exception = 1'b0;
   assign DBusCachedPlugin_mmuBus_rsp_refilling = 1'b0;
   assign DBusCachedPlugin_mmuBus_busy = 1'b0;
-  assign _zz_98 = ((decode_INSTRUCTION & 32'h00000020) == 32'h0);
-  assign _zz_99 = ((decode_INSTRUCTION & 32'h00000004) == 32'h00000004);
-  assign _zz_100 = ((decode_INSTRUCTION & 32'h00000048) == 32'h00000048);
-  assign _zz_101 = ((decode_INSTRUCTION & 32'h00000010) == 32'h00000010);
-  assign _zz_102 = ((decode_INSTRUCTION & 32'h04003014) == 32'h04001010);
-  assign _zz_97 = {1'b0,{({_zz_100,(_zz_287 == _zz_288)} != 2'b00),{((_zz_289 == _zz_290) != 1'b0),{(_zz_291 != 1'b0),{(_zz_292 != _zz_293),{_zz_294,{_zz_295,_zz_296}}}}}}};
+  assign _zz_98 = ((decode_INSTRUCTION & 32'h00000004) == 32'h00000004);
+  assign _zz_99 = ((decode_INSTRUCTION & 32'h00000048) == 32'h00000048);
+  assign _zz_100 = ((decode_INSTRUCTION & 32'h00000010) == 32'h00000010);
+  assign _zz_101 = ((decode_INSTRUCTION & 32'h04003014) == 32'h04001010);
+  assign _zz_102 = ((decode_INSTRUCTION & 32'h04000000) == 32'h04000000);
+  assign _zz_97 = {1'b0,{({_zz_99,(_zz_287 == _zz_288)} != 2'b00),{((_zz_289 == _zz_290) != 1'b0),{(_zz_291 != 1'b0),{(_zz_292 != _zz_293),{_zz_294,{_zz_295,_zz_296}}}}}}};
   assign _zz_103 = _zz_97[2 : 1];
   assign _zz_61 = _zz_103;
   assign _zz_104 = _zz_97[7 : 6];
@@ -3068,13 +3074,13 @@ module VexRiscv (
   assign _zz_57 = _zz_107;
   assign _zz_108 = _zz_97[22 : 21];
   assign _zz_56 = _zz_108;
-  assign _zz_109 = _zz_97[25 : 24];
+  assign _zz_109 = _zz_97[26 : 24];
   assign _zz_55 = _zz_109;
-  assign _zz_110 = _zz_97[26 : 26];
+  assign _zz_110 = _zz_97[27 : 27];
   assign _zz_54 = _zz_110;
-  assign _zz_111 = _zz_97[29 : 28];
+  assign _zz_111 = _zz_97[30 : 29];
   assign _zz_53 = _zz_111;
-  assign _zz_112 = _zz_97[32 : 31];
+  assign _zz_112 = _zz_97[33 : 32];
   assign _zz_52 = _zz_112;
   assign decode_RegFilePlugin_regFileReadAddress1 = decode_INSTRUCTION_ANTICIPATED[19 : 15];
   assign decode_RegFilePlugin_regFileReadAddress2 = decode_INSTRUCTION_ANTICIPATED[24 : 20];
@@ -3365,6 +3371,9 @@ module VexRiscv (
       `CG6CtrlEnum_defaultEncoding_CTRL_minmax : begin
         _zz_129 = execute_CG6Plugin_val_minmax;
       end
+      `CG6CtrlEnum_defaultEncoding_CTRL_SEXTdotB : begin
+        _zz_129 = {(execute_SRC1[7] ? 24'hffffff : 24'h0),execute_SRC1[7 : 0]};
+      end
       `CG6CtrlEnum_defaultEncoding_CTRL_ternary : begin
         _zz_129 = execute_CG6Plugin_val_ternary;
       end
@@ -3634,7 +3643,7 @@ module VexRiscv (
         execute_BranchPlugin_branch_src2 = {_zz_171,execute_INSTRUCTION[31 : 20]};
       end
       default : begin
-        execute_BranchPlugin_branch_src2 = ((execute_BRANCH_CTRL == `BranchCtrlEnum_defaultEncoding_JAL) ? {{_zz_173,{{{_zz_399,execute_INSTRUCTION[19 : 12]},execute_INSTRUCTION[20]},execute_INSTRUCTION[30 : 21]}},1'b0} : {{_zz_175,{{{_zz_400,_zz_401},execute_INSTRUCTION[30 : 25]},execute_INSTRUCTION[11 : 8]}},1'b0});
+        execute_BranchPlugin_branch_src2 = ((execute_BRANCH_CTRL == `BranchCtrlEnum_defaultEncoding_JAL) ? {{_zz_173,{{{_zz_397,execute_INSTRUCTION[19 : 12]},execute_INSTRUCTION[20]},execute_INSTRUCTION[30 : 21]}},1'b0} : {{_zz_175,{{{_zz_398,_zz_399},execute_INSTRUCTION[30 : 25]},execute_INSTRUCTION[11 : 8]}},1'b0});
         if(execute_PREDICTION_HAD_BRANCHED2)begin
           execute_BranchPlugin_branch_src2 = {29'd0, _zz_276};
         end
