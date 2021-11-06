@@ -141,7 +141,7 @@ fload fbc_init.fth
   " ISO8859-1" encode-string " character-set" property
   h# c encode-int " cursorshift" property
 
-  h# SBUSFPGA_CG3_BUFSIZE encode-int " fbmapped" property
+  /cg6-off-fb encode-int " fbmapped" property
 
   ['] qemu-cg6-driver-install is-install
 ;
