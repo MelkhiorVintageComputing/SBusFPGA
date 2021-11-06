@@ -79,8 +79,8 @@ class ExchangeWithMem(Module, AutoCSR):
         ])
         self.wr_tosdram = CSRStatus(32, description = "Last address written to SDRAM")
         
-        if (do_checksum):
-            self.checksum = CSRStorage(data_width_bits, write_from_dev=True, description = "checksum (XOR)");
+        #if (do_checksum):
+        self.checksum = CSRStorage(data_width_bits, write_from_dev=True, description = "checksum (XOR)");
 
         self.submodules.req_r_fsm = req_r_fsm = FSM(reset_state="Reset")
         self.submodules.req_w_fsm = req_w_fsm = FSM(reset_state="Reset")
