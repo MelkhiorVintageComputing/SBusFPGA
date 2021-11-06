@@ -16,7 +16,7 @@
     h# SBUSFPGA_CG3_WIDTH
 ;
 
-h# sbusfpga_regionaddr_cg3_bt constant cg3-off-dac
+sbusfpga_regionaddr_cg3_bt constant cg3-off-dac
 h# 20 constant /cg3-off-dac
 
 h# 800000 constant cg3-off-fb
