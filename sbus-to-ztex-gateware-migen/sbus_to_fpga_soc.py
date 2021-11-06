@@ -273,7 +273,7 @@ class SBusFPGA(SoCCore):
             #"cg6_tec":          0x00701000, # required for compatibility
             "cg3_pixels":       0x00800000, # required for compatibility, 1/2/4/8 MiB for now (up to 0x00FFFFFF inclusive) (cg3 and cg6 idem)
             "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible),
-            "video_framebuffer":0x80000000 + 0x10000000 - cg3_fb_size, # FIXME
+            "video_framebuffer":0x80000000 + 0x10000000 - cg3_fb_size, # Updated later
             "usb_fake_dma":     0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
@@ -347,10 +347,12 @@ class SBusFPGA(SoCCore):
         else:
             avail_sdram = 0
 
+        base_fb = self.wb_mem_map["main_ram"] + avail_sdram - 1048576 # placeholder
         if (cg3 or cg6):
             if (avail_sdram >= cg3_fb_size):
                 avail_sdram = avail_sdram - cg3_fb_size
                 base_fb = self.wb_mem_map["main_ram"] + avail_sdram
+                self.wb_mem_map["video_framebuffer"] = base_fb
             else:
                 print("***** ERROR ***** Can't have a FrameBuffer without main ram\n")
                 assert(False)
@@ -396,7 +398,7 @@ class SBusFPGA(SoCCore):
                                                                 dram_dma_reader=self.dram_dma_reader,
                                                                 mem_size=avail_sdram//1048576,
                                                                 burst_size=burst_size,
-                                                                do_checksum = True)
+                                                                do_checksum = False)
         else:
             self.submodules.tosbus_fifo = None
             self.submodules.fromsbus_fifo = None
@@ -421,8 +423,7 @@ class SBusFPGA(SoCCore):
 
         if (usb):
             self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
-        #self.bus.add_master(name="mem_read_master", master=self.exchange_with_mem.wishbone_r_slave)
-        #self.bus.add_master(name="mem_write_master", master=self.exchange_with_mem.wishbone_w_slave)
+            #self.comb += self.usb_host.wb_dma.connect(self.wishbone_slave_sys) # direct connection option ?
         
         #self.add_sdcard()
 
@@ -434,13 +435,8 @@ class SBusFPGA(SoCCore):
         # Actually renaming 'sys' doesn't work - unless we can CDC the CSRs as well
         if (engine):
             self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None))) # , "sys":"clk100"
-            #self.submodules.curve25519engine_wishbone_cdc = WishboneDomainCrossingMaster(platform=self.platform, slave=self.curve25519engine.bus, cd_master="sys", cd_slave="clk100")
-            #self.bus.add_slave("curve25519engine", self.curve25519engine_wishbone_cdc, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
             self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
             self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
-            #self.submodules.curve25519_on_sync = BusSynchronizer(width = 1, idomain = "clk100", odomain = "sys")
-            #self.comb += self.curve25519_on_sync.i.eq(self.curve25519engine.power.fields.on)
-            #self.comb += self.crg.curve25519_on.eq(self.curve25519_on_sync.o)
             self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
 
         if (i2c):
