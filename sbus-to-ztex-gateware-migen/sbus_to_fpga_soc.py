@@ -204,13 +204,14 @@ class _CRG(Module):
         
 class SBusFPGA(SoCCore):
     # Add USB Host
-    def add_usb_host_custom(self, name="usb_host", pads=None, usb_clk_freq=48e6):
+    def add_usb_host_custom(self, name="usb_host", pads=None, usb_clk_freq=48e6, single_dvma_master=False):
         from litex.soc.cores.usb_ohci import USBOHCI
         self.submodules.usb_host = USBOHCI(platform=self.platform, pads=pads, usb_clk_freq=usb_clk_freq, dma_data_width=32)
         usb_host_region_size = 0x10000
         usb_host_region = SoCRegion(origin=self.mem_map.get(name, None), size=usb_host_region_size, cached=False)
         self.bus.add_slave("usb_host_ctrl", self.usb_host.wb_ctrl, region=usb_host_region)
-        self.bus.add_master("usb_host_dma", master=self.usb_host.wb_dma)
+        if (not single_dvma_master):
+            self.bus.add_master("usb_host_dma", master=self.usb_host.wb_dma)
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
@@ -239,6 +240,15 @@ class SBusFPGA(SoCCore):
             vres = 0
             cg3_fb_size = 0
         litex.soc.cores.video.video_timings.update(cg3_fb.cg3_timings)
+
+        # if there's just one DVMA bus master in the design,
+        # then we'll connect it directly to the wishbone interface
+        # in the FSM rather than to the system Wishbone bus
+        single_dvma_master = False
+        if (usb and not engine): # fixme: others?
+            single_dvma_master = True
+        if (engine and not usb): # fixme: others?
+            single_dvma_master = True
         
         SoCCore.__init__(self,
                          platform=platform,
@@ -302,9 +312,9 @@ class SBusFPGA(SoCCore):
                 pads         = platform.request("SBUS_DATA_OE_LED_2"),
                 sys_clk_freq = sys_clk_freq)
             self.add_csr("leds")
-
+        
         if (usb):
-            self.add_usb_host_custom(pads=platform.request("usb"), usb_clk_freq=48e6)
+            self.add_usb_host_custom(pads=platform.request("usb"), usb_clk_freq=48e6, single_dvma_master=single_dvma_master)
             pad_usb_interrupt = platform.get_irq(irq_req=4, device="usb_host", next_down=True, next_up=False)
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
@@ -422,8 +432,10 @@ class SBusFPGA(SoCCore):
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
 
         if (usb):
-            self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
-            #self.comb += self.usb_host.wb_dma.connect(self.wishbone_slave_sys) # direct connection option ?
+            if (not single_dvma_master):
+                self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
+            else:
+                self.comb += self.usb_host.wb_dma.connect(self.wishbone_slave_sys)
         
         #self.add_sdcard()
 
@@ -436,9 +448,12 @@ class SBusFPGA(SoCCore):
         if (engine):
             self.submodules.curve25519engine = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Engine(platform=platform,prefix=self.mem_map.get("curve25519engine", None))) # , "sys":"clk100"
             self.bus.add_slave("curve25519engine", self.curve25519engine.bus, SoCRegion(origin=self.mem_map.get("curve25519engine", None), size=0x20000, cached=False))
-            self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
+            if (not single_dvma_master):
+                self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
+            else:
+                self.comb += self.curve25519engine.busls.connect(self.wishbone_slave_sys)
             self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
-
+            
         if (i2c):
             self.submodules.i2c = i2c.RTLI2C(platform, pads=platform.request("i2c"))
 
