@@ -73,12 +73,26 @@ headerless
   cg6-off-dac /cg6-off-dac do-map-in to cg6-dac
 ;
 
+: dac-unmap
+  cg6-dac /cg6-off-dac do-map-out
+  -1 to cg6-dac
+;
+
 : fb-map
   cg6-off-fb /cg6-off-fb do-map-in to fb-addr
 ;
 
+: fb-unmap
+  fb-addr /cg6-off-fb do-map-out
+  -1 to fb-addr
+;
+
 : map-regs
   dac-map fb-map
+;
+
+: unmap-regs
+  dac-unmap fb-unmap
 ;
 
 fload fbc_init.fth
@@ -123,6 +137,14 @@ fload fbc_init.fth
   then
 ;
 
+: qemu-cg6-driver-remove ( -- )
+  cg6-dac -1 <> if
+  		  unmap-regs
+		  map-out-fbc
+		  -1 to frame-buffer-adr
+  then
+;
+
 : qemu-cg6-driver-init
 
   cg6-reg
@@ -144,6 +166,7 @@ fload fbc_init.fth
   /cg6-off-fb encode-int " fbmapped" property
 
   ['] qemu-cg6-driver-install is-install
+  ['] qemu-cg6-driver-remove is-remove
 ;
 
 qemu-cg6-driver-init

@@ -72,12 +72,26 @@ headerless
   cg3-off-dac /cg3-off-dac do-map-in to cg3-dac
 ;
 
+: dac-unmap
+  cg3-dac /cg3-off-dac do-map-out
+  -1 to cg3-dac
+;
+
 : fb-map
   cg3-off-fb /cg3-off-fb do-map-in to fb-addr
 ;
 
+: fb-unmap
+  cg3-off-fb /cg3-off-fb do-map-out
+  -1 to fb-addr
+;
+
 : map-regs
   dac-map fb-map
+;
+
+: unmap-regs
+  dac-unmap fb-unmap
 ;
 
 \
@@ -107,6 +121,13 @@ headerless
   then
 ;
 
+: qemu-cg3-driver-remove ( -- )
+  cg3-dac -1 <> if
+  		  unmap-regs
+		  -1 to frame-buffer-adr
+  then
+;
+
 : qemu-cg3-driver-init
 
   cg3-reg
@@ -126,6 +147,7 @@ headerless
   h# c encode-int " cursorshift" property
 
   ['] qemu-cg3-driver-install is-install
+  ['] qemu-cg3-driver-remove is-remove
 ;
 
 qemu-cg3-driver-init
