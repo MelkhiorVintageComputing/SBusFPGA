@@ -215,7 +215,7 @@ class SBusFPGA(SoCCore):
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
-    def __init__(self, variant, version, sys_clk_freq, usb, sdram, engine, i2c, cg3, cg6, cg3_res, **kwargs):
+    def __init__(self, variant, version, sys_clk_freq, usb, sdram, engine, i2c, cg3, cg6, cg3_res, sdcard, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -244,10 +244,11 @@ class SBusFPGA(SoCCore):
         # if there's just one DVMA bus master in the design,
         # then we'll connect it directly to the wishbone interface
         # in the FSM rather than to the system Wishbone bus
+        # sdcard has two by itself, so never a single_dvma_master
         single_dvma_master = False
-        if (usb and not engine): # fixme: others?
+        if (usb and not engine and not sdcard): # fixme: others?
             single_dvma_master = True
-        if (engine and not usb): # fixme: others?
+        if (engine and not usb and not sdcard): # fixme: others?
             single_dvma_master = True
         
         SoCCore.__init__(self,
@@ -263,7 +264,7 @@ class SBusFPGA(SoCCore):
         # the physical address here are used as offset in the SBus
         # reserved area of 256 MiB
         # Anything at 0x10000000 is therefore unreachable directly
-        # The position of the 'usb_fake_dma' is so it overlaps
+        # The position of the 'dvma_bridge' is so it overlaps
         # the virtual address space used by NetBSD DMA allocators
         # (themselves constrained by the SBus MMU capabilities)
         self.wb_mem_map = wb_mem_map = {
@@ -284,7 +285,7 @@ class SBusFPGA(SoCCore):
             "cg3_pixels":       0x00800000, # required for compatibility, 1/2/4/8 MiB for now (up to 0x00FFFFFF inclusive) (cg3 and cg6 idem)
             "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible),
             "video_framebuffer":0x80000000 + 0x10000000 - cg3_fb_size, # Updated later
-            "usb_fake_dma":     0xfc000000, # required to match DVMA virtual addresses
+            "dvma_bridge":      0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, sdram=sdram, engine=engine, cg3=(cg3 or cg6), pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
@@ -318,6 +319,7 @@ class SBusFPGA(SoCCore):
             pad_usb_interrupt = platform.get_irq(irq_req=4, device="usb_host", next_down=True, next_up=False)
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
+                assert(False)
             sig_usb_interrupt = Signal(reset=1)
             # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
             self.comb += pad_usb_interrupt.eq(sig_usb_interrupt)
@@ -409,6 +411,14 @@ class SBusFPGA(SoCCore):
                                                                 mem_size=avail_sdram//1048576,
                                                                 burst_size=burst_size,
                                                                 do_checksum = False)
+            pad_sdram_interrupt = platform.get_irq(irq_req=5, device="sdram", next_down=True, next_up=True)
+            if (pad_sdram_interrupt is None):
+                print(" ***** ERROR ***** sdram requires an interrupt")
+                assert(False)
+            sig_sdram_interrupt = Signal(reset=1)
+            # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
+            self.comb += pad_sdram_interrupt.eq(sig_sdram_interrupt)
+            self.comb += sig_sdram_interrupt.eq(~self.exchange_with_mem.irq) ##
         else:
             self.submodules.tosbus_fifo = None
             self.submodules.fromsbus_fifo = None
@@ -432,12 +442,23 @@ class SBusFPGA(SoCCore):
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
 
         if (usb):
-            if (not single_dvma_master):
-                self.bus.add_slave(name="usb_fake_dma", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("usb_fake_dma", None), size=0x03ffffff, cached=False))
-            else:
+            if (single_dvma_master):
                 self.comb += self.usb_host.wb_dma.connect(self.wishbone_slave_sys)
-        
-        #self.add_sdcard()
+
+        if (sdcard):
+            self.add_sdcard()
+            #pad_sdcard_interrupt = platform.get_irq(irq_req=3, device="sdcard", next_down=True, next_up=False)
+            #if (pad_sdcard_interrupt is None):
+            #    print(" ***** ERROR ***** sdcard requires an interrupt")
+            #    assert(False)
+            #sig_sdcard_interrupt = Signal(reset=1)
+            ## the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
+            #self.comb += pad_sdcard_interrupt.eq(sig_sdcard_interrupt)
+            #self.comb += sig_sdcard_interrupt.eq(~self.sdirq.irq) ##
+
+        if (usb or engine or sdcard):
+            if (not single_dvma_master):
+                self.bus.add_slave(name="dvma_bridge", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("dvma_bridge", None), size=0x03ffffff, cached=False))
 
         self.submodules.trng = NeoRV32TrngWrapper(platform=platform)
 
@@ -506,6 +527,7 @@ def main():
     parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--cg3-res", default="1152x900@76Hz", help="Specify the CG3/CG6 resolution")
     parser.add_argument("--cg6", action="store_true", help="add a CG6 framebuffer [V1.2+VGA_RGB222 pmod]")
+    parser.add_argument("--sdcard", action="store_true", help="add a sdcard {no SW yet}")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
@@ -534,7 +556,8 @@ def main():
                    i2c=args.i2c,
                    cg3=args.cg3,
                    cg6=args.cg6,
-                   cg3_res=args.cg3_res)
+                   cg3_res=args.cg3_res,
+                   sdcard=args.sdcard)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
 
     version_for_filename = args.version.replace(".", "_")
@@ -579,7 +602,8 @@ def main():
                                               i2c=args.i2c,
                                               cg3=args.cg3,
                                               cg6=args.cg6,
-                                              cg3_res=args.cg3_res)
+                                              cg3_res=args.cg3_res,
+                                              sdcard=args.sdcard)
     write_to_file(os.path.join(f"prom_{version_for_filename}.fth"), prom_content)
     
     

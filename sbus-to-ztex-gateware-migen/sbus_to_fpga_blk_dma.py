@@ -59,7 +59,11 @@ class ExchangeWithMem(Module, AutoCSR):
         self.comb += self.blk_size.status.eq(data_width)
         self.comb += self.blk_base.status.eq(soc.wb_mem_map["main_ram"] >> log2_int(data_width))
         self.comb += self.mem_size.status.eq((mem_size * 1024 * 1024) >> log2_int(data_width))
-        
+
+        self.irqctrl = CSRStorage(write_from_dev=True, fields = [CSRField("irq_enable", 1, description = "Enable interrupt"),
+                                                                 CSRField("irq_clear", 1, description = "Clear interrupt"),
+                                                                 CSRField("reserved", 30, description = "Reserved"),
+        ])
         self.blk_addr =   CSRStorage(32, description = "SDRAM Block address to read/write from Wishbone memory (block of size {})".format(data_width))
         self.dma_addr =   CSRStorage(32, description = "Host Base address where to write/read data (i.e. SPARC Virtual addr)")
         #self.blk_cnt =    CSRStorage(32, write_from_dev=True, description = "How many blk to read/write (max 2^{}-1); bit 31 is RD".format(max_block_bits), reset = 0)
@@ -114,6 +118,25 @@ class ExchangeWithMem(Module, AutoCSR):
         self.comb += self.tosbus_fifo_readable_sync.i.eq(self.tosbus_fifo.readable)
         self.comb += tosbus_fifo_readable_in_sys.eq(self.tosbus_fifo_readable_sync.o)
         self.comb += self.dma_status.fields.has_rd_data.eq(tosbus_fifo_readable_in_sys)  # there's still data to be sent to memory; this will drop before the last SBus Master Cycle is finished, but then the SBus is busy so the host won't be able to read the status before the cycle is finished so we're good
+
+        ongoing_m1 = Signal()
+        ongoing = Signal()
+        self.irq = irq = Signal()
+
+        self.sync += ongoing_m1.eq(ongoing)
+        self.sync += ongoing.eq(self.dma_status.fields.rd_fsm_busy |
+                                self.dma_status.fields.wr_fsm_busy |
+                                self.dma_status.fields.has_wr_data |
+                                self.dma_status.fields.has_requests |
+                                self.dma_status.fields.has_rd_data |
+                                (self.blk_cnt.storage[0:max_block_bits] != 0)
+        )
+        self.sync += irq.eq(((~ongoing & ongoing_m1) & self.irqctrl.fields.irq_enable) | # irq on falling edge of ongoing
+                            (self.irq & ~self.irqctrl.fields.irq_clear & ~(ongoing & ~ongoing_m1))) # keep irq until cleared or rising edge of ongoing
+
+        self.sync += If(self.irqctrl.fields.irq_clear,
+                        self.irqctrl.we.eq(1),
+                        self.irqctrl.dat_w.eq(self.irqctrl.storage & 0xFFFFFFFD)) ## auto-reset irq_clear
         
         #self.comb += self.dma_status.status[16:17].eq(self.wishbone_w_master.cyc) # show the WB iface status (W)
         #self.comb += self.dma_status.status[17:18].eq(self.wishbone_w_master.stb)

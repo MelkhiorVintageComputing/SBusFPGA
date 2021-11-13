@@ -191,7 +191,7 @@ class SBusFPGABus(Module):
         self.fromsbus_fifo = fromsbus_fifo
         self.fromsbus_req_fifo = fromsbus_req_fifo
 
-        if (cg3_fb_size == 1*1048576):
+        if (cg3_fb_size <= 1*1048576):
             CG3_UPPER_BITS=12
             CG3_KEPT_UPPER_BIT=20
             CG3_PIXELS_ADDR_BIGVAL = 0x08>>0
