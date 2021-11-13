@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for V in "V1_0" "V1_2"; do
+for V in "V1_2"; do
 
 	PFX=prom_${V}
 
