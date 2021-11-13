@@ -141,7 +141,7 @@ difference() { // B
       translate ([-SBUS_WIDTH/2+USB_PLUG_OFFSET,
         0.001-MY_FULL_LENGTH/2+4,
         14.8/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM-SBUS_BACKPLATE_PROTUSION_HEIGHT + 3.12])
-	  cube ([16.5, 20, 9.5], center = true);
+	  cube ([16, 20, 9.5], center = true);
     }
       
   } // union Z
@@ -380,9 +380,9 @@ module vga_support() {
         
         color ("violet") 
       translate ([-SBUS_WIDTH/2+31,
-        -MY_FULL_LENGTH/2+5/2+1,
+        -MY_FULL_LENGTH/2+5/2+3.5,
         0.00000000001 - SBUS_THICKNESS / 2 - (SBUS_BACKPLATE_PROTUSION_HEIGHT + SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM) / 2])
-	  cube ([31.8+8, 3,	/*SBUS_THICKNESS */
+	  cube ([31.8+8, 4,	/*SBUS_THICKNESS */
 		 SBUS_BACKPLATE_PROTUSION_HEIGHT + SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM], center = true);
         color ("violet") 
       translate ([-SBUS_WIDTH/2+31,
@@ -446,15 +446,18 @@ fan_25mm_support() {
         color("black") cube([fan_carrier_depth, fan_width+fan_extra_height, fan_height+fan_extra_height], center = true);
     }
     // support
-    translate([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth+0.5,carrier_offset-2.4,0]) {
-        color("purple") cube([fan_carrier_depth+5, fan_width+fan_extra_height+8, SBUS_THICKNESS], center = true);
+    /* extra -2 (translate) and -4 (size) for usb */
+    translate([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth+0.5,carrier_offset-2.4-2,0]) {
+        color("purple") cube([fan_carrier_depth+5, fan_width+fan_extra_height+8-4, SBUS_THICKNESS], center = true);
     }
       // strut between the backplate and the fan carrier
-	translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, carrier_offset-1, (SBUS_BACKPLATE_FULLHEIGHT-5)/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM]) color ("purple") cube ([fan_carrier_depth/2, 38,SBUS_BACKPLATE_FULLHEIGHT-5 ], center = true);
+    /* extra -2 (translate) and -4 (size) for usb */
+	translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, carrier_offset-1-2, (SBUS_BACKPLATE_FULLHEIGHT-5)/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM]) color ("purple") cube ([fan_carrier_depth/2, 38-4,SBUS_BACKPLATE_FULLHEIGHT-5 ], center = true);
     
     translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, carrier_offset-(fan_width+fan_extra_height)/2-triangle_width/2, triangle_height/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+SBUS_BACKPLATE_FULLHEIGHT-5]) rotate([0,90,0]) color("pink") translate([0,0,-fan_carrier_depth/4]) linear_extrude(height=fan_carrier_depth/2) polygon( points=[[triangle_height/2,-triangle_width/2],[-triangle_height/2,triangle_width/2],[triangle_height/2,triangle_width/2]] );
     
-    translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, carrier_offset+(fan_width+fan_extra_height)/2+triangle_width/2, triangle_height/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+SBUS_BACKPLATE_FULLHEIGHT-5]) rotate([0,90,0]) color("pink") translate([0,0,-fan_carrier_depth/4]) linear_extrude(height=fan_carrier_depth/2) polygon( points=[[triangle_height/2,-triangle_width/2],[-triangle_height/2,-triangle_width/2],[triangle_height/2,triangle_width/2]] );
+    /* incompatible with usb */
+    if (0) translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, carrier_offset+(fan_width+fan_extra_height)/2+triangle_width/2, triangle_height/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+SBUS_BACKPLATE_FULLHEIGHT-5]) rotate([0,90,0]) color("pink") translate([0,0,-fan_carrier_depth/4]) linear_extrude(height=fan_carrier_depth/2) polygon( points=[[triangle_height/2,-triangle_width/2],[-triangle_height/2,-triangle_width/2],[triangle_height/2,triangle_width/2]] );
 
 }
 }
