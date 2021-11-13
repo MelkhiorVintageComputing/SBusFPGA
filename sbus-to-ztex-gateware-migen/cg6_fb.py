@@ -181,7 +181,7 @@ class cg6(Module, AutoCSR):
                          ).Elif(bus2.cyc & bus2.stb & ~bus2.we & ~bus2.ack, #read
                                 Case(bus2.adr[0:10], {
                                     "default": [ NextValue(bus2.dat_r, 0xDEADBEEF) ],
-                                    0: [ NextValue(bus2.dat_r, 0x60500000) ], # claim revision 5
+                                    0: [ NextValue(bus2.dat_r, 0x60b00000) ], # claim revision 11 (TurboGX)
                                 }),
                                 NextValue(bus2.ack, 1),
                          ).Else(

@@ -111,6 +111,7 @@ fload fbc_init.fth
 
     map-in-fbc
 	init-fbc
+	fb-map
 
     \ Initial pallette taken from Sun's "Writing FCode Programs"
     h# ff h# ff h# ff h# 0  color!    \ Background white
@@ -120,7 +121,7 @@ fload fbc_init.fth
     fb-addr to frame-buffer-adr
     default-font set-font
 
-    frame-buffer-adr encode-int " address" property
+    frame-buffer-adr encode-int " address" property \ CHECKME
 
     openbios-video-width openbios-video-height over char-width / over char-height /
     fb8-install
@@ -141,7 +142,9 @@ fload fbc_init.fth
   cg6-dac -1 <> if
   		  unmap-regs
 		  map-out-fbc
+		  fb-unmap
 		  -1 to frame-buffer-adr
+		  " address" delete-attribute
   then
 ;
 
@@ -152,6 +155,8 @@ fload fbc_init.fth
   openbios-video-height encode-int " height" property
   openbios-video-width encode-int " width" property
   line-bytes encode-int " linebytes" property
+  h# b encode-int " chiprev" property \ rev 11
+  /cg6-off-fb h# a >> encode-int " vmsize" property
 
   h# 39 encode-int 0 encode-int encode+ " intr" property
 

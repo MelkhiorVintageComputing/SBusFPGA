@@ -105,6 +105,8 @@ headerless
 : qemu-cg3-driver-install ( -- )
   cg3-dac -1 = if
     map-regs
+	
+	fb-map
 
     \ Initial pallette taken from Sun's "Writing FCode Programs"
     h# ff h# ff h# ff h# 0  color!    \ Background white
@@ -114,7 +116,7 @@ headerless
     fb-addr to frame-buffer-adr
     default-font set-font
 
-    frame-buffer-adr encode-int " address" property
+    frame-buffer-adr encode-int " address" property \ CHECKME
 
     openbios-video-width openbios-video-height over char-width / over char-height /
     fb8-install
@@ -124,7 +126,9 @@ headerless
 : qemu-cg3-driver-remove ( -- )
   cg3-dac -1 <> if
   		  unmap-regs
+		  fb-unmap
 		  -1 to frame-buffer-adr
+		  " address" delete-attribute
   then
 ;
 
