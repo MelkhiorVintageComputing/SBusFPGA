@@ -59,6 +59,13 @@ __KERNEL_RCSID(0, "$NetBSD$");
 int	sbusfpga_sdram_match(device_t, cfdata_t, void *);
 void	sbusfpga_sdram_attach(device_t, device_t, void *);
 
+//#define USE_INTR
+
+#ifdef USE_INTR
+static int sbusfpga_sdram_intr(void *p);
+static void sbusfpga_sdram_soft_intr(void *p);
+#endif
+
 CFATTACH_DECL_NEW(sbusfpga_sdram, sizeof(struct sbusfpga_sdram_softc),
     sbusfpga_sdram_match, sbusfpga_sdram_attach, NULL, NULL);
 
@@ -98,11 +105,13 @@ const struct cdevsw sbusfpga_sdram_cdevsw = {
 
 static void	sbusfpga_sdram_set_geometry(struct sbusfpga_sdram_softc *sc);
 static void sbusfpga_sdram_minphys(struct buf *);
+static void sbusfpga_sdram_iosize(device_t, int *);
 static int sbusfpga_sdram_diskstart(device_t self, struct buf *bp);
 
 struct dkdriver sbusfpga_sdram_dkdriver = {
 	.d_strategy = sbusfpga_sdram_strategy,
 	.d_minphys = sbusfpga_sdram_minphys,
+	.d_iosize = sbusfpga_sdram_iosize,
 	.d_diskstart = sbusfpga_sdram_diskstart
 };
 
@@ -110,6 +119,12 @@ extern struct cfdriver sbusfpga_sdram_cd;
 
 static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data);
 static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data);
+#ifdef USE_INTR
+static int sbusfpga_sdram_read_block_async(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt);
+static int sbusfpga_sdram_write_block_async(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt);
+static void enable_irq(struct sbusfpga_sdram_softc *sc);
+static void reset_irq(struct sbusfpga_sdram_softc *sc);
+#endif
 
 struct sbusfpga_sdram_rwpg {
 	u_int32_t pgdata[512];
@@ -336,10 +351,41 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 		return;
 	}
 
-	if (!dma_memtest(sc)) {
+	if (!dma_memtest(sc)) { // in PIO mode, irq not yet enabled
 		aprint_error_dev(self, "DMA-MEMTEST failed for SDRAM\n");
 		return;
 	}
+
+	sc->bp = NULL;
+	
+	mutex_init(&sc->sc_lock, MUTEX_DEFAULT, IPL_NONE);
+
+#ifdef USE_INTR
+	/* Map and establish the interrupt. */
+	if (sa->sa_nintr != 0) {
+		int ipl_pri = sbsc->sc_intr2ipl[sa->sa_pri];
+		sc->sc_ih = bus_intr_establish(sc->sc_bustag, sa->sa_pri,
+									   ipl_pri, sbusfpga_sdram_intr, sc);
+		if (sc->sc_ih == NULL) {
+			/* FIXME: CLEANUP */
+			aprint_error_dev(self, "couldn't establish interrupt (%d)\n", sa->sa_nintr);
+			return;
+		} else 
+			aprint_normal_dev(self, "interrupting at %d / %d / %d\n", sa->sa_nintr, sa->sa_pri, ipl_pri);
+		enable_irq(sc);
+		mutex_init(&sc->sc_intr_lock, MUTEX_DEFAULT, ipl_pri);
+		sc->sc_sih = softint_establish(SOFTINT_BIO, sbusfpga_sdram_soft_intr, sc);
+		if (sc->sc_sih == NULL) {
+			aprint_error_dev(self, "couldn't establish soft interrupt\n");
+			/* FIXME: CLEANUP */
+			return;
+		}
+	} else {
+		aprint_error_dev(self, "no interrupt defined in PROM\n");
+		/* FIXME: CLEANUP */
+		return;
+	}
+#endif
 
 	/* we seem OK hardware-wise */
 	dk_init(&sc->dk, self, DKTYPE_FLASH);
@@ -402,8 +448,92 @@ sbusfpga_sdram_minphys(struct buf *bp)
 	if (bp->b_bcount > SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ)
 		bp->b_bcount = SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ;
 }
+static void
+sbusfpga_sdram_iosize(device_t dev, int *count)
+{
+	if (*count > SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ)
+		*count = SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ;
+}
 
+#define CONFIG_CSR_DATA_WIDTH 32
+/* grrr */
+#define sbusfpga_exchange_with_mem_softc sbusfpga_sdram_softc
+#define sbusfpga_ddrphy_softc sbusfpga_sdram_softc
+#include "dev/sbus/sbusfpga_csr_exchange_with_mem.h"
+#include "dev/sbus/sbusfpga_csr_ddrphy.h"
+#include "dev/sbus/sbusfpga_csr_sdram.h"
 
+#define DMA_STATUS_CHECK_BITS (0x01F)
+
+#ifdef USE_INTR
+/* asynchronous version, completin in interrupt
+ * doesn't work
+ */
+static int
+sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
+{	
+	struct sbusfpga_sdram_softc *sc = device_private(self);
+	int err = 0;
+	if (sc == NULL) {
+		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
+		err = EINVAL;
+		return err;
+	}
+
+	mutex_enter(&sc->sc_lock);
+	
+	//device_printf(sc->dk.sc_dev, "%s:\n", __PRETTY_FUNCTION__);
+		
+	if (sc->bp != NULL) {
+			err = EAGAIN;
+			mutex_exit(&sc->sc_lock);
+			return err;
+	}
+	
+	bp->b_resid = bp->b_bcount;
+
+	if (bp->b_bcount == 0) {
+		mutex_exit(&sc->sc_lock);
+		dk_done(&sc->dk, bp);
+		return err;
+	}
+	unsigned char* data = bp->b_data;
+	daddr_t blk = bp->b_rawblkno;
+	u_int32_t blkcnt = bp->b_resid / 512;
+			
+	if (blkcnt > (SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ/512)) {
+		mutex_exit(&sc->sc_lock);
+		aprint_error("%s:%d: blkcnt = %u too large! giving up\n", __PRETTY_FUNCTION__, __LINE__, blkcnt);
+		err = EINVAL;
+		return err;
+	}
+	if (blk+blkcnt > (sc->dma_real_mem_size / 512)) {
+		mutex_exit(&sc->sc_lock);
+		aprint_error("%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
+		err = EINVAL;
+		return err;
+	}
+
+	if (bp->b_flags & B_READ) {
+		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_PREWRITE);
+		sc->bp = bp;
+		err = sbusfpga_sdram_read_block_async(sc, blk, blkcnt);
+		if (err)
+			sc->bp = NULL;
+	} else {
+		memcpy(sc->sc_dma_kva, data, blkcnt * 512);
+		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_PREREAD);
+		sc->bp = bp;
+		err = sbusfpga_sdram_write_block_async(sc, blk, blkcnt);
+		if (err)
+			sc->bp = NULL;
+	}
+	
+	mutex_exit(&sc->sc_lock);
+	return err;
+}
+#else
+/* synchronous version */
 static int
 sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 {	
@@ -414,57 +544,16 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 		err = EINVAL;
 		goto done;
 	}
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: part %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(bp->b_dev)); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount); */
-
+	
 	bp->b_resid = bp->b_bcount;
 
 	if (bp->b_bcount == 0) {
 		goto done;
 	}
 
-	/*
-	{
-		paddr_t pap;
-		pmap_t pk = pmap_kernel();
-		if (pmap_extract(pk, (vaddr_t)bp->b_data, &pap)) {
-			aprint_normal_dev(sc->dk.sc_dev, "KVA %p mapped to PA 0x%08lx\n", bp->b_data, pap);
-			if (bp->b_bcount > 4096) {
-				u_int32_t np = (bp->b_bcount + 4095) / 4096;
-				u_int32_t pn;
-				for (pn = 1 ; pn < np ; pn ++) {
-					paddr_t papn;
-					if (pmap_extract(pk, (vaddr_t)bp->b_data + pn * 4096, &papn)) {
-						if (papn != (pap + pn * 4096))
-							break;
-					} else break;
-				}
-				aprint_normal_dev(sc->dk.sc_dev, "And we have %u out %u consecutive PA pages\n", pn, np);
- 			}
-		} else {
-			aprint_normal_dev(sc->dk.sc_dev, "KVA %p not mapped\n", bp->b_data);
-		}
-	}
-	*/
-
 	if (bp->b_flags & B_READ) {
 		unsigned char* data = bp->b_data;
 		daddr_t blk = bp->b_rawblkno;
-		/* struct partition *p = NULL; */
-		
-		/* if (DISKPART(bp->b_dev) != RAW_PART) { */
-		/* 	if ((err = bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0)) <= 0) { */
-		/* 		aprint_error("%s:%d: bounds_check_with_label -> %d\n", __PRETTY_FUNCTION__, __LINE__, err); */
-		/* 		bp->b_resid = bp->b_bcount; */
-		/* 		goto done; */
-		/* 	} */
-		/* 	p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)]; */
-		/* 	blk = bp->b_blkno + p->p_offset; */
-		/* } */
 		
 		while (bp->b_resid >= 512 && !err) {
 			u_int32_t blkcnt = bp->b_resid / 512;
@@ -484,24 +573,8 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 			bp->b_resid -= 512 * blkcnt;
 		}
 	} else {
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: part %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(bp->b_dev)); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount); */
 		unsigned char* data = bp->b_data;
 		daddr_t blk = bp->b_rawblkno;
-		/* struct partition *p = NULL; */
-		
-		/* if (DISKPART(bp->b_dev) != RAW_PART) { */
-		/* 	if (bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0) <= 0) { */
-		/* 		bp->b_resid = bp->b_bcount; */
-		/* 		goto done; */
-		/* 	} */
-		/* 	p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)]; */
-		/* 	blk = bp->b_blkno + p->p_offset; */
-		/* } */
 		
 		while (bp->b_resid >= 512 && !err) {
 			u_int32_t blkcnt = bp->b_resid / 512;
@@ -522,22 +595,80 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 		}
 	}
 	
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_resid = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_resid); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_error = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_error); */
-	
  done:
-	biodone(bp);
+	dk_done(&sc->dk, bp);
 	return err;
 }
+#endif
 
+#ifdef USE_INTR
+static void sbusfpga_sdram_soft_intr(void *p) {
+	struct sbusfpga_sdram_softc *sc = (struct sbusfpga_sdram_softc *)p;
+	struct buf *bp;
+	
+	//device_printf(sc->dk.sc_dev, "%s:\n", __PRETTY_FUNCTION__);
+	
+	mutex_enter(&sc->sc_lock);
 
-#define CONFIG_CSR_DATA_WIDTH 32
-/* grrr */
-#define sbusfpga_exchange_with_mem_softc sbusfpga_sdram_softc
-#define sbusfpga_ddrphy_softc sbusfpga_sdram_softc
-#include "dev/sbus/sbusfpga_csr_exchange_with_mem.h"
-#include "dev/sbus/sbusfpga_csr_ddrphy.h"
-#include "dev/sbus/sbusfpga_csr_sdram.h"
+	bp = sc->bp;
+	sc->bp = NULL;
+
+	if ((exchange_with_mem_blk_cnt_read(sc) != 0) ||
+		((exchange_with_mem_dma_status_read(sc) & DMA_STATUS_CHECK_BITS) != 0)) {
+		device_printf(sc->dk.sc_dev, "interrupt while previous transaction didn't finish ?!?\n");
+	}
+	
+	u_int32_t blkcnt = bp->b_resid / 512;
+	
+	if (bp->b_flags & B_READ) {
+		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_POSTWRITE);
+		memcpy(bp->b_data, sc->sc_dma_kva, blkcnt * 512);
+	} else {
+		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_POSTREAD);
+	}
+	
+	bp->b_resid -= 512 * blkcnt;
+	
+	mutex_exit(&sc->sc_lock);
+	
+	dk_done(&sc->dk, bp);
+}
+#endif
+
+#ifdef USE_INTR
+static int sbusfpga_sdram_intr(void *p) {
+	struct sbusfpga_sdram_softc *sc = (struct sbusfpga_sdram_softc *)p;
+
+	//device_printf(sc->dk.sc_dev, "%s:\n", __PRETTY_FUNCTION__);
+	
+	mutex_spin_enter(&sc->sc_intr_lock);
+	
+	reset_irq(sc);
+
+	if (sc->bp == NULL) {
+		mutex_spin_exit(&sc->sc_intr_lock);
+		device_printf(sc->dk.sc_dev, "interrupt with no pending transaction...\n");
+		return 1;
+	}
+	
+	softint_schedule(sc->sc_sih);
+	
+	mutex_spin_exit(&sc->sc_intr_lock);
+
+	return 1;
+}
+#endif
+
+#ifdef USE_INTR
+static void enable_irq(struct sbusfpga_sdram_softc *sc) {
+	exchange_with_mem_irqctrl_write(sc, 0x3); // enable & clear interrupt
+	//exchange_with_mem_irqctrl_write(sc, 0x1); // enable interrupt
+	aprint_normal_dev(sc->dk.sc_dev, "irq ctrl: 0x%08x\n", exchange_with_mem_irqctrl_read(sc));
+}
+static void reset_irq(struct sbusfpga_sdram_softc *sc) {
+	exchange_with_mem_irqctrl_write(sc, 0x3); // enable & clear interrupt
+}
+#endif
 
 /* not yet generated */
 static inline void exchange_with_mem_checksum_read(struct sbusfpga_sdram_softc *sc, uint32_t* data) {
@@ -604,8 +735,6 @@ sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l
  done:
 	return err;
 }
-
-#define DMA_STATUS_CHECK_BITS (0x01F)
 
 int
 dma_init(struct sbusfpga_sdram_softc *sc) {
@@ -978,6 +1107,30 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
   
 	return res;
 }
+
+#ifdef USE_INTR
+static int sbusfpga_sdram_read_block_async(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt) {
+	int res = 0;
+  
+	exchange_with_mem_blk_addr_write(sc, sc->dma_blk_base + (block * 512 / sc->dma_blk_size) );
+	exchange_with_mem_dma_addr_write(sc, sc->sc_dmamap->dm_segs[0].ds_addr);
+	exchange_with_mem_blk_cnt_write(sc, 0x00000000 | (blkcnt * 512 / sc->dma_blk_size) );
+  
+	return res;
+}
+#endif
+
+#ifdef USE_INTR
+static int sbusfpga_sdram_write_block_async(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt) {
+	int res = 0;
+  
+	exchange_with_mem_blk_addr_write(sc, sc->dma_blk_base + (block * 512 / sc->dma_blk_size) );
+	exchange_with_mem_dma_addr_write(sc, sc->sc_dmamap->dm_segs[0].ds_addr);
+	exchange_with_mem_blk_cnt_write(sc, 0x80000000 | (blkcnt * 512 / sc->dma_blk_size) );
+  
+	return res;
+}
+#endif
 
 /* auto-generated sdram_phy.h + sc */
 #define DFII_CONTROL_SEL        0x01

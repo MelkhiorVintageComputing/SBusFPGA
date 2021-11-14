@@ -316,7 +316,7 @@ class SBusFPGA(SoCCore):
         
         if (usb):
             self.add_usb_host_custom(pads=platform.request("usb"), usb_clk_freq=48e6, single_dvma_master=single_dvma_master)
-            pad_usb_interrupt = platform.get_irq(irq_req=4, device="usb_host", next_down=True, next_up=False)
+            pad_usb_interrupt = platform.get_irq(irq_req=3, device="usb_host", next_down=True, next_up=False)
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
                 assert(False)
@@ -403,6 +403,7 @@ class SBusFPGA(SoCCore):
                                                                 fifo_buffered=True)
 
             self.submodules.exchange_with_mem = ExchangeWithMem(soc=self,
+                                                                platform=platform,
                                                                 tosbus_fifo=self.tosbus_fifo,
                                                                 fromsbus_fifo=self.fromsbus_fifo,
                                                                 fromsbus_req_fifo=self.fromsbus_req_fifo,
@@ -411,7 +412,7 @@ class SBusFPGA(SoCCore):
                                                                 mem_size=avail_sdram//1048576,
                                                                 burst_size=burst_size,
                                                                 do_checksum = False)
-            pad_sdram_interrupt = platform.get_irq(irq_req=5, device="sdram", next_down=True, next_up=True)
+            pad_sdram_interrupt = platform.get_irq(irq_req=4, device="sdram", next_down=True, next_up=False)
             if (pad_sdram_interrupt is None):
                 print(" ***** ERROR ***** sdram requires an interrupt")
                 assert(False)
@@ -447,7 +448,7 @@ class SBusFPGA(SoCCore):
 
         if (sdcard):
             self.add_sdcard()
-            #pad_sdcard_interrupt = platform.get_irq(irq_req=3, device="sdcard", next_down=True, next_up=False)
+            #pad_sdcard_interrupt = platform.get_irq(irq_req=2, device="sdcard", next_down=True, next_up=False)
             #if (pad_sdcard_interrupt is None):
             #    print(" ***** ERROR ***** sdcard requires an interrupt")
             #    assert(False)

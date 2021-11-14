@@ -55,6 +55,11 @@ struct sbusfpga_sdram_softc {
 	bus_dma_segment_t       sc_segs;
 	int                     sc_rsegs;
 	void *              sc_dma_kva;
+	void *sc_ih;
+	void *sc_sih;
+	struct buf *bp;
+	kmutex_t sc_lock;
+	kmutex_t sc_intr_lock;
 };
 
 #define SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ (64*1024)

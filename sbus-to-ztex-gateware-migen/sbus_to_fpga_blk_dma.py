@@ -11,7 +11,7 @@ from litex.soc.interconnect import wishbone
 # the blk_addr does the round-trip to accompany the data
 # mem_size in MiB, might be weird if some space is reserved for other use (e.g. FrameBuffer)
 class ExchangeWithMem(Module, AutoCSR):
-    def __init__(self, soc, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_dma_writer, dram_dma_reader, mem_size=256, burst_size = 8, do_checksum = False):
+    def __init__(self, soc, platform, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_dma_writer, dram_dma_reader, mem_size=256, burst_size = 8, do_checksum = False):
         #self.wishbone_r_slave = wishbone.Interface(data_width=soc.bus.data_width)
         #self.wishbone_w_slave = wishbone.Interface(data_width=soc.bus.data_width)
         self.tosbus_fifo = tosbus_fifo
@@ -121,22 +121,30 @@ class ExchangeWithMem(Module, AutoCSR):
 
         ongoing_m1 = Signal()
         ongoing = Signal()
-        self.irq = irq = Signal()
+        temp_irq = Signal()
+        self.irq = Signal()
 
         self.sync += ongoing_m1.eq(ongoing)
-        self.sync += ongoing.eq(self.dma_status.fields.rd_fsm_busy |
-                                self.dma_status.fields.wr_fsm_busy |
-                                self.dma_status.fields.has_wr_data |
+        self.sync += ongoing.eq(self.dma_status.fields.rd_fsm_busy  |
+                                self.dma_status.fields.wr_fsm_busy  |
+                                self.dma_status.fields.has_wr_data  |
                                 self.dma_status.fields.has_requests |
-                                self.dma_status.fields.has_rd_data |
-                                (self.blk_cnt.storage[0:max_block_bits] != 0)
-        )
-        self.sync += irq.eq(((~ongoing & ongoing_m1) & self.irqctrl.fields.irq_enable) | # irq on falling edge of ongoing
-                            (self.irq & ~self.irqctrl.fields.irq_clear & ~(ongoing & ~ongoing_m1))) # keep irq until cleared or rising edge of ongoing
-
-        self.sync += If(self.irqctrl.fields.irq_clear,
+                                self.dma_status.fields.has_rd_data  |
+                                (self.blk_cnt.fields.blk_cnt != 0))
+        
+        self.sync += temp_irq.eq((ongoing_m1 & ~ongoing) | # irq on falling edge of ongoing
+                                 (temp_irq & ~self.irqctrl.fields.irq_clear & ~(~ongoing_m1 & ongoing))) # keep irq until cleared or rising edge of ongoing
+        
+        self.comb += self.irq.eq(temp_irq & self.irqctrl.fields.irq_enable)
+        
+        self.sync += If(self.irqctrl.fields.irq_clear, ## auto-reset irq_clear
                         self.irqctrl.we.eq(1),
-                        self.irqctrl.dat_w.eq(self.irqctrl.storage & 0xFFFFFFFD)) ## auto-reset irq_clear
+                        self.irqctrl.dat_w.eq(self.irqctrl.storage & 0xFFFFFFFD)).Else(
+                            self.irqctrl.we.eq(0),
+                        )
+        
+        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        self.comb += pad_SBUS_DATA_OE_LED.eq(self.irq)
         
         #self.comb += self.dma_status.status[16:17].eq(self.wishbone_w_master.cyc) # show the WB iface status (W)
         #self.comb += self.dma_status.status[17:18].eq(self.wishbone_w_master.stb)
