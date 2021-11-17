@@ -59,6 +59,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 int	sbusfpga_sd_match(device_t, cfdata_t, void *);
 void	sbusfpga_sd_attach(device_t, device_t, void *);
 
+extern struct cfdriver sbusfpga_sd_cd;
 CFATTACH_DECL_NEW(sbusfpga_sd, sizeof(struct sbusfpga_sd_softc),
     sbusfpga_sd_match, sbusfpga_sd_attach, NULL, NULL);
 
@@ -93,7 +94,7 @@ const struct cdevsw sbusfpga_sd_cdevsw = {
 	.d_mmap = nommap,
 	.d_kqfilter = nokqfilter,
 	.d_discard = nodiscard,
-	.d_flag = 0
+	.d_flag = D_DISK
 };
 
 
@@ -106,9 +107,6 @@ struct dkdriver sbusfpga_sd_dkdriver = {
 	.d_minphys = sbusfpga_sd_minphys,
 	.d_diskstart = sbusfpga_sd_diskstart
 };
-
-extern struct cfdriver sbusfpga_sd_cd;
-
 
 static int sdcard_init(struct sbusfpga_sd_softc *sc);
 static int dma_init(struct sbusfpga_sd_softc *sc);

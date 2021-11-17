@@ -138,13 +138,14 @@ headerless
 
   openbios-video-height encode-int " height" property
   openbios-video-width encode-int " width" property
+  depth-bits encode-int " depth" property
   line-bytes encode-int " linebytes" property
 
   h# 39 encode-int 0 encode-int encode+ " intr" property
 
   \ Monitor sense. Some searching suggests that this is
   \ 5 for 1024x768 and 7 for 1152x900
-  h# 5 encode-int " monitor-sense" property
+  h# 7 encode-int " monitor-sense" property
 
   " RDOL" encode-string " manufacturer" property
   " ISO8859-1" encode-string " character-set" property

@@ -154,9 +154,13 @@ fload fbc_init.fth
 
   openbios-video-height encode-int " height" property
   openbios-video-width encode-int " width" property
+  openbios-video-width encode-int " awidth" property
+  depth-bits encode-int " depth" property
   line-bytes encode-int " linebytes" property
+  
   h# b encode-int " chiprev" property \ rev 11
   /cg6-off-fb h# a >> encode-int " vmsize" property
+  0 encode-int " dblbuf" property
 
   h# 39 encode-int 0 encode-int encode+ " intr" property
 

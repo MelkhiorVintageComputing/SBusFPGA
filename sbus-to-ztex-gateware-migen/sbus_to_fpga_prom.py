@@ -93,6 +93,7 @@ def get_header_mapx_stuff(gname, names, sizes, types):
 
 def get_prom(soc,
              version="V1.0",
+             trng=False,
              usb=False,
              sdram=True,
              engine=False,
@@ -112,18 +113,21 @@ def get_prom(soc,
 
     r += "\" RDOL,sbusstat\" device-name\n"
     r += get_header_map_stuff("sbus_bus_stat", "sbus_bus_stat", 256)
-    r += "finish-device\nnew-device\n"
-
-    r += "\" RDOL,neorv32trng\" device-name\n"
-    r += get_header_map_stuff("trng", "trng", 8)
-    r += ": disabletrng! ( -- )\n"
-    r += "  map-in-trng\n"
-    r += "  1 trng-virt l! ( pattern virt -- )\n"
-    r += "  map-out-trng\n"
-    r += ";\n"
-    r += "disabletrng!\n"
-    if (usb or sdram or engine or i2c or cg3 or cg6 or sdcard):
+    
+    if (trng or usb or (sdram or not sdram) or engine or i2c or cg3 or cg6 or sdcard):
         r += "finish-device\nnew-device\n"
+
+    if (trng):
+        r += "\" RDOL,neorv32trng\" device-name\n"
+        r += get_header_map_stuff("trng", "trng", 8)
+        r += ": disabletrng! ( -- )\n"
+        r += "  map-in-trng\n"
+        r += "  1 trng-virt l! ( pattern virt -- )\n"
+        r += "  map-out-trng\n"
+        r += ";\n"
+        r += "disabletrng!\n"
+        if (usb or (sdram or not sdram) or engine or i2c or cg3 or cg6 or sdcard):
+            r += "finish-device\nnew-device\n"
 
     if (usb):
         r += "\" generic-ohci\" device-name\n"
@@ -142,7 +146,7 @@ def get_prom(soc,
         r += " map-out-usb_host_ctrl\n"
         r += ";\n"
         r += "my-reset!\n"
-        if (sdram or engine or i2c or cg3 or cg6 or sdcard):
+        if ((sdram or not sdram) or engine or i2c or cg3 or cg6 or sdcard):
             r += "finish-device\nnew-device\n"
         
     if (sdram):
@@ -150,9 +154,13 @@ def get_prom(soc,
         r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram", "exchange_with_mem" ], [ 4096, 4096, 4096 ], [ "csr", "csr", "csr" ])
         r += "sbusfpga_irq_sdram encode-int \" interrupts\" property\n"
         r += "fload sdram_init.fth\ninit!\n"
-        if (engine or i2c or cg3 or cg6 or sdcard):
-            r += "finish-device\nnew-device\n"
-        
+    else:
+        r += "\" RDOL,hidden_sdram\" device-name\n"
+        r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram" ], [ 4096, 4096 ], [ "csr", "csr" ])
+        r += "fload sdram_init.fth\ninit!\n"
+    if (engine or i2c or cg3 or cg6 or sdcard):
+        r += "finish-device\nnew-device\n"
+    
     if (engine):
         r += "\" betrustedc25519e\" device-name\n"
         r += ": sbusfpga_regionaddr_curve25519engine-microcode sbusfpga_regionaddr_curve25519engine ;\n"

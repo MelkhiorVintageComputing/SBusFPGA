@@ -50,16 +50,14 @@ class _CRG(Module):
     def __init__(self, platform, sys_clk_freq,
                  usb=False,
                  usb_clk_freq=48e6,
-                 sdram=True,
                  engine=False,
                  i2c=False,
                  cg3=False,
                  pix_clk=0):
         self.clock_domains.cd_sys       = ClockDomain() # 100 MHz PLL, reset'ed by SBus (via pll), SoC/Wishbone main clock
-        if (sdram):
-            self.clock_domains.cd_sys4x     = ClockDomain(reset_less=True)
-            self.clock_domains.cd_sys4x_dqs = ClockDomain(reset_less=True)
-            self.clock_domains.cd_idelay    = ClockDomain()
+        self.clock_domains.cd_sys4x     = ClockDomain(reset_less=True)
+        self.clock_domains.cd_sys4x_dqs = ClockDomain(reset_less=True)
+        self.clock_domains.cd_idelay    = ClockDomain()
 ##        self.clock_domains.cd_sys       = ClockDomain() #  16.67-25 MHz SBus, reset'ed by SBus, native SBus & SYS clock domain
         self.clock_domains.cd_native    = ClockDomain(reset_less=True) # 48MHz native, non-reset'ed (for power-on long delay, never reset, we don't want the delay after a warm reset)
         self.clock_domains.cd_sbus      = ClockDomain() # 16.67-25 MHz SBus, reset'ed by SBus, native SBus clock domain
@@ -110,13 +108,12 @@ class _CRG(Module):
         pll.create_clkout(self.cd_sys,       sys_clk_freq, gated_replicas={self.cd_clk100_gated : pll.locked & self.curve25519_on})
         platform.add_platform_command("create_generated_clock -name sysclk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
         num_clk = num_clk + 1
-        if (sdram):
-            pll.create_clkout(self.cd_sys4x,     4*sys_clk_freq)
-            platform.add_platform_command("create_generated_clock -name sys4xclk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
-            num_clk = num_clk + 1
-            pll.create_clkout(self.cd_sys4x_dqs, 4*sys_clk_freq, phase=90)
-            platform.add_platform_command("create_generated_clock -name sys4x90clk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
-            num_clk = num_clk + 1
+        pll.create_clkout(self.cd_sys4x,     4*sys_clk_freq)
+        platform.add_platform_command("create_generated_clock -name sys4xclk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+        num_clk = num_clk + 1
+        pll.create_clkout(self.cd_sys4x_dqs, 4*sys_clk_freq, phase=90)
+        platform.add_platform_command("create_generated_clock -name sys4x90clk [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
+        num_clk = num_clk + 1
         self.comb += pll.reset.eq(~rst_sbus) # | ~por_done 
         platform.add_false_path_constraints(self.cd_native.clk, self.cd_sbus.clk) # FIXME?
         platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_native.clk) # FIXME?
@@ -176,18 +173,17 @@ class _CRG(Module):
             num_adv = num_adv + 1
             num_clk = 0
 
-        if (sdram):
-            self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=platform.speedgrade)
-            #pll_idelay.register_clkin(clk48, 48e6)
-            pll_idelay.register_clkin(self.clk48_bufg, 48e6)
-            pll_idelay.create_clkout(self.cd_idelay, 200e6, margin = 0)
-            platform.add_platform_command("create_generated_clock -name idelayclk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
-            num_clk = num_clk + 1
-            self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done
-            self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
-            num_adv = num_adv + 1
-            num_clk = 0
-
+        self.submodules.pll_idelay = pll_idelay = S7MMCM(speedgrade=platform.speedgrade)
+        #pll_idelay.register_clkin(clk48, 48e6)
+        pll_idelay.register_clkin(self.clk48_bufg, 48e6)
+        pll_idelay.create_clkout(self.cd_idelay, 200e6, margin = 0)
+        platform.add_platform_command("create_generated_clock -name idelayclk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
+        num_clk = num_clk + 1
+        self.comb += pll_idelay.reset.eq(~rst_sbus) # | ~por_done
+        self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
+        num_adv = num_adv + 1
+        num_clk = 0
+        
         if (cg3):
             self.submodules.video_pll = video_pll = S7MMCM(speedgrade=platform.speedgrade)
             video_pll.register_clkin(self.clk48_bufg, 48e6)
@@ -215,7 +211,7 @@ class SBusFPGA(SoCCore):
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
-    def __init__(self, variant, version, sys_clk_freq, usb, sdram, engine, i2c, cg3, cg6, cg3_res, sdcard, **kwargs):
+    def __init__(self, variant, version, sys_clk_freq, trng, usb, sdram, engine, i2c, cg3, cg6, cg3_res, sdcard, **kwargs):
         print(f"Building SBusFPGA for board version {version}")
         
         kwargs["cpu_type"] = "None"
@@ -288,7 +284,7 @@ class SBusFPGA(SoCCore):
             "dvma_bridge":      0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, sdram=sdram, engine=engine, cg3=(cg3 or cg6), pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=engine, cg3=(cg3 or cg6), pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
         #self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         ## add our custom timings after the clocks have been defined
@@ -345,19 +341,16 @@ class SBusFPGA(SoCCore):
         #getattr(self,"prom").mem.init = prom_data
         #getattr(self,"prom").mem.depth = 2**14
 
-        if (sdram):
-            self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
-                                                       memtype        = "DDR3",
-                                                       nphases        = 4,
-                                                       sys_clk_freq   = sys_clk_freq)
-            self.add_sdram("sdram",
-                           phy           = self.ddrphy,
-                           module        = MT41J128M16(sys_clk_freq, "1:4"),
-                           l2_cache_size = 0,
-            )
-            avail_sdram = self.bus.regions["main_ram"].size
-        else:
-            avail_sdram = 0
+        self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
+                                                   memtype        = "DDR3",
+                                                   nphases        = 4,
+                                                   sys_clk_freq   = sys_clk_freq)
+        self.add_sdram("sdram",
+                       phy           = self.ddrphy,
+                       module        = MT41J128M16(sys_clk_freq, "1:4"),
+                       l2_cache_size = 0,
+        )
+        avail_sdram = self.bus.regions["main_ram"].size
 
         base_fb = self.wb_mem_map["main_ram"] + avail_sdram - 1048576 # placeholder
         if (cg3 or cg6):
@@ -390,10 +383,10 @@ class SBusFPGA(SoCCore):
         # burst_size=16 should work on Ultra systems, but then they probably should go for 64-bits ET as well...
         # Older systems are probably limited to burst_size=4, (it should always be available)
         burst_size=8
+        self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=burst_size))
+        self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=burst_size))
+        self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=burst_size))
         if (sdram):
-            self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=burst_size))
-            self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=burst_size))
-            self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=burst_size))
             self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=burst_size*32),
                                                                 fifo_depth=4,
                                                                 fifo_buffered=True)
@@ -420,10 +413,6 @@ class SBusFPGA(SoCCore):
             # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
             self.comb += pad_sdram_interrupt.eq(sig_sdram_interrupt)
             self.comb += sig_sdram_interrupt.eq(~self.exchange_with_mem.irq) ##
-        else:
-            self.submodules.tosbus_fifo = None
-            self.submodules.fromsbus_fifo = None
-            self.submodules.fromsbus_req_fifo = None
         
         _sbus_bus = SBusFPGABus(platform=self.platform,
                                 hold_reset=hold_reset,
@@ -461,7 +450,8 @@ class SBusFPGA(SoCCore):
             if (not single_dvma_master):
                 self.bus.add_slave(name="dvma_bridge", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("dvma_bridge", None), size=0x03ffffff, cached=False))
 
-        self.submodules.trng = NeoRV32TrngWrapper(platform=platform)
+        if (trng):
+            self.submodules.trng = NeoRV32TrngWrapper(platform=platform)
 
         # beware the naming, as 'clk50' 'sysclk' 'clk200' are used in the original platform constraints
         # the local engine.py was slightly modified to have configurable names, so we can have 'clk50', 'clk100', 'clk200'
@@ -521,7 +511,8 @@ def main():
     parser.add_argument("--variant", default="ztex2.13a", help="ZTex board variant (default ztex2.13a)")
     parser.add_argument("--version", default="V1.2", help="SBusFPGA board version (default V1.2)")
     parser.add_argument("--sys-clk-freq", default=100e6, help="SBusFPGA system clock (default 100e6 = 100 MHz)")
-    parser.add_argument("--sdram", action="store_true", help="add a SDRAM controller (mandatory) [all]")
+    parser.add_argument("--trng", action="store_true", help="add true random number generator [all]")
+    parser.add_argument("--sdram", action="store_true", help="expose the sdram to the host [all]")
     parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
     parser.add_argument("--engine", action="store_true", help="add a Engine crypto core [all]")
     parser.add_argument("--i2c", action="store_true", help="add an I2C bus [none, placeholder]")
@@ -534,8 +525,7 @@ def main():
     args = parser.parse_args()
 
     if (args.sdram == False):
-        print(" ***** ERROR ***** : disabling the SDRAM doesn't actually work (too integrated in the SBus FSM...)\n")
-        assert(False)
+        print(" ***** WARNING ***** : not enablling the SDRAM still adds a controller, but doesn't add the DMA engines\n")
     if (args.usb and (args.version == "V1.0")):
         print(" ***** WARNING ***** : USB on V1.0 is an ugly hack \n");
     if (args.i2c):
@@ -551,6 +541,7 @@ def main():
                    variant=args.variant,
                    version=args.version,
                    sys_clk_freq=int(float(args.sys_clk_freq)),
+                   trng=args.trng,
                    sdram=args.sdram,
                    usb=args.usb,
                    engine=args.engine,
@@ -596,7 +587,8 @@ def main():
         csr_base  = soc.mem_regions['csr'].origin)
     write_to_file(os.path.join(f"prom_csr_{version_for_filename}.fth"), csr_forth_contents)
 
-    prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, 
+    prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version,
+                                              trng=args.trng,
                                               usb=args.usb,
                                               sdram=args.sdram,
                                               engine=args.engine,

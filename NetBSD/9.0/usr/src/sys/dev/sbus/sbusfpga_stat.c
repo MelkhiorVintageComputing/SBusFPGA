@@ -176,6 +176,11 @@ sbusfpga_stat_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 	struct sbusfpga_sbus_bus_stat_softc *sc = device_lookup_private(&sbusfpga_stat_cd, minor(dev));
 	int err = 0;
 
+	if (sc == NULL) {
+		err = EINVAL;
+		goto done;
+	}
+
 	switch (cmd) {
 	case SBUSFPGA_STAT_ON:
 		if (!sc->sc_enable) {
@@ -193,7 +198,8 @@ sbusfpga_stat_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 		err = ENOTTY;
 		break;
 	}
-	
+
+ done:
 	return err;
 }
 
