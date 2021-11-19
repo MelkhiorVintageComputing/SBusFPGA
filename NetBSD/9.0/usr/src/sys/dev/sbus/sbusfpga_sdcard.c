@@ -110,8 +110,8 @@ struct dkdriver sbusfpga_sd_dkdriver = {
 
 static int sdcard_init(struct sbusfpga_sd_softc *sc);
 static int dma_init(struct sbusfpga_sd_softc *sc);
-static void sdcard_read(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf);
-static void sdcard_write(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf);
+static int sdcard_read(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf);
+static int sdcard_write(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf);
 	
 #if 0
 static int	sbusfpga_sd_mmc_host_reset(sdmmc_chipset_handle_t);
@@ -291,10 +291,24 @@ sbusfpga_sd_attach(device_t parent, device_t self, void *aux)
 			  sc->sc_burst,
 			  sbsc->sc_burst);
 
-	if (!sdcard_init(sc)) {
-		aprint_error_dev(self, "couldn't initialize sdcard\n");
-		return;
+	sc->max_rd_blk_len = 0;
+	sc->max_size_in_blk = 0;
+	/* check values from the PROM for proper initialization */
+	if (prom_getpropint(node, "sdcard-good", 0) == 1) {
+		aprint_normal_dev(self, "sdcard initialized by PROM\n");
+		sc->max_rd_blk_len = prom_getpropint(node, "max_rd_blk_len", 0);
+		sc->max_size_in_blk = prom_getpropint(node, "max_size_in_blk", 0);
 	}
+	/* if PROM initialization is not done [properly], try in the driver */
+	if ((sc->max_rd_blk_len == 0) || (sc->max_size_in_blk == 0)) {
+		if (!sdcard_init(sc)) {
+			aprint_error_dev(self, "couldn't initialize sdcard\n");
+			return;
+		} else {
+			aprint_normal_dev(self, "sdcard initialized by kernel\n");
+		}
+	}
+	
 	if (!dma_init(sc)) {
 		aprint_error_dev(self, "couldn't initialize DMA for sdcard\n");
 		return;
@@ -342,7 +356,7 @@ sbusfpga_sd_open(dev_t dev, int flag, int fmt, struct lwp *l)
 		device_printf(sd->dk.sc_dev, "%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
 	} else {
-		aprint_normal("%s:%d: open device, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(dev));
+		aprint_normal("%s:%d: open device %d, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKUNIT(dev), DISKPART(dev));
 	}
 	dksc = &sd->dk;
 
@@ -421,7 +435,14 @@ static void	sbusfpga_sd_set_geometry(struct sbusfpga_sd_softc *sc) {
 int
 sbusfpga_sd_size(dev_t dev) {
 	struct sbusfpga_sd_softc *sc = device_lookup_private(&sbusfpga_sd_cd, DISKUNIT(dev));
-	return sc->max_size_in_blk;
+	if (sc == NULL)
+		return -1;
+
+	if (!device_is_active(sc->dk.sc_dev)) {
+		return -1;
+	}
+	
+	return dk_size(&sc->dk, dev);
 }
 
 static void
@@ -430,7 +451,6 @@ sbusfpga_sd_minphys(struct buf *bp)
 	if (bp->b_bcount > SBUSFPGA_SD_VAL_DMA_MAX_SZ)
 		bp->b_bcount = SBUSFPGA_SD_VAL_DMA_MAX_SZ;
 }
-
 
 static int
 sbusfpga_sd_diskstart(device_t self, struct buf *bp)
@@ -455,44 +475,9 @@ sbusfpga_sd_diskstart(device_t self, struct buf *bp)
 		goto done;
 	}
 
-	/*
-	{
-		paddr_t pap;
-		pmap_t pk = pmap_kernel();
-		if (pmap_extract(pk, (vaddr_t)bp->b_data, &pap)) {
-			aprint_normal_dev(sc->dk.sc_dev, "KVA %p mapped to PA 0x%08lx\n", bp->b_data, pap);
-			if (bp->b_bcount > 4096) {
-				u_int32_t np = (bp->b_bcount + 4095) / 4096;
-				u_int32_t pn;
-				for (pn = 1 ; pn < np ; pn ++) {
-					paddr_t papn;
-					if (pmap_extract(pk, (vaddr_t)bp->b_data + pn * 4096, &papn)) {
-						if (papn != (pap + pn * 4096))
-							break;
-					} else break;
-				}
-				aprint_normal_dev(sc->dk.sc_dev, "And we have %u out %u consecutive PA pages\n", pn, np);
- 			}
-		} else {
-			aprint_normal_dev(sc->dk.sc_dev, "KVA %p not mapped\n", bp->b_data);
-		}
-	}
-	*/
-
 	if (bp->b_flags & B_READ) {
 		unsigned char* data = bp->b_data;
 		daddr_t blk = bp->b_rawblkno;
-		/* struct partition *p = NULL; */
-		
-		/* if (DISKPART(bp->b_dev) != RAW_PART) { */
-		/* 	if ((err = bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0)) <= 0) { */
-		/* 		device_printf(sc->dk.sc_dev, "%s:%d: bounds_check_with_label -> %d\n", __PRETTY_FUNCTION__, __LINE__, err); */
-		/* 		bp->b_resid = bp->b_bcount; */
-		/* 		goto done; */
-		/* 	} */
-		/* 	p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)]; */
-		/* 	blk = bp->b_blkno + p->p_offset; */
-		/* } */
 		
 		while (bp->b_resid >= 512 && !err) {
 			u_int32_t blkcnt = bp->b_resid / 512;
@@ -501,7 +486,7 @@ sbusfpga_sd_diskstart(device_t self, struct buf *bp)
 				blkcnt = (SBUSFPGA_SD_VAL_DMA_MAX_SZ/512);
 			
 			if (blk+blkcnt <= sc->max_size_in_blk) {
-				sdcard_read(sc, blk, blkcnt, data);
+				err = sdcard_read(sc, blk, blkcnt, data);
 			} else {
 				device_printf(sc->dk.sc_dev, "%s:%d: blk = %lld read out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
 				err = EINVAL;
@@ -512,24 +497,8 @@ sbusfpga_sd_diskstart(device_t self, struct buf *bp)
 			bp->b_resid -= 512 * blkcnt;
 		}
 	} else {
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: part %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(bp->b_dev)); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bflags = 0x%08x\n", __PRETTY_FUNCTION__, __LINE__, bp->b_flags); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bufsize = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bufsize); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_blkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_blkno); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_rawblkno = %lld\n", __PRETTY_FUNCTION__, __LINE__, bp->b_rawblkno); */
-		/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_bcount = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_bcount); */
 		unsigned char* data = bp->b_data;
 		daddr_t blk = bp->b_rawblkno;
-		/* struct partition *p = NULL; */
-		
-		/* if (DISKPART(bp->b_dev) != RAW_PART) { */
-		/* 	if (bounds_check_with_label(&sc->dk.sc_dkdev, bp, 0) <= 0) { */
-		/* 		bp->b_resid = bp->b_bcount; */
-		/* 		goto done; */
-		/* 	} */
-		/* 	p = &sc->dk.sc_dkdev.dk_label->d_partitions[DISKPART(bp->b_dev)]; */
-		/* 	blk = bp->b_blkno + p->p_offset; */
-		/* } */
 		
 		while (bp->b_resid >= 512 && !err) {
 			u_int32_t blkcnt = bp->b_resid / 512;
@@ -538,7 +507,7 @@ sbusfpga_sd_diskstart(device_t self, struct buf *bp)
 				blkcnt = (SBUSFPGA_SD_VAL_DMA_MAX_SZ/512);
 			
 			if (blk+blkcnt <= sc->max_size_in_blk) {
-				sdcard_write(sc, blk, blkcnt, data);
+				err = sdcard_write(sc, blk, blkcnt, data);
 			} else {
 				device_printf(sc->dk.sc_dev, "%s:%d: blk = %lld write out of range! giving up\n", __PRETTY_FUNCTION__, __LINE__, blk);
 				err = EINVAL;
@@ -549,9 +518,6 @@ sbusfpga_sd_diskstart(device_t self, struct buf *bp)
 			bp->b_resid -= 512 * blkcnt;
 		}
 	}
-	
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_resid = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_resid); */
-	/* aprint_normal_dev(sc->dk.sc_dev, "%s:%d: bp->b_error = %d\n", __PRETTY_FUNCTION__, __LINE__, bp->b_error); */
 	
  done:
 	biodone(bp);
@@ -567,30 +533,6 @@ static int dma_init(struct sbusfpga_sd_softc *sc) {
 	} else {
 		aprint_normal_dev(sc->dk.sc_dev, "dmamap: %lu %lu %d (%p)\n", sc->sc_dmamap->dm_maxsegsz, sc->sc_dmamap->dm_mapsize, sc->sc_dmamap->dm_nsegs, sc->sc_dmatag->_dmamap_load);
 	}
-
-	if (bus_dmamem_alloc(sc->sc_dmatag, SBUSFPGA_SD_VAL_DMA_MAX_SZ, 64, 64, &sc->sc_segs, 1, &sc->sc_rsegs, BUS_DMA_NOWAIT | BUS_DMA_STREAMING)) {
-		aprint_error_dev(sc->dk.sc_dev, "cannot allocate DVMA memory");
-		bus_dmamap_destroy(sc->sc_dmatag, sc->sc_dmamap);
-		return 0;
-	}
-  
-	if (bus_dmamem_map(sc->sc_dmatag, &sc->sc_segs, 1, SBUSFPGA_SD_VAL_DMA_MAX_SZ, &sc->sc_dma_kva, BUS_DMA_NOWAIT)) {
-		aprint_error_dev(sc->dk.sc_dev, "cannot allocate DVMA address");
-		bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
-		bus_dmamap_destroy(sc->sc_dmatag, sc->sc_dmamap);
-		return 0;
-	}
-  
-	if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, sc->sc_dma_kva, SBUSFPGA_SD_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
-						BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
-		aprint_error_dev(sc->dk.sc_dev, "cannot load dma map");
-		bus_dmamem_unmap(sc->sc_dmatag, &sc->sc_dma_kva, SBUSFPGA_SD_VAL_DMA_MAX_SZ);
-		bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
-		bus_dmamap_destroy(sc->sc_dmatag, sc->sc_dmamap);
-		return 0;
-	}
-	
-	aprint_normal_dev(sc->dk.sc_dev, "DMA: SW -> kernel address is %p, dvma address is 0x%08llx\n", sc->sc_dma_kva, sc->sc_dmamap->dm_segs[0].ds_addr);
 	
 	return 1;
 }
@@ -1138,11 +1080,18 @@ device_printf(sc->dk.sc_dev, "rca is 0x%08x\n", rca);
 }
 
 
-static void sdcard_read(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf)
+static int sdcard_read(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf)
 {
-	uint32_t counto = count;
-	uint64_t ds_addr = sc->sc_dmamap->dm_segs[0].ds_addr;
+	const uint32_t counto = count;
+	uint64_t ds_addr;
 	//device_printf(sc->dk.sc_dev, "%s:%d: block %u count %u buf %p ds_addr %llx\n", __PRETTY_FUNCTION__, __LINE__, block, count, buf, ds_addr);
+	
+	if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, buf, counto * 512, /* kernel space */ NULL,
+						BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+		return ENOMEM;
+	}
+
+	ds_addr = sc->sc_dmamap->dm_segs[0].ds_addr;
 	
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, counto * 512, BUS_DMASYNC_PREWRITE);
 
@@ -1190,16 +1139,23 @@ static void sdcard_read(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t c
 
    bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, counto * 512, BUS_DMASYNC_POSTWRITE);
 
-   memcpy(buf, sc->sc_dma_kva, counto * 512);
+   bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
+
+   return 0;
 }
 
-static void sdcard_write(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf)
+static int sdcard_write(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t count, uint8_t* buf)
 {
-	uint32_t counto = count;
-	uint64_t ds_addr = sc->sc_dmamap->dm_segs[0].ds_addr;
+	const uint32_t counto = count;
+	uint64_t ds_addr;
 	//device_printf(sc->dk.sc_dev, "%s: block %u count %u buf %p ds_addr %llx\n", __PRETTY_FUNCTION__, block, count, buf, ds_addr);
+	
+	if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, buf, counto * 512, /* kernel space */ NULL,
+						BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_READ)) {
+		return ENOMEM;
+	}
 
-	memcpy(sc->sc_dma_kva, buf, counto * 512);
+	ds_addr = sc->sc_dmamap->dm_segs[0].ds_addr;
    
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, counto * 512, BUS_DMASYNC_PREREAD);
 	
@@ -1245,4 +1201,8 @@ static void sdcard_write(struct sbusfpga_sd_softc *sc, uint32_t block, uint32_t 
 	}
 
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, counto * 512, BUS_DMASYNC_POSTREAD);
+
+	bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
+
+	return 0;
 }

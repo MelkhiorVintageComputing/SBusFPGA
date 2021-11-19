@@ -53,11 +53,8 @@ struct sbusfpga_sd_softc {
 	/* DMA kernel structures */
 	bus_dma_tag_t		sc_dmatag;
 	bus_dmamap_t		sc_dmamap;
-	bus_dma_segment_t       sc_segs;
-	int                     sc_rsegs;
-	void *              sc_dma_kva;
 	
-	device_t		sc_sdmmc_dev; /* us as a sdmmc bus device */
+	//device_t		sc_sdmmc_dev; /* us as a sdmmc bus device */
 };
 
 #define SBUSFPGA_SD_VAL_DMA_MAX_SZ (64*1024)

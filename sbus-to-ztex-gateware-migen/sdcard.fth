@@ -307,4 +307,7 @@
 
 map-in-sdcard
 sdcard-init-full
+sdcard-good encode-int " sdcard-good" property
+max_rd_blk_len encode-int " max_rd_blk_len" property
+max_size_in_blk encode-int " max_size_in_blk" property
 map-out-sdcard

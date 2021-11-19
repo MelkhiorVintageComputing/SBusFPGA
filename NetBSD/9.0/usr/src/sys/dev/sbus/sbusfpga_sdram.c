@@ -126,21 +126,6 @@ static void enable_irq(struct sbusfpga_sdram_softc *sc);
 static void reset_irq(struct sbusfpga_sdram_softc *sc);
 #endif
 
-struct sbusfpga_sdram_rwpg {
-	u_int32_t pgdata[512];
-	u_int32_t checksum[8];
-	u_int32_t checksumbis[8];
-	u_int32_t pgnum;
-	u_int32_t last_blk;
-	u_int32_t last_dma;
-	u_int32_t dma_wrdone;
-};
-#define SBUSFPGA_READ_PG    _IOWR('X', 0, struct sbusfpga_sdram_rwpg)
-#define SBUSFPGA_WRITE_PG   _IOWR('X', 1, struct sbusfpga_sdram_rwpg)
-
-static inline void exchange_with_mem_checksum_read(struct sbusfpga_sdram_softc *sc, uint32_t* data);
-static inline void exchange_with_mem_checksum_write(struct sbusfpga_sdram_softc *sc, uint32_t* data);
-
 int
 sbusfpga_sdram_open(dev_t dev, int flag, int fmt, struct lwp *l)
 {
@@ -152,7 +137,7 @@ sbusfpga_sdram_open(dev_t dev, int flag, int fmt, struct lwp *l)
 		aprint_error("%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
 	} else {
-		aprint_normal("%s:%d: open device, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKPART(dev));
+		aprint_normal("%s:%d: open device %d, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKUNIT(dev), DISKPART(dev));
 	}
 	dksc = &sd->dk;
 
@@ -207,27 +192,13 @@ sbusfpga_sdram_match(device_t parent, cfdata_t cf, void *aux)
 int
 sdram_init(struct sbusfpga_sdram_softc *sc);
 
-int
+static int
 dma_init(struct sbusfpga_sdram_softc *sc);
+static int
+dma_uninit(struct sbusfpga_sdram_softc *sc);
 
-int
+static int
 dma_memtest(struct sbusfpga_sdram_softc *sc);
-
-int
-init_last_blocks(struct sbusfpga_sdram_softc *sc);
-int
-init_last_blocks(struct sbusfpga_sdram_softc *sc) {
-	u_int32_t data[512];
-	u_int32_t i;
-	int res = 0;
-	for (i = 0 ; i < 512 ; i++) {
-		data[i] = 0x00FF00FF;
-	}
-	for (i = 254*1024*2 ; i < 256*1024*2 && !res; i+=4) {
-		res = sbusfpga_sdram_write_block(sc, i, 4, data);
-	}
-	return res;
-}
 
 /*
  * Attach all the sub-devices we can find
@@ -355,6 +326,11 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 		aprint_error_dev(self, "DMA-MEMTEST failed for SDRAM\n");
 		return;
 	}
+	
+	if (!dma_uninit(sc)) {
+		aprint_error_dev(self, "couldn't un-initialize DMA\n");
+		return;
+	}
 
 	sc->bp = NULL;
 	
@@ -397,11 +373,6 @@ sbusfpga_sdram_attach(device_t parent, device_t self, void *aux)
 	bufq_alloc(&sc->dk.sc_bufq, BUFQ_DISK_DEFAULT_STRAT, BUFQ_SORT_RAWBLOCK);
 
 	/*
-	// initialize some blocks were the FB lives to test the output
-	init_last_blocks(sc);
-	*/
-
-	/*
 	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_blkshift = %d\n", sc->dk.sc_dkdev.dk_blkshift);
 	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_byteshift = %d\n", sc->dk.sc_dkdev.dk_byteshift);
 	aprint_normal_dev(self, "sc->dk.sc_dkdev.dk_label = %p\n", sc->dk.sc_dkdev.dk_label);
@@ -439,7 +410,14 @@ static void	sbusfpga_sdram_set_geometry(struct sbusfpga_sdram_softc *sc) {
 int
 sbusfpga_sdram_size(dev_t dev) {
 	struct sbusfpga_sdram_softc *sc = device_lookup_private(&sbusfpga_sdram_cd, DISKUNIT(dev));
-	return sc->dma_real_mem_size / 512;
+	if (sc == NULL)
+		return -1;
+
+	if (!device_is_active(sc->dk.sc_dev)) {
+		return -1;
+	}
+	
+	return dk_size(&sc->dk, dev);
 }
 
 static void
@@ -550,7 +528,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 	if (bp->b_bcount == 0) {
 		goto done;
 	}
-
+					
 	if (bp->b_flags & B_READ) {
 		unsigned char* data = bp->b_data;
 		daddr_t blk = bp->b_rawblkno;
@@ -670,20 +648,6 @@ static void reset_irq(struct sbusfpga_sdram_softc *sc) {
 }
 #endif
 
-/* not yet generated */
-static inline void exchange_with_mem_checksum_read(struct sbusfpga_sdram_softc *sc, uint32_t* data) {
-	int i;
-	for (i = 0 ; i < 8 ; i++) { // FIXME
-		data[i] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_exchange_with_mem, 4*i+(CSR_EXCHANGE_WITH_MEM_CHECKSUM_ADDR - CSR_EXCHANGE_WITH_MEM_BASE));
-	}
-}
-static inline void exchange_with_mem_checksum_write(struct sbusfpga_sdram_softc *sc, uint32_t* data) {
-	int i;
-	for (i = 0 ; i < 8 ; i++) { // FIXME
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_exchange_with_mem, 4*i+(CSR_EXCHANGE_WITH_MEM_CHECKSUM_ADDR - CSR_EXCHANGE_WITH_MEM_BASE), data[i]);
-	}
-}
-
 int
 sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l)
 {
@@ -694,37 +658,6 @@ sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l
 		aprint_error("%s:%d: sc == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
 	}
-
-	switch (cmd) {
-	case SBUSFPGA_READ_PG: {
-		struct sbusfpga_sdram_rwpg* pg = (struct sbusfpga_sdram_rwpg*)data;
-		exchange_with_mem_checksum_write(sc, pg->checksum);
-		err = sbusfpga_sdram_read_block(sc, pg->pgnum * 4, 4, pg->pgdata);
-		exchange_with_mem_checksum_read(sc, pg->checksum);
-		delay(1);
-		exchange_with_mem_checksum_read(sc, pg->checksumbis);
-		pg->last_blk = 	 exchange_with_mem_last_blk_read(sc);
-		pg->last_dma = 	 exchange_with_mem_last_dma_read(sc);
-		pg->dma_wrdone = exchange_with_mem_dma_wrdone_read(sc);
-		if (err != 0)
-			err = EIO;
-		goto done;
-	}
-	case SBUSFPGA_WRITE_PG: {
-		struct sbusfpga_sdram_rwpg* pg = (struct sbusfpga_sdram_rwpg*)data;
-		exchange_with_mem_checksum_write(sc, pg->checksum);
-		err = sbusfpga_sdram_write_block(sc, pg->pgnum * 4, 4, pg->pgdata);
-		exchange_with_mem_checksum_read(sc, pg->checksum);
-		delay(1);
-		exchange_with_mem_checksum_read(sc, pg->checksumbis);
-		pg->last_blk = 	 exchange_with_mem_last_blk_read(sc);
-		pg->last_dma = 	 exchange_with_mem_last_dma_read(sc);
-		pg->dma_wrdone = exchange_with_mem_dma_wrdone_read(sc);
-		if (err != 0)
-			err = EIO;
-		goto done;
-	}
-	}
 	
 	err = dk_ioctl(&sc->dk, dev, cmd, data, flag, l);
 	/*if (err2 != EPASSTHROUGH)
@@ -732,11 +665,10 @@ sbusfpga_sdram_ioctl (dev_t dev, u_long cmd, void *data, int flag, struct lwp *l
 	else
 	err = ENOTTY;*/
 
- done:
 	return err;
 }
 
-int
+static int
 dma_init(struct sbusfpga_sdram_softc *sc) {
 	sc->dma_blk_size = exchange_with_mem_blk_size_read(sc);
 	sc->dma_blk_base = exchange_with_mem_blk_base_read(sc);
@@ -771,7 +703,7 @@ dma_init(struct sbusfpga_sdram_softc *sc) {
 	if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, sc->sc_dma_kva, SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ, /* kernel space */ NULL,
 						BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
 		aprint_error_dev(sc->dk.sc_dev, "cannot load dma map");
-		bus_dmamem_unmap(sc->sc_dmatag, &sc->sc_dma_kva, SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ);
+		bus_dmamem_unmap(sc->sc_dmatag, sc->sc_dma_kva, SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ);
 		bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
 		bus_dmamap_destroy(sc->sc_dmatag, sc->sc_dmamap);
 		return 0;
@@ -782,13 +714,27 @@ dma_init(struct sbusfpga_sdram_softc *sc) {
 	return 1;
 }
 
+
+static int
+dma_uninit(struct sbusfpga_sdram_softc *sc) {
+	bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
+	bus_dmamem_unmap(sc->sc_dmatag, sc->sc_dma_kva, SBUSFPGA_SDRAM_VAL_DMA_MAX_SZ);
+	bus_dmamem_free(sc->sc_dmatag, &sc->sc_segs, 1);
+	sc->sc_dma_kva = NULL;
+	sc->sc_rsegs = 0;
+	
+	return 1;
+}
+
+
 /* tuned on my SPARCstation 20 with 25 MHz SBus & 2*SM61 */
 /* asynchronous would be better ... */
 #define DEF_BLK_DELAY 14
 
 static inline unsigned long 
 lfsr (unsigned long  bits, unsigned long  prev);
-int
+
+static int
 dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	unsigned long *kva_ulong = (unsigned long*)sc->sc_dma_kva;
 	unsigned long val;
@@ -995,7 +941,12 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 	int res = 0;
 	int count;
 	unsigned int check;
-   
+	
+	if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, data, blkcnt * 512, /* kernel space */ NULL,
+						BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+		return ENOMEM;
+	}
+	
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_PREWRITE);
   
 	exchange_with_mem_blk_addr_write(sc, sc->dma_blk_base + (block * 512 / sc->dma_blk_size) );
@@ -1018,7 +969,8 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 						 exchange_with_mem_blk_rem_read(sc),
 						 exchange_with_mem_last_blk_read(sc),
 						 exchange_with_mem_wr_tosdram_read(sc));
-		return ENXIO;
+		res = ENXIO;
+		goto done;
 	}
 #if 0
 	else {
@@ -1040,11 +992,13 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
 						 exchange_with_mem_last_blk_read(sc),
 						 exchange_with_mem_last_dma_read(sc),
 						 exchange_with_mem_blk_rem_read(sc));
-		return ENXIO;
+		res = ENXIO;
+		goto done;
 	} 
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_POSTWRITE);
 
-	memcpy(data, sc->sc_dma_kva, blkcnt * 512);
+ done:
+	bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
   
 	return res;
 }
@@ -1054,9 +1008,12 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 	int res = 0;
 	int count;
 	unsigned int check;
-
-	memcpy(sc->sc_dma_kva, data, blkcnt * 512);
-   
+	
+	if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, data, blkcnt * 512, /* kernel space */ NULL,
+						BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_READ)) {
+		return ENOMEM;
+	}
+	
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_PREREAD);
   
 	exchange_with_mem_blk_addr_write(sc, sc->dma_blk_base + (block * 512 / sc->dma_blk_size) );
@@ -1079,7 +1036,8 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 						 exchange_with_mem_blk_rem_read(sc),
 						 exchange_with_mem_last_blk_read(sc),
 						 exchange_with_mem_wr_tosdram_read(sc));
-		return ENXIO;
+		res = ENXIO;
+		goto done;
 	}
 #if 0
 	else {
@@ -1101,10 +1059,13 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 						 exchange_with_mem_last_blk_read(sc),
 						 exchange_with_mem_last_dma_read(sc),
 						 exchange_with_mem_blk_rem_read(sc));
-		return ENXIO;
+		res = ENXIO;
+		goto done;
 	} 
 	bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_POSTREAD);
-  
+
+ done:
+	bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
 	return res;
 }
 
