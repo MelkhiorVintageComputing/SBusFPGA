@@ -54,7 +54,7 @@ __KERNEL_RCSID(0, "$NetBSD$");
 
 #include <machine/param.h>
 
-     #include <uvm/uvm_extern.h>
+#include <uvm/uvm_extern.h>
 
 int	sbusfpga_sdram_match(device_t, cfdata_t, void *);
 void	sbusfpga_sdram_attach(device_t, device_t, void *);
@@ -100,7 +100,7 @@ const struct cdevsw sbusfpga_sdram_cdevsw = {
 	.d_mmap = nommap,
 	.d_kqfilter = nokqfilter,
 	.d_discard = nodiscard,
-	.d_flag = 0
+	.d_flag = D_DISK
 };
 
 static void	sbusfpga_sdram_set_geometry(struct sbusfpga_sdram_softc *sc);
@@ -117,8 +117,10 @@ struct dkdriver sbusfpga_sdram_dkdriver = {
 
 extern struct cfdriver sbusfpga_sdram_cd;
 
+#ifndef USE_INTR
 static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data);
 static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data);
+#endif
 #ifdef USE_INTR
 static int sbusfpga_sdram_read_block_async(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt);
 static int sbusfpga_sdram_write_block_async(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt);
@@ -493,13 +495,24 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 	}
 
 	if (bp->b_flags & B_READ) {
+		if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, data, blkcnt * 512, /* kernel space */ NULL,
+							BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_WRITE)) {
+			mutex_exit(&sc->sc_lock);
+			err = ENOMEM;
+			return err;
+		}
 		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_PREWRITE);
 		sc->bp = bp;
 		err = sbusfpga_sdram_read_block_async(sc, blk, blkcnt);
 		if (err)
 			sc->bp = NULL;
 	} else {
-		memcpy(sc->sc_dma_kva, data, blkcnt * 512);
+		if (bus_dmamap_load(sc->sc_dmatag, sc->sc_dmamap, data, blkcnt * 512, /* kernel space */ NULL,
+							BUS_DMA_NOWAIT | BUS_DMA_STREAMING | BUS_DMA_READ)) {
+			mutex_exit(&sc->sc_lock);
+			err = ENOMEM;
+			return err;
+		}
 		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_PREREAD);
 		sc->bp = bp;
 		err = sbusfpga_sdram_write_block_async(sc, blk, blkcnt);
@@ -600,10 +613,10 @@ static void sbusfpga_sdram_soft_intr(void *p) {
 	
 	if (bp->b_flags & B_READ) {
 		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_POSTWRITE);
-		memcpy(bp->b_data, sc->sc_dma_kva, blkcnt * 512);
 	} else {
 		bus_dmamap_sync(sc->sc_dmatag, sc->sc_dmamap, 0, blkcnt * 512, BUS_DMASYNC_POSTREAD);
 	}
+	bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
 	
 	bp->b_resid -= 512 * blkcnt;
 	
@@ -936,7 +949,7 @@ dma_memtest(struct sbusfpga_sdram_softc *sc) {
 	return 1;
 }
 
-
+#ifndef USE_INTR
 static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data) {
 	int res = 0;
 	int count;
@@ -1002,8 +1015,9 @@ static int sbusfpga_sdram_read_block(struct sbusfpga_sdram_softc *sc, const u_in
   
 	return res;
 }
+#endif
 
-
+#ifndef USE_INTR
 static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt, void *data) {
 	int res = 0;
 	int count;
@@ -1068,6 +1082,7 @@ static int sbusfpga_sdram_write_block(struct sbusfpga_sdram_softc *sc, const u_i
 	bus_dmamap_unload(sc->sc_dmatag, sc->sc_dmamap);
 	return res;
 }
+#endif
 
 #ifdef USE_INTR
 static int sbusfpga_sdram_read_block_async(struct sbusfpga_sdram_softc *sc, const u_int32_t block, const u_int32_t blkcnt) {

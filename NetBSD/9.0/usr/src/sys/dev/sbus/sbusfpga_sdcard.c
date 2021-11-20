@@ -520,7 +520,7 @@ sbusfpga_sd_diskstart(device_t self, struct buf *bp)
 	}
 	
  done:
-	biodone(bp);
+	dk_done(&sc->dk, bp);
 	return err;
 }
 
