@@ -20,6 +20,13 @@ class ExchangeWithMem(Module, AutoCSR):
         self.dram_dma_writer = dram_dma_writer
         self.dram_dma_reader = dram_dma_reader
 
+        tosbus_fifo_din = Record(soc.tosbus_layout)
+        self.comb += self.tosbus_fifo.din.eq(tosbus_fifo_din.raw_bits())
+        fromsbus_req_fifo_din = Record(soc.fromsbus_req_layout)
+        self.comb += self.fromsbus_req_fifo.din.eq(fromsbus_req_fifo_din.raw_bits())
+        fromsbus_fifo_dout = Record(soc.fromsbus_layout)
+        self.comb += fromsbus_fifo_dout.raw_bits().eq(self.fromsbus_fifo.dout)
+
         print(f"Configuring the SDRAM for {mem_size} MiB\n")
 
         data_width = burst_size * 4
@@ -186,7 +193,8 @@ class ExchangeWithMem(Module, AutoCSR):
         req_r_fsm.act("WaitForData",
                       If(self.dram_dma_reader.source.valid & self.tosbus_fifo.writable,
                          self.tosbus_fifo.we.eq(1),
-                         self.tosbus_fifo.din.eq(Cat(dma_r_addr, self.dram_dma_reader.source.data)),
+                         tosbus_fifo_din.address.eq(dma_r_addr),
+                         tosbus_fifo_din.data.eq(self.dram_dma_reader.source.data),
                          If(do_checksum,
                             self.checksum.we.eq(1),
                             self.checksum.dat_w.eq(self.checksum.storage ^ self.dram_dma_reader.source.data),
@@ -209,7 +217,8 @@ class ExchangeWithMem(Module, AutoCSR):
         req_r_fsm.act("QueueReqToMemory",
                       If(self.fromsbus_req_fifo.writable,
                          self.fromsbus_req_fifo.we.eq(1),
-                         self.fromsbus_req_fifo.din.eq(Cat(local_r_addr, dma_r_addr)),
+                         fromsbus_req_fifo_din.blkaddress.eq(local_r_addr),
+                         fromsbus_req_fifo_din.dmaaddress.eq(dma_r_addr),
                          NextValue(self.last_blk.status, local_r_addr),
                          NextValue(self.last_dma.status, dma_r_addr),
                          NextValue(self.blk_rem.status, self.blk_rem.status - 1),
@@ -257,16 +266,16 @@ class ExchangeWithMem(Module, AutoCSR):
         )
         req_w_fsm.act("Idle",
                       If(self.fromsbus_fifo.readable,
-                         self.dram_dma_writer.sink.address.eq(self.fromsbus_fifo.dout[0:blk_addr_width]),
-                         self.dram_dma_writer.sink.data.eq(self.fromsbus_fifo.dout[blk_addr_width:(blk_addr_width + data_width_bits)]),
+                         self.dram_dma_writer.sink.address.eq(fromsbus_fifo_dout.blkaddress),
+                         self.dram_dma_writer.sink.data.eq(fromsbus_fifo_dout.data),
                          self.dram_dma_writer.sink.valid.eq(1),
-                         NextValue(self.wr_tosdram.status, self.fromsbus_fifo.dout[0:blk_addr_width]),
+                         NextValue(self.wr_tosdram.status, fromsbus_fifo_dout.blkaddress),
                          If(self.dram_dma_writer.sink.ready,
                             self.fromsbus_fifo.re.eq(1),
                             NextValue(self.dma_wrdone.status, self.dma_wrdone.status + 1),
                             If(do_checksum,
                                self.checksum.we.eq(1),
-                               self.checksum.dat_w.eq(self.checksum.storage ^ self.fromsbus_fifo.dout[blk_addr_width:(blk_addr_width + data_width_bits)]),
+                               self.checksum.dat_w.eq(self.checksum.storage ^ fromsbus_fifo_dout.data),
                             )
                          )
                       )

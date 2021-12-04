@@ -383,15 +383,33 @@ class SBusFPGA(SoCCore):
         # burst_size=16 should work on Ultra systems, but then they probably should go for 64-bits ET as well...
         # Older systems are probably limited to burst_size=4, (it should always be available)
         burst_size=8
-        self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=(32+burst_size*32), depth=burst_size))
-        self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+burst_size*32), depth=burst_size))
-        self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=((30-log2_int(burst_size))+32), depth=burst_size))
+        
+        data_width = burst_size * 4
+        data_width_bits = burst_size * 32
+        blk_addr_width = 32 - log2_int(data_width)
+
+        self.tosbus_layout = [
+            ("address", 32),
+            ("data", data_width_bits),
+        ]
+        self.fromsbus_layout = [
+            ("blkaddress", blk_addr_width),
+            ("data", data_width_bits),
+        ]
+        self.fromsbus_req_layout = [
+            ("blkaddress", blk_addr_width),
+            ("dmaaddress", 32),
+        ]
+        
+        self.submodules.tosbus_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=layout_len(self.tosbus_layout), depth=burst_size))
+        self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=layout_len(self.fromsbus_layout), depth=burst_size))
+        self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=layout_len(self.fromsbus_req_layout), depth=burst_size))
         if (sdram):
-            self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=burst_size*32),
+            self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=data_width_bits),
                                                                 fifo_depth=4,
                                                                 fifo_buffered=True)
             
-            self.submodules.dram_dma_reader = LiteDRAMDMAReader(port=self.sdram.crossbar.get_port(mode="read", data_width=burst_size*32),
+            self.submodules.dram_dma_reader = LiteDRAMDMAReader(port=self.sdram.crossbar.get_port(mode="read", data_width=data_width_bits),
                                                                 fifo_depth=4,
                                                                 fifo_buffered=True)
 
@@ -414,7 +432,8 @@ class SBusFPGA(SoCCore):
             self.comb += pad_sdram_interrupt.eq(sig_sdram_interrupt)
             self.comb += sig_sdram_interrupt.eq(~self.exchange_with_mem.irq) ##
         
-        _sbus_bus = SBusFPGABus(platform=self.platform,
+        _sbus_bus = SBusFPGABus(soc=self,
+                                platform=self.platform,
                                 hold_reset=hold_reset,
                                 wishbone_slave=wishbone_slave_sbus,
                                 wishbone_master=self.wishbone_master_sbus,
