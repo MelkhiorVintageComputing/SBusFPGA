@@ -27,6 +27,17 @@ cg3_timings = {
     },
 }
 
+cmap_layout = [
+    ("color", 2),
+    ("address", 8),
+    ("data", 8),
+]
+omap_layout = [
+    ("color", 2),
+    ("address", 2),
+    ("data", 8),
+]
+
 def cg3_rounded_size(hres, vres):
     mib = int(ceil(((hres * vres) + 0) / 1048576))
     if (mib == 3):
@@ -42,6 +53,13 @@ class VideoFrameBuffer256c(Module, AutoCSR):
     """Video FrameBuffer256c"""
     def __init__(self, dram_port, upd_clut_fifo = None, hres=800, vres=600, base=0x00000000, fifo_depth=65536, clock_domain="sys", clock_faster_than_sys=False, hwcursor=False, upd_overlay_fifo=False, upd_omap_fifo=False):
         clut = Array(Array(Signal(8, reset = (255-i)) for i in range(0, 256)) for j in range(0, 3))
+        
+        upd_clut_fifo_dout = Record(cmap_layout)
+        self.comb += upd_clut_fifo_dout.raw_bits().eq(upd_clut_fifo.dout)
+
+        if (hwcursor):
+            upd_omap_fifo_dout = Record(omap_layout)
+            self.comb += upd_omap_fifo_dout.raw_bits().eq(upd_omap_fifo.dout)
 
         print(f"FRAMEBUFFER: dram_port.data_width = {dram_port.data_width}, {hres}x{vres}, 0x{base:x}, in {clock_domain}, clock_faster_than_sys={clock_faster_than_sys}")
 
@@ -49,7 +67,7 @@ class VideoFrameBuffer256c(Module, AutoCSR):
         vga_sync += [
             If(upd_clut_fifo.readable,
                upd_clut_fifo.re.eq(1),
-               clut[upd_clut_fifo.dout[0:2]][upd_clut_fifo.dout[2:10]].eq(upd_clut_fifo.dout[10:18]),
+               clut[upd_clut_fifo_dout.color][upd_clut_fifo_dout.address].eq(upd_clut_fifo_dout.data),
             ).Else(
                upd_clut_fifo.re.eq(0),
             )
@@ -70,7 +88,7 @@ class VideoFrameBuffer256c(Module, AutoCSR):
             vga_sync += [
                 If(upd_omap_fifo.readable,
                    upd_omap_fifo.re.eq(1),
-                   omap[upd_omap_fifo.dout[0:2]][upd_omap_fifo.dout[2:4]].eq(upd_omap_fifo.dout[4:12]),
+                   omap[upd_omap_fifo_dout.color][upd_omap_fifo_dout.address].eq(upd_omap_fifo_dout.data),
                 ).Else(
                     upd_omap_fifo.re.eq(0),
                 )
@@ -234,7 +252,9 @@ class cg3(Module, AutoCSR):
     def __init__(self, soc, phy=None, timings = None, clock_domain="sys"):
 
         # 2 bits for color (0/r, 1/g, 2/b), 8 for @ and 8 for value
-        self.submodules.upd_cmap_fifo = upd_cmap_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=2+8+8, depth=8))
+        self.submodules.upd_cmap_fifo = upd_cmap_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=layout_len(cmap_layout), depth=8))
+        upd_cmap_fifo_din = Record(cmap_layout)
+        self.comb += self.upd_cmap_fifo.din.eq(upd_cmap_fifo_din.raw_bits())
         
         name = "video_framebuffer"
         # near duplicate of plaform.add_video_framebuffer
@@ -322,7 +342,9 @@ class cg3(Module, AutoCSR):
                                 1: [ Case(bus.sel, { 
                                     "default": [ NextValue(bt_cmap_buf, bus.dat_w[0:24]),
                                                  upd_cmap_fifo.we.eq(1),
-                                                 upd_cmap_fifo.din.eq(Cat(bt_cmap_state, bt_cmap_idx, bus.dat_w[24:32])),
+                                                 upd_cmap_fifo_din.color.eq(bt_cmap_state),
+                                                 upd_cmap_fifo_din.address.eq(bt_cmap_idx),
+                                                 upd_cmap_fifo_din.data.eq(bus.dat_w[24:32]),
                                                  Case(bt_cmap_state, {
                                                      0: [ NextValue(bt_cmap_state, 1), ],
                                                      1: [ NextValue(bt_cmap_state, 2), ],
@@ -333,7 +355,9 @@ class cg3(Module, AutoCSR):
                                     ],
                                     # will sel be 1 or 8 ?
                                     1: [ upd_cmap_fifo.we.eq(1),
-                                         upd_cmap_fifo.din.eq(Cat(bt_cmap_state, bt_cmap_idx, bus.dat_w[24:32])),
+                                         upd_cmap_fifo_din.color.eq(bt_cmap_state),
+                                         upd_cmap_fifo_din.address.eq(bt_cmap_idx),
+                                         upd_cmap_fifo_din.data.eq(bus.dat_w[24:32]),
                                          Case(bt_cmap_state, {
                                              0: [ NextValue(bt_cmap_state, 1), ],
                                              1: [ NextValue(bt_cmap_state, 2), ],
@@ -342,7 +366,9 @@ class cg3(Module, AutoCSR):
                                          })
                                     ],
                                     8: [ upd_cmap_fifo.we.eq(1),
-                                         upd_cmap_fifo.din.eq(Cat(bt_cmap_state, bt_cmap_idx, bus.dat_w[24:32])),
+                                         upd_cmap_fifo_din.color.eq(bt_cmap_state),
+                                         upd_cmap_fifo_din.address.eq(bt_cmap_idx),
+                                         upd_cmap_fifo_din.data.eq(bus.dat_w[24:32]),
                                          Case(bt_cmap_state, {
                                              0: [ NextValue(bt_cmap_state, 1), ],
                                              1: [ NextValue(bt_cmap_state, 2), ],
@@ -397,7 +423,9 @@ class cg3(Module, AutoCSR):
         wishbone_fsm.act("cmap_a",
                          If(upd_cmap_fifo.writable,
                             upd_cmap_fifo.we.eq(1),
-                            upd_cmap_fifo.din.eq(Cat(bt_cmap_state, bt_cmap_idx, bt_cmap_buf[16:24])),
+                            upd_cmap_fifo_din.color.eq(bt_cmap_state),
+                            upd_cmap_fifo_din.address.eq(bt_cmap_idx),
+                            upd_cmap_fifo_din.data.eq(bus.dat_w[16:24]),
                             Case(bt_cmap_state, {
                                 0: [ NextValue(bt_cmap_state, 1), ],
                                 1: [ NextValue(bt_cmap_state, 2), ],
@@ -408,7 +436,9 @@ class cg3(Module, AutoCSR):
         wishbone_fsm.act("cmap_b",
                          If(upd_cmap_fifo.writable,
                             upd_cmap_fifo.we.eq(1),
-                            upd_cmap_fifo.din.eq(Cat(bt_cmap_state, bt_cmap_idx, bt_cmap_buf[8:16])),
+                            upd_cmap_fifo_din.color.eq(bt_cmap_state),
+                            upd_cmap_fifo_din.address.eq(bt_cmap_idx),
+                            upd_cmap_fifo_din.data.eq(bus.dat_w[8:16]),
                             Case(bt_cmap_state, {
                                 0: [ NextValue(bt_cmap_state, 1), ],
                                 1: [ NextValue(bt_cmap_state, 2), ],
@@ -419,7 +449,9 @@ class cg3(Module, AutoCSR):
         wishbone_fsm.act("cmap_c",
                          If(upd_cmap_fifo.writable,
                             upd_cmap_fifo.we.eq(1),
-                            upd_cmap_fifo.din.eq(Cat(bt_cmap_state, bt_cmap_idx, bt_cmap_buf[0:8])),
+                            upd_cmap_fifo_din.color.eq(bt_cmap_state),
+                            upd_cmap_fifo_din.address.eq(bt_cmap_idx),
+                            upd_cmap_fifo_din.data.eq(bus.dat_w[0:8]),
                             Case(bt_cmap_state, {
                                 0: [ NextValue(bt_cmap_state, 1), ],
                                 1: [ NextValue(bt_cmap_state, 2), ],

@@ -13,7 +13,6 @@ from litex.soc.cores.video import *
 from math import ceil;
 
 # reuse the simple 8-bits DAC from cg3
-# we will be missing the HW cursor
 import cg3_fb;
 
 # a lot of that is identical to cg3_fb.cg3
@@ -21,9 +20,15 @@ class cg6(Module, AutoCSR):
     def __init__(self, soc, phy=None, timings = None, clock_domain="sys"):
 
         # 2 bits for color (0/r, 1/g, 2/b), 8 for @ and 8 for value
-        self.submodules.upd_cmap_fifo = upd_cmap_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=2+8+8, depth=8))
+        self.submodules.upd_cmap_fifo = upd_cmap_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=layout_len(cg3_fb.cmap_layout), depth=8))
+        upd_cmap_fifo_din = Record(cg3_fb.cmap_layout)
+        self.comb += self.upd_cmap_fifo.din.eq(upd_cmap_fifo_din.raw_bits())
+        
         self.submodules.upd_overlay_fifo = upd_overlay_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=1+5+32, depth=8))
-        self.submodules.upd_omap_fifo = upd_omap_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=2+2+8, depth=8))
+        
+        self.submodules.upd_omap_fifo = upd_omap_fifo = ClockDomainsRenamer({"read": "vga", "write": "sys"})(AsyncFIFOBuffered(width=layout_len(cg3_fb.omap_layout), depth=8))
+        upd_omap_fifo_din = Record(cg3_fb.omap_layout)
+        self.comb += self.upd_omap_fifo.din.eq(upd_omap_fifo_din.raw_bits())
         
         name = "video_framebuffer"
         # near duplicate of plaform.add_video_framebuffer
@@ -94,7 +99,9 @@ class cg6(Module, AutoCSR):
                                 ],
                                 # bt_cmap
                                 1: [ upd_cmap_fifo.we.eq(1),
-                                     upd_cmap_fifo.din.eq(Cat(bt_cmap_state, bt_addr, bus.dat_w[24:32])),
+                                     upd_cmap_fifo_din.color.eq(bt_cmap_state),
+                                     upd_cmap_fifo_din.address.eq(bt_addr),
+                                     upd_cmap_fifo_din.data.eq(bus.dat_w[24:32]),
                                      Case(bt_cmap_state, {
                                          0: [ NextValue(bt_cmap_state, 1), ],
                                          1: [ NextValue(bt_cmap_state, 2), ],
@@ -108,7 +115,9 @@ class cg6(Module, AutoCSR):
                                 # bt_omap
                                 # NetBSD driver write the cursor color in there 
                                 3: [ upd_omap_fifo.we.eq(1),
-                                     upd_omap_fifo.din.eq(Cat(bt_cmap_state, bt_addr, bus.dat_w[24:32])),
+                                     upd_omap_fifo_din.color.eq(bt_cmap_state),
+                                     upd_omap_fifo_din.address.eq(bt_addr[0:2]),
+                                     upd_omap_fifo_din.data.eq(bus.dat_w[24:32]),
                                      Case(bt_cmap_state, {
                                          0: [ NextValue(bt_cmap_state, 1), ],
                                          1: [ NextValue(bt_cmap_state, 2), ],
