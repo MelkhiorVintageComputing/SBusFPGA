@@ -316,8 +316,14 @@ class cg3(Module, AutoCSR):
         bt_cmap_state = Signal(2)
         bt_cmap_buf = Signal(24)
 
-        fbc_ctrl = Signal(8) # 0x10 ?
-        fbc_status = Signal(8, reset = 0x61) # 1152x900 color # 0x11 ?
+        fbc_ctrl = Signal(8, reset = 0x60) # FBC_VENAB | FBC_TIMING  # 0x10 ?
+        hres_to_sense = {
+            "default": 0x30, # 1152x900
+            1024: 0x10,
+            1152: 0x30,
+            1280: 0x40,
+        };
+        fbc_status = Signal(8, reset = (hres_to_sense[hres] | 0x01)) # 1280x1024 color # 0x11 ?
         fbc_cursor_start = Signal(8) # 0x12 ?
         fbc_cursor_end = Signal(8) # 0x13 ?
         fbc_vcontrol = Array(Signal(8) for a in range(0, 3))

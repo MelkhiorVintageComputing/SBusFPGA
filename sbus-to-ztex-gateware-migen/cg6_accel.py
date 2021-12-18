@@ -16,7 +16,7 @@ class CG6Accel(Module): # AutoCSR ?
         
         self.COORD_BITS = COORD_BITS = 12
 
-        fbc_config = Signal(32, reset = (0x60000000)) # bit 11-12 are for resolution, see the GX manual
+        fbc_config = Signal(32, reset = (0x60000000)) # bit 11-12 are for resolution, see the GX manual (seem unused by drivers)
         fbc_mode = Signal(32)
         fbc_clip = Signal(32)
         fbc_s = Signal(32)

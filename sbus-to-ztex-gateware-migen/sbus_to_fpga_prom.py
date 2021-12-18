@@ -6,6 +6,7 @@ from sysconfig import get_platform
 
 from migen import *
 
+import bw2_fb
 import cg3_fb
 import cg6_fb
 
@@ -98,10 +99,13 @@ def get_prom(soc,
              sdram=True,
              engine=False,
              i2c=False,
+             bw2=False,
              cg3=False,
              cg6=False,
              cg3_res=None,
              sdcard=False):
+
+    framebuffer = (bw2 or cg3 or cg6)
     
     r = "fcode-version2\nfload prom_csr_{}.fth\n".format(version.replace(".", "_"))
 
@@ -114,7 +118,7 @@ def get_prom(soc,
     r += "\" RDOL,sbusstat\" device-name\n"
     r += get_header_map_stuff("sbus_bus_stat", "sbus_bus_stat", 256)
     
-    if (trng or usb or (sdram or not sdram) or engine or i2c or cg3 or cg6 or sdcard):
+    if (trng or usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard):
         r += "finish-device\nnew-device\n"
 
     if (trng):
@@ -126,7 +130,7 @@ def get_prom(soc,
         r += "  map-out-trng\n"
         r += ";\n"
         r += "disabletrng!\n"
-        if (usb or (sdram or not sdram) or engine or i2c or cg3 or cg6 or sdcard):
+        if (usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard):
             r += "finish-device\nnew-device\n"
 
     if (usb):
@@ -146,7 +150,7 @@ def get_prom(soc,
         r += " map-out-usb_host_ctrl\n"
         r += ";\n"
         r += "my-reset!\n"
-        if ((sdram or not sdram) or engine or i2c or cg3 or cg6 or sdcard):
+        if ((sdram or not sdram) or engine or i2c or framebuffer or sdcard):
             r += "finish-device\nnew-device\n"
         
     if (sdram):
@@ -158,7 +162,7 @@ def get_prom(soc,
         r += "\" RDOL,hidden_sdram\" device-name\n"
         r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram" ], [ 4096, 4096 ], [ "csr", "csr" ])
         r += "fload sdram_init.fth\ninit!\n"
-    if (engine or i2c or cg3 or cg6 or sdcard):
+    if (engine or i2c or framebuffer or sdcard):
         r += "finish-device\nnew-device\n"
     
     if (engine):
@@ -166,36 +170,44 @@ def get_prom(soc,
         r += ": sbusfpga_regionaddr_curve25519engine-microcode sbusfpga_regionaddr_curve25519engine ;\n"
         r += ": sbusfpga_regionaddr_curve25519engine-regfile sbusfpga_regionaddr_curve25519engine h# 10000 + ;\n"
         r += get_header_mapx_stuff("curve25519engine", [ "curve25519engine-regs", "curve25519engine-microcode", "curve25519engine-regfile" ], [ 4096, 4096, 65536 ] , ["csr", "region", "region" ] )
-        if (i2c or cg3 or cg6 or sdcard):
+        if (i2c or framebuffer or sdcard):
             r += "finish-device\nnew-device\n"
         
     if (i2c):
         r += "\" RDOL,i2c\" device-name\n"
         r += get_header_map_stuff("i2c", "i2c", 64)
-        if (cg3 or cg6 or sdcard):
+        if (framebuffer or sdcard):
             r += "finish-device\nnew-device\n"
         
-    if (cg3 or cg6):
+    if (framebuffer):
         hres = int(cg3_res.split("@")[0].split("x")[0])
         vres = int(cg3_res.split("@")[0].split("x")[1])
         hres_h=(f"{hres:x}").replace("0x", "")
         vres_h=(f"{vres:x}").replace("0x", "")
-        if (cg3):
+        if (bw2):
+            cg3_file = open("bw2.fth")
+        elif (cg3):
             cg3_file = open("cg3.fth")
         else:
             cg3_file = open("cg6.fth")
         cg3_lines = cg3_file.readlines()
-        buf_size=cg3_fb.cg3_rounded_size(hres, vres)
+        if (bw2):
+            buf_size=bw2_fb.bw2_rounded_size(hres, vres)
+        else:
+            buf_size=cg3_fb.cg3_rounded_size(hres, vres)
         for line in cg3_lines:
             r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size:x}")
         #r += "\" LITEX,fb\" device-name\n"
         #r += get_header_map2_stuff("cg3extraregs", "vid_fb", "vid_fb_vtg", 4096, 4096)
         #r += "fload fb_init.fth\nfb_init!\n"
         r += "\n"
-        if (cg3):
+        if (bw2):
+            r += get_header_map_stuff("bw2extraregs", "bw2", 4096, reg=False)
+            r += "fload bw2_init.fth\nbw2_init!\n"
+        elif (cg3):
             r += get_header_map_stuff("cg3extraregs", "cg3", 4096, reg=False)
             r += "fload cg3_init.fth\ncg3_init!\n"
-        if (cg6):
+        else:
             r += get_header_map_stuff("cg6extraregs", "cg6", 4096, reg=False)
             r += "fload cg6_init.fth\ncg6_init!\n"
         if (sdcard):
