@@ -180,7 +180,7 @@ LED_M_READ = 0x20
 LED_M_CACHE = 0x40
         
 class SBusFPGABus(Module):
-    def __init__(self, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8, cg3_fb_size = 0, cg3_base=0x8ff00000 ):
+    def __init__(self, soc, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8, cg3_fb_size = 0, cg3_base=0x8ff00000 ):
         self.platform = platform
         self.hold_reset = hold_reset
 
@@ -190,6 +190,17 @@ class SBusFPGABus(Module):
         self.tosbus_fifo = tosbus_fifo
         self.fromsbus_fifo = fromsbus_fifo
         self.fromsbus_req_fifo = fromsbus_req_fifo
+
+        
+        tosbus_fifo_dout = Record(soc.tosbus_layout)
+        self.comb += tosbus_fifo_dout.raw_bits().eq(self.tosbus_fifo.dout)
+        
+        fromsbus_req_fifo_dout = Record(soc.fromsbus_req_layout)
+        self.comb += fromsbus_req_fifo_dout.raw_bits().eq(self.fromsbus_req_fifo.dout)
+        
+        fromsbus_fifo_din = Record(soc.fromsbus_layout)
+        self.comb += self.fromsbus_fifo.din.eq(fromsbus_fifo_din.raw_bits())
+
 
         if (cg3_fb_size <= 1*1048576):
             CG3_UPPER_BITS=12
@@ -959,11 +970,11 @@ class SBusFPGABus(Module):
                              NextValue(sbus_oe_master_in, 0), ## ERRs, ACKs are input
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, burst_size - 1),
-                             NextValue(SBUS_3V3_D_o, self.tosbus_fifo.dout[0:32]),
-                             NextValue(sbus_master_last_virtual, self.tosbus_fifo.dout[0:32]),
-                             NextValue(master_addr, self.tosbus_fifo.dout[2:32]),
-                             NextValue(master_data, self.tosbus_fifo.dout[32:64]),
-                             NextValue(fifo_buffer, self.tosbus_fifo.dout[32:]),
+                             NextValue(SBUS_3V3_D_o, tosbus_fifo_dout.address),
+                             NextValue(sbus_master_last_virtual, tosbus_fifo_dout.address),
+                             NextValue(master_addr, tosbus_fifo_dout.address[2:32]),
+                             NextValue(master_data, tosbus_fifo_dout.data[0:32]),
+                             NextValue(fifo_buffer, tosbus_fifo_dout.data),
                              NextValue(master_src, MASTER_SRC_BLKDMAFIFO),
                              self.tosbus_fifo.re.eq(1),
                              Case(burst_size, {
@@ -995,9 +1006,9 @@ class SBusFPGABus(Module):
                              NextValue(sbus_oe_master_in, 0), ## ERRs, ACKs are input
                              NextValue(burst_counter, 0),
                              NextValue(burst_limit_m1, burst_size - 1),
-                             NextValue(SBUS_3V3_D_o, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
-                             NextValue(sbus_master_last_virtual, self.fromsbus_req_fifo.dout[blk_addr_width:blk_addr_width+32]),
-                             NextValue(fifo_blk_addr, self.fromsbus_req_fifo.dout[0:blk_addr_width]),
+                             NextValue(SBUS_3V3_D_o, fromsbus_req_fifo_dout.dmaaddress),
+                             NextValue(sbus_master_last_virtual, fromsbus_req_fifo_dout.dmaaddress),
+                             NextValue(fifo_blk_addr, fromsbus_req_fifo_dout.blkaddress),
                              NextValue(master_src, MASTER_SRC_BLKDMAFIFO),
                              self.fromsbus_req_fifo.re.eq(1),
                              Case(burst_size, {
@@ -1635,7 +1646,8 @@ class SBusFPGABus(Module):
                       Case(master_src, {
                           MASTER_SRC_BLKDMAFIFO:
                           [fromsbus_fifo.we.eq(1),
-                           fromsbus_fifo.din.eq(Cat(fifo_blk_addr, fifo_buffer)),
+                           fromsbus_fifo_din.blkaddress.eq(fifo_blk_addr),
+                           fromsbus_fifo_din.data.eq(fifo_buffer),
                           ],
                       }),
                       NextValue(sbus_oe_data, 0),
