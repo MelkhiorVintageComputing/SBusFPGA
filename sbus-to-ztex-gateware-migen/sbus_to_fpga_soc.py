@@ -277,6 +277,7 @@ class SBusFPGA(SoCCore):
             "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
             "cg6_bt":           0x00200000, # required for compatibility, bt_regs for cg6
             #"cg6_dhc":          0x00240000, # required for compatibility, unused
+            "cg6_alt":          0x00280000, # required for compatibility
             "cg6_fhc":          0x00300000, # required for compatibility
             #"cg6_thc":          0x00301000, # required for compatibility
             "cg3_bt":           0x00400000, # required for compatibility, bt_regs for cg3 & bw2
@@ -337,15 +338,18 @@ class SBusFPGA(SoCCore):
         #self.comb += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_INT1s_o)
 
         prom_file = "prom_{}.fc".format(version.replace(".", "_"))
+        #prom_file = "SUNW,501-2325.bin" # real TGX
+        #prom_file = "SUNW,501-1415.bin" # real cg3
+        #prom_file = "SUNW,501-2253.bin" # real TGX+
         prom_data = soc_core.get_mem_data(prom_file, "big")
         # prom = Array(prom_data)
         #print("\n****************************************\n")
         #for i in range(len(prom)):
         #    print(hex(prom[i]))
         #print("\n****************************************\n")
-        self.add_ram("prom", origin=self.mem_map["prom"], size=2**14, contents=prom_data, mode="r") ### FIXME: round up the prom_data size & check for <= 2**16!
+        self.add_ram("prom", origin=self.mem_map["prom"], size=2**15, contents=prom_data, mode="r") ### FIXME: round up the prom_data size & check for <= 2**16!
         #getattr(self,"prom").mem.init = prom_data
-        #getattr(self,"prom").mem.depth = 2**14
+        #getattr(self,"prom").mem.depth = 2**15
 
         self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
                                                    memtype        = "DDR3",
@@ -357,6 +361,9 @@ class SBusFPGA(SoCCore):
                        l2_cache_size = 0,
         )
         avail_sdram = self.bus.regions["main_ram"].size
+        ###from sdram_init import DDR3FBInit
+        ###self.submodules.sdram_init = DDR3FBInit(sys_clk_freq=sys_clk_freq, bitslip=1, delay=25)
+        ###self.bus.add_master(name="DDR3Init", master=self.sdram_init.bus)
 
         base_fb = self.wb_mem_map["main_ram"] + avail_sdram - 1048576 # placeholder
         if (framebuffer):
@@ -510,6 +517,7 @@ class SBusFPGA(SoCCore):
                 self.submodules.cg6_accel = cg6_accel.CG6Accel(soc = self, base_fb = base_fb, hres = hres, vres = vres)
                 self.bus.add_slave("cg6_fbc", self.cg6_accel.bus, SoCRegion(origin=self.mem_map.get("cg6_fbc", None), size=0x2000, cached=False))
                 self.bus.add_slave("cg6_fhc", self.cg6.bus2, SoCRegion(origin=self.mem_map.get("cg6_fhc", None), size=0x2000, cached=False))
+                self.bus.add_slave("cg6_alt", self.cg6.bus3, SoCRegion(origin=self.mem_map.get("cg6_alt", None), size=0x2000, cached=False))
                 self.bus.add_master(name="cg6_accel_r5_i", master=self.cg6_accel.ibus)
                 self.bus.add_master(name="cg6_accel_r5_d", master=self.cg6_accel.dbus)
                 cg6_rom_file = "blit.raw"

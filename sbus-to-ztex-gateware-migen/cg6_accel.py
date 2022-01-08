@@ -11,7 +11,7 @@ class CG6Accel(Module): # AutoCSR ?
     def __init__(self, soc, base_fb, hres, vres):
         platform = soc.platform
         
-        # for FBC and TEC - where we just ignore TEC
+        # for FBC and TEC
         self.bus = bus = wishbone.Interface()
         
         self.COORD_BITS = COORD_BITS = 12
@@ -86,7 +86,7 @@ class CG6Accel(Module): # AutoCSR ?
         wishbone_fsm.act("Idle",
                          self.fbc_fifo_font.we.eq(0),
                          If(bus.cyc & bus.stb & bus.we & ~bus.ack, #write
-                            Case(bus.adr[0:11], {
+                            Case(bus.adr[0:12], { # the thirteenth bit is to match the FBC but not the TEC
                                 "default": [ ],
                                 # 0: fbc_config R/O
                                 1: [ NextValue(fbc_mode, bus.dat_w) ],
@@ -166,7 +166,7 @@ class CG6Accel(Module): # AutoCSR ?
                             }),
                             NextValue(bus.ack, 1),
                             ).Elif(bus.cyc & bus.stb & ~bus.we & ~bus.ack, #read
-                                   Case(bus.adr[0:11], {
+                                   Case(bus.adr[0:12], { # the thirteenth bit is to match the FBC but not the TEC
                                         "default": [ NextValue(bus.dat_r, 0xDEADBEEF) ],
                                         0: [ NextValue(bus.dat_r, fbc_config) ],
                                         1: [ NextValue(bus.dat_r, fbc_mode) ],
@@ -177,13 +177,13 @@ class CG6Accel(Module): # AutoCSR ?
                                         ],
                                         # 5: fbc_draw R/O -> start a "draw" on R
                                         5: [ NextValue(fbc_do_draw, ~fbc_s[GX_INPROGRESS_BIT]), # ignore command while working
-                                             NextValue(bus.dat_r, 0),
+                                             NextValue(bus.dat_r, fbc_s), # FIXME, returns the FULL and INPROGRESS bit only
                                              #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_do_draw | fbc_do_blit),
                                              #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_s[GX_INPROGRESS_BIT]),
                                         ],
                                         # 6: fbc_blit R/O -> start a "blit" on R
                                         6: [ NextValue(fbc_do_blit, ~fbc_s[GX_INPROGRESS_BIT]), # ignore command while working
-                                             NextValue(bus.dat_r, 0),
+                                             NextValue(bus.dat_r, fbc_s), # FIXME, returns the FULL and INPROGRESS bit only
                                              #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_do_draw | fbc_do_blit),
                                              #NextValue(draw_blit_overflow, draw_blit_overflow | fbc_s[GX_INPROGRESS_BIT]),
                                         ],
@@ -197,21 +197,23 @@ class CG6Accel(Module): # AutoCSR ?
                                         41: [ NextValue(bus.dat_r, fbc_y[2]) ],
                                         44: [ NextValue(bus.dat_r, fbc_x[3]) ], # 0x0b0
                                         45: [ NextValue(bus.dat_r, fbc_y[3]) ], # 0x0b4
-                                        48: [ NextValue(bus.dat_r, fbc_offx) ],
+                                        48: [ NextValue(bus.dat_r, fbc_offx) ], # 0x0c0
                                         49: [ NextValue(bus.dat_r, fbc_offy) ],
                                         52: [ NextValue(bus.dat_r, fbc_incx) ], # 0x0d0
                                         53: [ NextValue(bus.dat_r, fbc_incy) ],
                                         # 54-55: pad81
-                                        56: [ NextValue(bus.dat_r, fbc_clipminx) ],
+                                        56: [ NextValue(bus.dat_r, fbc_clipminx) ], # 0x0e0
                                         57: [ NextValue(bus.dat_r, fbc_clipminy) ],
                                         # 58-59: pad9
-                                        60: [ NextValue(bus.dat_r, fbc_clipmaxx) ],
+                                        60: [ NextValue(bus.dat_r, fbc_clipmaxx) ], # 0x0f0
                                         61: [ NextValue(bus.dat_r, fbc_clipmaxy) ],
                                         # 62-63: pad10
                                         64: [ NextValue(bus.dat_r, fbc_fg) ], # 0x100
                                         65: [ NextValue(bus.dat_r, fbc_bg) ], # 0x104
                                         66: [ NextValue(bus.dat_r, fbc_alu) ], # 0x108
-                                        67: [ NextValue(bus.dat_r, fbc_pm) ], # 0x10c
+                                        67: [ NextValue(bus.dat_r, fbc_pm) ], # 0x10c # planemask
+                                        #68: pixelmask (written to 0xFFFFFFFF by 510-2325 prom)
+                                        #72-79: patterns (written  to 0xFFFFFFFF by 510-2325 prom)
                                         576: [ NextValue(bus.dat_r, fbc_arectx),
                                               ],
                                         577: [ NextValue(bus.dat_r, fbc_arecty),
@@ -287,7 +289,7 @@ class CG6Accel(Module): # AutoCSR ?
             If(fbc_r5_cmd[FUN_DONE_BIT],
                fbc_r5_cmd.eq(0),
                fbc_s[GX_INPROGRESS_BIT].eq(0),
-               #fbc_s[GX_FULL_BIT].eq(0),
+               fbc_s[GX_FULL_BIT].eq(0),
                local_reset.eq(1),
                #timeout.eq(timeout_rst),
             ).Elif(self.fbc_fifo_font.readable & fbc_s[GX_INPROGRESS_BIT] & fbc_r5_cmd[FUN_FONT_NEXT_REQ_BIT] & (fbc_r5_cmd[0:4] == 0x4),
@@ -313,21 +315,21 @@ class CG6Accel(Module): # AutoCSR ?
                    fbc_next_y0.eq(fbc_fifo_font_out.y0),
                    fbc_r5_cmd.eq(FUN_FONT), # includes FUN_FONT_NEXT_RDY_BIT
                    fbc_s[GX_INPROGRESS_BIT].eq(1),
-                   #fbc_s[GX_FULL_BIT].eq(1),
+                   fbc_s[GX_FULL_BIT].eq(1),
                    local_reset.eq(0),
                    #timeout.eq(timeout_rst),
             ).Elif(fbc_do_draw & ~fbc_s[GX_INPROGRESS_BIT],
                    fbc_do_draw.eq(0),
                    fbc_r5_cmd.eq(FUN_DRAW),
                    fbc_s[GX_INPROGRESS_BIT].eq(1),
-                   #fbc_s[GX_FULL_BIT].eq(1),
+                   fbc_s[GX_FULL_BIT].eq(1),
                    local_reset.eq(0),
                    #timeout.eq(timeout_rst),
             ).Elif(fbc_do_blit & ~fbc_s[GX_INPROGRESS_BIT],
                    fbc_do_blit.eq(0),
                    fbc_r5_cmd.eq(FUN_BLIT),
                    fbc_s[GX_INPROGRESS_BIT].eq(1),
-                   #fbc_s[GX_FULL_BIT].eq(1),
+                   fbc_s[GX_FULL_BIT].eq(1),
                    local_reset.eq(0),
                    #timeout.eq(timeout_rst),
 
@@ -336,7 +338,7 @@ class CG6Accel(Module): # AutoCSR ?
             #).Elif((timeout == 0) & fbc_s[GX_INPROGRESS_BIT], # OUPS
             #       fbc_r5_cmd.eq(0),
             #       fbc_s[GX_INPROGRESS_BIT].eq(0),
-            #       #fbc_s[GX_FULL_BIT].eq(0),
+            #       fbc_s[GX_FULL_BIT].eq(0),
             #       local_reset.eq(1),
             #       timeout.eq(timeout_rst),
             #),

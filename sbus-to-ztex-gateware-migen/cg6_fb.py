@@ -163,7 +163,8 @@ class cg6(Module, AutoCSR):
 
         #pad_SBUS_DATA_OE_LED = soc.platform.request("SBUS_DATA_OE_LED")
         #self.comb += pad_SBUS_DATA_OE_LED.eq((hwcursor_x < 1280) & (hwcursor_y < 1024));
-        
+
+        # FHC / THC
         self.bus2 = bus2 = wishbone.Interface()
         self.submodules.wishbone_fsm2 = wishbone_fsm2 = FSM(reset_state = "Reset")
         wishbone_fsm2.act("Reset",
@@ -171,13 +172,13 @@ class cg6(Module, AutoCSR):
                          NextState("Idle"))
         wishbone_fsm2.act("Idle",
                          If(bus2.cyc & bus2.stb & bus2.we & ~bus2.ack, #write
-                            Case(bus2.adr[0:11], {
+                            Case(bus2.adr[0:12], {
                                 "default": [ ],
                                 1599: [ NextValue(hwcursor_x, bus2.dat_w[16:28]),
                                         NextValue(hwcursor_y, bus2.dat_w[ 0:12]),
                                 ],
                             }),
-                            Case(bus2.adr[5:11], {
+                            Case(bus2.adr[5:12], {
                                 "default": [ ],
                                 50 : [ upd_overlay_fifo.we.eq(1), # 50*32 = 1600..1631
                                        upd_overlay_fifo.din.eq(Cat(Signal(1, reset = 0), 31-bus2.adr[0:5], bus2.dat_w))
@@ -188,13 +189,32 @@ class cg6(Module, AutoCSR):
                             }),
                             NextValue(bus2.ack, 1),
                          ).Elif(bus2.cyc & bus2.stb & ~bus2.we & ~bus2.ack, #read
-                                Case(bus2.adr[0:10], {
+                                Case(bus2.adr[0:12], {
                                     "default": [ NextValue(bus2.dat_r, 0xDEADBEEF) ],
-                                    0: [ NextValue(bus2.dat_r, 0x60b00000) ], # claim revision 11 (TurboGX)
+                                    # my TGX+ is 0x64b009ff as a console in 1152x900
+                                    #0: [ NextValue(bus2.dat_r, 0x64b009ff) ], # claim revision 11 (TurboGX), that's the 0xb<<20
+                                    0: [ NextValue(bus2.dat_r, 0x64b509ff) ], # claim revision 11 (TurboGX), that's the 0xb<<20
                                 }),
                                 NextValue(bus2.ack, 1),
                          ).Else(
                              NextValue(bus2.ack, 0),
+                         )
+        )
+
+        # ALT catch-all
+        self.bus3 = bus3 = wishbone.Interface()
+        self.submodules.wishbone_fsm3 = wishbone_fsm3 = FSM(reset_state = "Reset")
+        wishbone_fsm3.act("Reset",
+                         NextValue(bus3.ack, 0),
+                         NextState("Idle"))
+        wishbone_fsm3.act("Idle",
+                         If(bus3.cyc & bus3.stb & bus3.we & ~bus3.ack, #write
+                            NextValue(bus3.ack, 1),
+                         ).Elif(bus3.cyc & bus3.stb & ~bus3.we & ~bus3.ack, #read
+                                NextValue(bus3.dat_r, 0xDEADBEEF),
+                                NextValue(bus3.ack, 1),
+                         ).Else(
+                             NextValue(bus3.ack, 0),
                          )
         )
         

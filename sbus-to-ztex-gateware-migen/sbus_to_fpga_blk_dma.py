@@ -150,8 +150,8 @@ class ExchangeWithMem(Module, AutoCSR):
                             self.irqctrl.we.eq(0),
                         )
         
-        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        self.comb += pad_SBUS_DATA_OE_LED.eq(self.irq)
+        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(self.irq)
         
         #self.comb += self.dma_status.status[16:17].eq(self.wishbone_w_master.cyc) # show the WB iface status (W)
         #self.comb += self.dma_status.status[17:18].eq(self.wishbone_w_master.stb)
