@@ -12,7 +12,7 @@ To save on PCB cost, the board is smaller than a 'true' SBus board; the hardware
 
 ## Current status
 
-2021-11-20: The V1.2 design with the Migen gateware is ongoing, with several peripherals to combine (limited by the FPGA size).
+2022-01-08: The V1.2 design with the Migen gateware is ongoing, with several peripherals to combine (limited by the FPGA size). It is now reasonably stable.
 
 ## The hardware
 
@@ -31,7 +31,7 @@ Directory 'sbus-to-ztex-gateware-migen'
 The gateware is written in the Migen language, choosen because that's what [Litex](https://github.com/enjoy-digital/litex/) uses.
 It implements a simple CPU-less Litex SoC built around a Wishbone bus, with a custom bridge between the SBus and the Wishbone.
 
-A ROM, a SDRAM controller ([litedram](https://github.com/enjoy-digital/litedram) to the on-board DDR3), a TRNG (using the [NeoRV32](https://github.com/stnolting/neorv32) TRNG), an USB OHCI (host controller, using the Litex wrapper around the [SpinalHDL](https://github.com/SpinalHDL/SpinalHDL) implementation), a Curve25519 Crypto Engine (taken from the [Betrusted.IO](https://betrusted.io/) project) and a Litex micro-sd controller can be connected to that bus. As a test feature for the Pmod connector, a cg3-compatible or cg6-compatible framebuffer can be implemented using a custom RGA222 VGA Pmod.
+A ROM, a SDRAM controller ([litedram](https://github.com/enjoy-digital/litedram) to the on-board DDR3), a TRNG (using the [NeoRV32](https://github.com/stnolting/neorv32) TRNG), an USB OHCI (host controller, using the Litex wrapper around the [SpinalHDL](https://github.com/SpinalHDL/SpinalHDL) implementation), a Curve25519 Crypto Engine (taken from the [Betrusted.IO](https://betrusted.io/) project) and a Litex micro-sd controller can be connected to that bus. As a test feature for the Pmod connector, a bw2/cg3/cg6-compatible framebuffer can be implemented using a custom RGA222 VGA Pmod (with serious color quality restrictions).
 
 ### Details
 
@@ -49,11 +49,11 @@ The TRNG has a NetBSD driver to add entropy to the entropy pool.
 
 The Curve25519 Engine currently exposes an IOCTL to do the computation, which has yet to be integrated usefully in e.g. OpenSSL. It could use a interrupt line, but it's not yet implemented in software. The load/store unit used the same Wishbone/SBus bridge as designed for the USB OHCI.
 
-The cg3 emulation requires the custom Pmod, and colors are vert limited at 2 bits per channel, so it's for testing mostly. It can work as a PROM console, a NetBSD console, and with X11, all as an non-accelerated framebuffer. Resolution can be arbitrary but is fixed in the bitstream at synthesis time, the current design can go up to 1920x1080@60Hz. cg6 emulation is similar but uses a micro-coded VexRiscv core to emulate some of the cg6 hardware acceleration, enough to accelerate the PROM console, the NetBSD console and X11 EXA acceleration in NetBSD 9.0. However, for both the cg3 and the cg6, some unknown bug causes corruption of the UVM (virtual memory) subsystem when running X11.
+The bw2/cg3/cg6 emulation requires the custom Pmod, and colors are vert limited at 2 bits per channel, so it's for testing mostly. bw2/cg3 can work as a PROM console, a NetBSD console, and with X11, all as an non-accelerated framebuffer. Resolution can be arbitrary but is fixed in the bitstream at synthesis time, the current design can go up to 1920x1080@60Hz. cg6 emulation is similar but uses a micro-coded VexRiscv core to emulate some of the cg6 hardware acceleration, enough to accelerate the PROM console, the NetBSD console and X11 EXA acceleration in NetBSD 9.0. The cg3/cg6 emulation was also tested with the original PROM code for cg3 (501-1415) and TGX+ (501-2253), but this requires hardware-based initialization (instead of PROM-based) and prevent exposing other devices in the PROM code.
 
 ### Special Notes
 
-Currently the design uses a Wishbone Crossbar Interconnect from Litex instead of a Shared Interconnect, as for some reason using a Shared Interconnect causes issues between devices (disabling the USB OHCI seem also to solve the issue, it generates a lot of cycles on the buses). I might be misusing Wishbone. With the Crossbar, all devices are usable simultaneously.
+Currently the design uses a Wishbone Crossbar Interconnect from Litex instead of a Shared Interconnect, as for some reason using a Shared Interconnect causes issues between devices (disabling the USB OHCI seem also to solve the issue, it generates a lot of cycles on the buses). I might be misusing Wishbone. With the Crossbar, all devices are usable simultaneously if they fit in the FPGA.
 
 As not everything lives in the same clock domain, the design also use a Wishbone CDC, a wrapper around the one from [Verilog Wishbone Components](https://github.com/alexforencich/verilog-wishbone).
 
@@ -61,5 +61,4 @@ As not everything lives in the same clock domain, the design also use a Wishbone
 
 Directory 'NetBSD'
 
-Some basic drivers for NetBSD 9.0/sparc to enable the devices as described above (cg3 and cg6 which use unmodifed NetBSD drivers and USB OHCI where only the SBus-OHCI layer is needed, the NetBSD OHCI driver is used unmodified).
-
+Some basic drivers for NetBSD 9.0/sparc to enable the devices as described above. bw2/cg3/cg6 uses unmodifed NetBSD drivers. USB OHCI needs only a SBus-OHCI layer, the NetBSD OHCI driver and USB stack are used unmodified.
