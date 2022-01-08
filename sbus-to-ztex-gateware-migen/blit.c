@@ -24,29 +24,7 @@
 
 #define BASE_FBC 0x00700000 // mandated by CG6 compatibility
 
-#if 0
-static inline unsigned_param_type mul_768(const unsigned_param_type a) {
-	unsigned_param_type b = a + a;
-	b = b + a; // a * 3
-	b = b + b; // a * 6
-	b = b + b; // a * 12
-	b = b + b; // a * 24
-	b = b + b; // a * 48
-	b = b + b; // a * 96
-	b = b + b; // a * 192
-	b = b + b; // a * 384
-	b = b + b; // a * 768
-	return b;
-}
-#else
-#define mul_768(a) (a * 768)
-#endif
-
-#if HRES == 768
-#define mul_HRES(a) mul_768(a)
-#else
-#define mul_HRES(a) (a * HRES)
-#endif
+#define mul_HRES(a) ((a) * HRES)
 
 //typedef void (*boot_t)(void);
 //typedef void (*start_t)(unsigned short, unsigned short, unsigned short, unsigned short, unsigned short, unsigned short, unsigned short, unsigned short);
@@ -122,6 +100,15 @@ struct control_blitter {
 						 | 0x00000600 /* GX_BREAD_ALL */	\
 						 | 0x00000180 /* GX_BDISP_ALL */	\
 												)
+#define CG6_ROMMODE	(										\
+					   0x00200000 /* GX_BLIT_SRC */			\
+					 | 0x00020000 /* GX_MODE_COLOR8 */		\
+					 | 0x00008000 /* GX_DRAW_RENDER */		\
+					 | 0x00001000 /* GX_BWRITE1_DISABLE */	\
+					 | 0x00000400 /* GX_BREAD_1 */			\
+					 | 0x00000100 /* GX_BDISP_1 */			\
+					 | 0x00000040 /* GX_INDEX_MOD */ \
+											)
 
 /* Value for the alu register for screen-to-screen copies */
 #define CG6_ALU_COPY	(												\
@@ -158,6 +145,19 @@ struct control_blitter {
 						 | 0x01000000 /* GX_POLYG_OVERLAP (unsure - handle overlap?) */	\
 						 | 0x00005555 /* ALU = ~dst */					\
 												)
+
+/* Value for the alu register used by 501-2325 ROM for BLIT */
+#define CG6_ALU_ROMBLIT	(												\
+						   0x80000000 /* GX_PLANE_ONES (ignore planemask register) */	\
+						 | 0x20000000 /* GX_PIXEL_ONES (ignore pixelmask register) */ \
+						 | 0x00800000 /* GX_ATTR_SUPP (function unknown) */	\
+						 | 0x00000000 /* GX_RAST_BOOL (function unknown) */	\
+						 | 0x00000000 /* GX_PLOT_PLOT (function unknown) */	\
+						 | 0x08000000 /* GX_PATTERN_ONES (ignore pattern) */ \
+						 | 0x01000000 /* GX_POLYG_OVERLAP (unsure - handle overlap?) */	\
+						 | 0x00006c60 /* ALU = ??? */					\
+												)
+
 
 /* rasterops */
 #define GX_ROP_CLEAR        0x0
@@ -446,8 +446,8 @@ asm(".global _start\n"
 	".type	_start, @function\n"
 	);
 
-#define imax(a,b) ((a>b)?(a):(b))
-#define imin(a,b) ((a<b)?(a):(b))
+#define imax(a,b) (((a)>(b))?(a):(b))
+#define imin(a,b) (((a)<(b))?(a):(b))
 
 //#define TRACE_ON_SCREEN
 
@@ -476,6 +476,21 @@ void from_reset(void) {
 	switch (cmd & 0xF) {
 	case FUN_DRAW: {
 		switch (alu) {
+		case CG6_ALU_ROMBLIT: // ____6c60 ROM -> ????
+			{
+				switch (mode) {
+				case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE1_DISABLE | GX_BREAD_1 | GX_BDISP_1 | GX_INDEX_MOD ):
+					rectfill(fbc->fbc_arectx_prev,
+							 fbc->fbc_arecty_prev,
+							 1 + fbc->fbc_arectx - fbc->fbc_arectx_prev,
+							 1 + fbc->fbc_arecty - fbc->fbc_arecty_prev,
+							 fbc->fbc_fg);
+					break;
+				default:
+					SHOW_PC_2VAL(alu, mode);
+					break;
+				}
+			} break;
 		case CG6_ALU_FILL:  // ____ff00 console
 		case CG6_ALU_COPY:  // ____cccc equivalent to fill if patterns == 1 (... which is the case with GX_PATTERN_ONES)
 		case ROP_FILL(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Draw/GXcopy in X11
@@ -549,6 +564,27 @@ void from_reset(void) {
 	case FUN_BLIT: {
 		switch (alu)
 			{
+			case CG6_ALU_ROMBLIT: // ____6c60 ROM -> ????
+				{
+					switch (mode) {
+					case (GX_BLIT_SRC |	GX_MODE_COLOR8 | GX_DRAW_RENDER | GX_BWRITE1_DISABLE | GX_BREAD_1 | GX_BDISP_1 | GX_INDEX_MOD ):
+						{
+							const unsigned_param_type xs = fbc->fbc_x0;
+							const unsigned_param_type ys = fbc->fbc_y0;
+							const unsigned_param_type wi = fbc->fbc_x1 - xs + 1;
+							const unsigned_param_type re = fbc->fbc_y1 - ys + 1;
+							const unsigned_param_type xd = fbc->fbc_x2;
+							const unsigned_param_type yd = fbc->fbc_y2;
+							const unsigned_param_type wi_dup = fbc->fbc_x3 - xd + 1;
+							const unsigned_param_type re_dup = fbc->fbc_y3 - yd + 1;
+							bitblit(xs, ys, wi, re, xd, yd, 0xFF, 0x3); // GXcopy
+						}
+						break;
+					default:
+						SHOW_PC_2VAL(alu, mode);
+						break;
+					}
+				} break;
 			case CG6_ALU_COPY: // ____cccc console -> put the src
 			case ROP_BLIT(GX_ROP_CLEAR,  GX_ROP_SET): // ____ff00 Blit/GXcopy in X11 -> put 1 if src is 1, put 0 if src is 0 (!)
 				{
@@ -1181,8 +1217,8 @@ static void invert(const unsigned_param_type xd,
 	unsigned int i, j;													\
 	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs); \
 	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd); \
-	unsigned char *sptr_line = sptr + mul_HRES((re-1));					\
-	unsigned char *dptr_line = dptr + mul_HRES((re-1));					\
+	unsigned char *sptr_line = sptr + mul_HRES(re-1);					\
+	unsigned char *dptr_line = dptr + mul_HRES(re-1);					\
 	const unsigned char npm = ~pm;										\
 																		\
 	for (j = 0 ; j < re ; j++) {										\
@@ -1303,8 +1339,8 @@ static void bitblit_bwd_bwd_copy(const unsigned_param_type xs,
 	unsigned int i, j;
 	unsigned char *sptr = (((unsigned char *)BASE_FB) + mul_HRES(ys) + xs);
 	unsigned char *dptr = (((unsigned char *)BASE_FB) + mul_HRES(yd) + xd);
-	unsigned char *sptr_line = sptr + mul_HRES((re-1));
-	unsigned char *dptr_line = dptr + mul_HRES((re-1));
+	unsigned char *sptr_line = sptr + mul_HRES(re-1);
+	unsigned char *dptr_line = dptr + mul_HRES(re-1);
 
 	// flush_cache(); // handled in boot()
   
@@ -1372,7 +1408,7 @@ static void show_status_on_screen(void) {
 	unsigned int alu = fbc->fbc_alu;
 	unsigned int mode = fbc->fbc_mode;
 	unsigned int bx = 0;
-	unsigned int by = 768 + ((cmd & 0xF)*32);
+	unsigned int by = 640 + ((cmd & 0xF)*32);
 	unsigned char* base_fb = (((unsigned char *)BASE_FB) + mul_HRES(by) + bx);
 
 	print_hex(cmd & 0xF, base_fb);
