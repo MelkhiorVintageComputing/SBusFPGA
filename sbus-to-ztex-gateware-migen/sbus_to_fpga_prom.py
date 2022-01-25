@@ -93,7 +93,8 @@ def get_header_mapx_stuff(gname, names, sizes, types):
     return r
 
 def get_prom(soc,
-             version="V1.0",
+             version,
+             sys_clk_freq,
              trng=False,
              usb=False,
              sdram=True,
@@ -216,6 +217,19 @@ def get_prom(soc,
     if (sdcard):
         r += "\" LITEX,sdcard\" device-name\n"
         r += get_header_mapx_stuff("sdcard", ["sdcore", "sdirq", "sdphy", "sdblock2mem", "sdmem2block" ], [ 4096, 4096, 4096, 4096, 4096 ], [ "csr", "csr", "csr", "csr", "csr" ] )
+        if (sys_clq_freq == 100e6):
+            r += "25 constant m0_delay\n"
+            r += "25 constant m1_delay\n"
+            r += "1 constant m0_bitslip\n"
+            r += "1 constant m1_bitslip\n"
+        elif (sys_clq_freq == 90e6):
+            r += "28 constant m0_delay\n"
+            r += "28 constant m1_delay\n"
+            r += "1 constant m0_bitslip\n"
+            r += "1 constant m1_bitslip\n"
+        else:
+            print("UNCALIBRATED FREQUENCY for SDRAM!")
+            assert(False)
         r += ": sdcard-init!\n"
         r += "  map-in-sdcard\n"
         r += "  0 sdirq-virt h# 8 + l! ( disable irqs )\n"

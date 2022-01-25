@@ -624,7 +624,7 @@ def main():
         csr_base  = soc.mem_regions['csr'].origin)
     write_to_file(os.path.join(f"prom_csr_{version_for_filename}.fth"), csr_forth_contents)
 
-    prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version,
+    prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, sys_clk_freq=sys_clk_freq,
                                               trng=args.trng,
                                               usb=args.usb,
                                               sdram=args.sdram,

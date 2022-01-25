@@ -119,22 +119,22 @@ fload sdram_csr.fth
 	\ .( config module 0 read ) cr
 	1 dphy_dly_sel_wr
 	1 dphy_rdly_dq_bitslip_rst_wr
-	1 0 do
+	m0_bitslip 0 do
 		1 0 do 1 dphy_rdly_dq_bitslip_wr loop
 	loop
 	1 dphy_rdly_dq_rst_wr
-	25 0 do
+	m0_delay 0 do
 	   1 dphy_rdly_dq_inc_wr
 	loop
 	
 	\ .( config module 1 read ) cr
 	2 dphy_dly_sel_wr
 	1 dphy_rdly_dq_bitslip_rst_wr
-	1 0 do
+	m1_bitslip 0 do
 		1 0 do 1 dphy_rdly_dq_bitslip_wr loop
 	loop
 	1 dphy_rdly_dq_rst_wr
-	25 0 do
+	m1_delay 0 do
 	   1 dphy_rdly_dq_inc_wr
 	loop
 	\ .( finish ) cr
