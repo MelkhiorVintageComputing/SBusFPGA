@@ -418,21 +418,23 @@ class SBusFPGA(SoCCore):
         self.submodules.fromsbus_fifo = ClockDomainsRenamer({"write": "sbus", "read": "sys"})(AsyncFIFOBuffered(width=layout_len(self.fromsbus_layout), depth=burst_size))
         self.submodules.fromsbus_req_fifo = ClockDomainsRenamer({"read": "sbus", "write": "sys"})(AsyncFIFOBuffered(width=layout_len(self.fromsbus_req_layout), depth=burst_size))
         if (sdram):
-            self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=data_width_bits),
-                                                                fifo_depth=4,
-                                                                fifo_buffered=True)
+            #self.submodules.dram_dma_writer = LiteDRAMDMAWriter(port=self.sdram.crossbar.get_port(mode="write", data_width=data_width_bits),
+            #                                                    fifo_depth=4,
+            #                                                    fifo_buffered=True)
+            #
+            #self.submodules.dram_dma_reader = LiteDRAMDMAReader(port=self.sdram.crossbar.get_port(mode="read", data_width=data_width_bits),
+            #                                                    fifo_depth=4,
+            #                                                    fifo_buffered=True)
             
-            self.submodules.dram_dma_reader = LiteDRAMDMAReader(port=self.sdram.crossbar.get_port(mode="read", data_width=data_width_bits),
-                                                                fifo_depth=4,
-                                                                fifo_buffered=True)
-
             self.submodules.exchange_with_mem = ExchangeWithMem(soc=self,
                                                                 platform=platform,
                                                                 tosbus_fifo=self.tosbus_fifo,
                                                                 fromsbus_fifo=self.fromsbus_fifo,
                                                                 fromsbus_req_fifo=self.fromsbus_req_fifo,
-                                                                dram_dma_writer=self.dram_dma_writer,
-                                                                dram_dma_reader=self.dram_dma_reader,
+                                                                #dram_dma_writer=self.dram_dma_writer,
+                                                                #dram_dma_reader=self.dram_dma_reader,
+                                                                dram_native_r=self.sdram.crossbar.get_port(mode="read", data_width=data_width_bits),
+                                                                dram_native_w=self.sdram.crossbar.get_port(mode="write", data_width=data_width_bits),
                                                                 mem_size=avail_sdram//1048576,
                                                                 burst_size=burst_size,
                                                                 do_checksum = False)
@@ -624,7 +626,7 @@ def main():
         csr_base  = soc.mem_regions['csr'].origin)
     write_to_file(os.path.join(f"prom_csr_{version_for_filename}.fth"), csr_forth_contents)
 
-    prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, sys_clk_freq=sys_clk_freq,
+    prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, sys_clk_freq=int(float(args.sys_clk_freq)),
                                               trng=args.trng,
                                               usb=args.usb,
                                               sdram=args.sdram,

@@ -11,14 +11,14 @@ from litex.soc.interconnect import wishbone
 # the blk_addr does the round-trip to accompany the data
 # mem_size in MiB, might be weird if some space is reserved for other use (e.g. FrameBuffer)
 class ExchangeWithMem(Module, AutoCSR):
-    def __init__(self, soc, platform, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_dma_writer, dram_dma_reader, mem_size=256, burst_size = 8, do_checksum = False):
+    def __init__(self, soc, platform, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_native_r, dram_native_w, mem_size=256, burst_size = 8, do_checksum = False):
         #self.wishbone_r_slave = wishbone.Interface(data_width=soc.bus.data_width)
         #self.wishbone_w_slave = wishbone.Interface(data_width=soc.bus.data_width)
         self.tosbus_fifo = tosbus_fifo
         self.fromsbus_fifo = fromsbus_fifo
         self.fromsbus_req_fifo = fromsbus_req_fifo
-        self.dram_dma_writer = dram_dma_writer
-        self.dram_dma_reader = dram_dma_reader
+        self.dram_native_r = dram_native_r
+        self.dram_native_w = dram_native_w
 
         tosbus_fifo_din = Record(soc.tosbus_layout)
         self.comb += self.tosbus_fifo.din.eq(tosbus_fifo_din.raw_bits())
@@ -33,8 +33,12 @@ class ExchangeWithMem(Module, AutoCSR):
         data_width_bits = burst_size * 32
         blk_addr_width = 32 - log2_int(data_width) # 27 for burst_size == 8
 
-        assert(len(self.dram_dma_writer.sink.data) == data_width_bits)
-        assert(len(self.dram_dma_reader.source.data) == data_width_bits)
+        assert(len(self.dram_native_r.rdata.data) == data_width_bits)
+        assert(len(self.dram_native_r.wdata.data) == data_width_bits)
+        #assert(len(self.dram_native_r.cmd.addr) == (blk_addr_width - 4))
+        assert(len(self.dram_native_w.rdata.data) == data_width_bits)
+        assert(len(self.dram_native_w.wdata.data) == data_width_bits)
+        #assert(len(self.dram_native_w.cmd.addr) == (blk_addr_width - 4))
         
         #self.wishbone_r_master = wishbone.Interface(data_width=data_width_bits)
         #self.wishbone_w_master = wishbone.Interface(data_width=data_width_bits)
@@ -42,7 +46,7 @@ class ExchangeWithMem(Module, AutoCSR):
         #self.submodules += wishbone.Converter(self.wishbone_r_master, self.wishbone_r_slave)
         #self.submodules += wishbone.Converter(self.wishbone_w_master, self.wishbone_w_slave)
 
-        print("ExchangeWithMem: data_width = {}, data_width_bits = {}, blk_addr_width = {}\n".format(data_width, data_width_bits, blk_addr_width))
+        print("ExchangeWithMem: data_width = {}, data_width_bits = {}, blk_addr_width = {} dram_native_r.cmd.addr bits = {} \n".format(data_width, data_width_bits, blk_addr_width, len(self.dram_native_r.cmd.addr)))
         print("ExchangeWithMem: tosbus_fifo width = {}, fromsbus_fifo width = {}, fromsbus_req_fifo width = {}\n".format(len(tosbus_fifo.din), len(fromsbus_fifo.dout), len(fromsbus_req_fifo.din)))
         
         local_r_addr = Signal(blk_addr_width)
@@ -50,8 +54,8 @@ class ExchangeWithMem(Module, AutoCSR):
         #local_r_widx = Signal(log2_int(burst_size)) # so width is 3 for burst_size == 8
         #local_r_buffer = Signal(data_width_bits)
         
-        local_w_addr = Signal(blk_addr_width)
-        dma_w_addr = Signal(32)
+        #local_w_addr = Signal(blk_addr_width)
+        #dma_w_addr = Signal(32)
         #local_w_widx = Signal(log2_int(burst_size)) # so width is 3 for burst_size == 8
         #local_w_buffer = Signal(data_width_bits)
 
@@ -164,6 +168,12 @@ class ExchangeWithMem(Module, AutoCSR):
         #self.comb += self.dma_status.status[26:27].eq(self.wishbone_r_master.we)
         #self.comb += self.dma_status.status[27:28].eq(self.wishbone_r_master.ack)
         #self.comb += self.dma_status.status[28:29].eq(self.wishbone_r_master.err)
+
+        self.comb += [ self.dram_native_r.rdata.ready.eq(self.tosbus_fifo.writable),
+                       self.dram_native_r.cmd.we.eq(0),
+                       self.dram_native_w.rdata.ready.eq(0),
+                       self.dram_native_w.cmd.we.eq(1),
+                       self.dram_native_w.wdata.we.eq(Replicate(1, data_width)), ]
         
         req_r_fsm.act("Reset",
                     NextState("Idle")
@@ -184,22 +194,21 @@ class ExchangeWithMem(Module, AutoCSR):
                     )
         )
         req_r_fsm.act("ReqFromMemory",
-                      self.dram_dma_reader.sink.address.eq(local_r_addr),
-                      self.dram_dma_reader.sink.valid.eq(1),
-                      If(self.dram_dma_reader.sink.ready,
+                      self.dram_native_r.cmd.addr.eq(local_r_addr),
+                      self.dram_native_r.cmd.valid.eq(1),
+                      If(self.dram_native_r.cmd.ready,
                          NextState("WaitForData")
                       )
         )
         req_r_fsm.act("WaitForData",
-                      If(self.dram_dma_reader.source.valid & self.tosbus_fifo.writable,
+                      If(self.dram_native_r.rdata.valid & self.tosbus_fifo.writable,
                          self.tosbus_fifo.we.eq(1),
                          tosbus_fifo_din.address.eq(dma_r_addr),
-                         tosbus_fifo_din.data.eq(self.dram_dma_reader.source.data),
+                         tosbus_fifo_din.data.eq(self.dram_native_r.rdata.data),
                          If(do_checksum,
                             self.checksum.we.eq(1),
-                            self.checksum.dat_w.eq(self.checksum.storage ^ self.dram_dma_reader.source.data),
+                            self.checksum.dat_w.eq(self.checksum.storage ^ self.dram_native_r.rdata.data),
                          ),
-                         self.dram_dma_reader.source.ready.eq(1),
                          NextValue(self.last_blk.status, local_r_addr),
                          NextValue(self.last_dma.status, dma_r_addr),
                          NextValue(self.blk_rem.status, self.blk_rem.status - 1),
@@ -266,17 +275,24 @@ class ExchangeWithMem(Module, AutoCSR):
         )
         req_w_fsm.act("Idle",
                       If(self.fromsbus_fifo.readable,
-                         self.dram_dma_writer.sink.address.eq(fromsbus_fifo_dout.blkaddress),
-                         self.dram_dma_writer.sink.data.eq(fromsbus_fifo_dout.data),
-                         self.dram_dma_writer.sink.valid.eq(1),
+                         self.dram_native_w.cmd.addr.eq(fromsbus_fifo_dout.blkaddress),
+                         self.dram_native_w.cmd.valid.eq(1),
                          NextValue(self.wr_tosdram.status, fromsbus_fifo_dout.blkaddress),
-                         If(self.dram_dma_writer.sink.ready,
-                            self.fromsbus_fifo.re.eq(1),
-                            NextValue(self.dma_wrdone.status, self.dma_wrdone.status + 1),
-                            If(do_checksum,
-                               self.checksum.we.eq(1),
-                               self.checksum.dat_w.eq(self.checksum.storage ^ fromsbus_fifo_dout.data),
-                            )
+                         If(self.dram_native_w.cmd.ready,
+                            NextState("Write"),
                          )
+                      )
+        )
+        req_w_fsm.act("Write",
+                      self.dram_native_w.wdata.data.eq(fromsbus_fifo_dout.data),
+                      self.dram_native_w.wdata.valid.eq(1),
+                      If(self.dram_native_w.wdata.ready,
+                         self.fromsbus_fifo.re.eq(1),
+                         NextValue(self.dma_wrdone.status, self.dma_wrdone.status + 1),
+                         If(do_checksum,
+                            self.checksum.we.eq(1),
+                            self.checksum.dat_w.eq(self.checksum.storage ^ fromsbus_fifo_dout.data),
+                         ),
+                         NextState("Idle"),
                       )
         )

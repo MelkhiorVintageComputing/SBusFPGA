@@ -37,7 +37,7 @@ A ROM, a SDRAM controller ([litedram](https://github.com/enjoy-digital/litedram)
 
 Master access to the SBus by the host are routed to the Wishbone to access the various CSRs / control registers of the devices.
 
-The ROM doesn't do much beyond exposing the devices' existence and specifications to the host.
+The ROM exposes the devices' existence and specifications to the host, initializes the embedded SDRAM controller (but assuming known values, the NetBSD driver can also optionally initialize the SDRAM via proper calibration), enables FB support on the bw2/cg3/cg6 (last one with accelerated scrolling), and has support for RO access to the sdcard such enabling booting.
 
 The USB OHCI DMA (USB 1.1) is bridged from the Wishbone to the SBus by having the physical addresses of the Wishbone (that match the virtual addresses from NetBSD DVMA allocations) to the bridge. Reads are buffered by block of 16 bytes; currently writes are unbuffered (and somewhat slow, as they need a full SBus master cycle for every transaction of 32 bits or less). The standard NetBSD OHCI driver is used, with just a small custom SBus-OHCI driver mirroring the PCI-OHCI one. It uses the interrupt level 4 by default. It connects to the micro-B USB connector, an a cable such as [this one](https://www.startech.com/en-us/cables/uusbotgra) allows to expose a conventional USB type A connector for either an external (preferably self-powered) USB Hub or a single low-power device.
 

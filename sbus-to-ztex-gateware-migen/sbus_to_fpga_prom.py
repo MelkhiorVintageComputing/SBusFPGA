@@ -158,6 +158,19 @@ def get_prom(soc,
         r += "\" RDOL,sdram\" device-name\n"
         r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram", "exchange_with_mem" ], [ 4096, 4096, 4096 ], [ "csr", "csr", "csr" ])
         r += "sbusfpga_irq_sdram encode-int \" interrupts\" property\n"
+        if (sys_clk_freq == 100e6):
+            r += "h# 19 constant m0_delay\n"
+            r += "h# 19 constant m1_delay\n"
+            r += "h# 1 constant m0_bitslip\n"
+            r += "h# 1 constant m1_bitslip\n"
+        elif (sys_clk_freq == 90e6):
+            r += "h# 1c constant m0_delay\n"
+            r += "h# 1c constant m1_delay\n"
+            r += "h# 1 constant m0_bitslip\n"
+            r += "h# 1 constant m1_bitslip\n"
+        else:
+            print("UNCALIBRATED FREQUENCY for SDRAM!")
+            assert(False)
         r += "fload sdram_init.fth\ninit!\n"
     else:
         r += "\" RDOL,hidden_sdram\" device-name\n"
@@ -217,19 +230,6 @@ def get_prom(soc,
     if (sdcard):
         r += "\" LITEX,sdcard\" device-name\n"
         r += get_header_mapx_stuff("sdcard", ["sdcore", "sdirq", "sdphy", "sdblock2mem", "sdmem2block" ], [ 4096, 4096, 4096, 4096, 4096 ], [ "csr", "csr", "csr", "csr", "csr" ] )
-        if (sys_clq_freq == 100e6):
-            r += "25 constant m0_delay\n"
-            r += "25 constant m1_delay\n"
-            r += "1 constant m0_bitslip\n"
-            r += "1 constant m1_bitslip\n"
-        elif (sys_clq_freq == 90e6):
-            r += "28 constant m0_delay\n"
-            r += "28 constant m1_delay\n"
-            r += "1 constant m0_bitslip\n"
-            r += "1 constant m1_bitslip\n"
-        else:
-            print("UNCALIBRATED FREQUENCY for SDRAM!")
-            assert(False)
         r += ": sdcard-init!\n"
         r += "  map-in-sdcard\n"
         r += "  0 sdirq-virt h# 8 + l! ( disable irqs )\n"
