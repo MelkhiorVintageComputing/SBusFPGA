@@ -196,12 +196,22 @@ _i2c_v1_0 = [
     IOStandard("LVCMOS33"))
 ]
 # reusing the UART pins !!!
-_i2c_v1_2 = [
-    ("i2c", 0,
-    Subsignal("scl", Pins("V9")),
-    Subsignal("sda", Pins("U9")),
-    IOStandard("LVCMOS33"))
+#_i2c_v1_2 = [
+#    ("i2c", 0,
+#    Subsignal("scl", Pins("V9")),
+#    Subsignal("sda", Pins("U9")),
+#    IOStandard("LVCMOS33"))
+#]
+
+def tempi2c_pmod_io(pmod):
+    return [
+        ("i2c", 0,
+            Subsignal("scl", Pins(f"{pmod}:3"), Misc("PULLUP True")),
+            Subsignal("sda", Pins(f"{pmod}:7"), Misc("PULLUP True")),
+            IOStandard("LVCMOS33"),
+        ),
 ]
+_tempi2c_pmod_io_v1_2 = tempi2c_pmod_io("P1")
 
 # VGA ----------------------------------------------------------------------------------------------
 
@@ -272,7 +282,7 @@ class Platform(XilinxPlatform):
         }[version]
         i2c = {
             "V1.0" : _i2c_v1_0,
-            "V1.2" : _i2c_v1_2,
+            "V1.2" : _tempi2c_pmod_io_v1_2,
         }[version]
         self.avail_irqs = {
             "V1.0" : { 1 }, # don't add 7 here, too risky
@@ -288,6 +298,12 @@ class Platform(XilinxPlatform):
         self.add_extension(sbus_io)
         self.add_extension(sbus_sbus)
         self.add_extension(i2c)
+
+        self.toolchain.opt_directive = "Explore"
+        #self.toolchain.vivado_place_directive = "Explore"
+        self.toolchain.vivado_post_place_phys_opt_directive = "Explore"
+        #self.toolchain.vivado_route_directive = "Explore"
+        self.toolchain.vivado_post_route_phys_opt_directive = "Explore"
         
         self.toolchain.bitstream_commands = \
             ["set_property BITSTREAM.CONFIG.SPI_32BIT_ADDR No [current_design]",

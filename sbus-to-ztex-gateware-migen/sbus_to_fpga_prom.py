@@ -188,8 +188,17 @@ def get_prom(soc,
             r += "finish-device\nnew-device\n"
         
     if (i2c):
-        r += "\" RDOL,i2c\" device-name\n"
+        r += "\" oc,i2c\" device-name\n"
         r += get_header_map_stuff("i2c", "i2c", 64)
+        r += (f"h# {sys_clk_freq:x} encode-int \" clock-speed\" property\n").replace("0x", "")
+        bus_speed = 400000
+        r += (f"h# {bus_speed:x} encode-int \" bus-speed\" property\n").replace("0x", "")
+        # assume just a lm75-compatible device at 0x48 (i.e. the custom Pmod)
+        r += "  new-device\n"
+        r += "  \" AT30TS74-UFM10\" encode-string \" name\" property\n"
+        r += "  \" lm75\" encode-string \" compatible\" property\n"
+        r += "  h# 48 encode-int \" addr\" property\n"
+        r += "  finish-device\n"
         if (framebuffer or sdcard):
             r += "finish-device\nnew-device\n"
         

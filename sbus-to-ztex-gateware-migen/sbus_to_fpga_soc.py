@@ -30,7 +30,7 @@ from migen.genlib.cdc import BusSynchronizer
 from migen.genlib.resetsync import AsyncResetSynchronizer
 
 # betrusted-io/gateware
-from gateware import i2c
+from gateware.i2c import *
 
 import sbus_to_fpga_export
 import sbus_to_fpga_prom
@@ -347,7 +347,11 @@ class SBusFPGA(SoCCore):
         #for i in range(len(prom)):
         #    print(hex(prom[i]))
         #print("\n****************************************\n")
-        self.add_ram("prom", origin=self.mem_map["prom"], size=2**15, contents=prom_data, mode="r") ### FIXME: round up the prom_data size & check for <= 2**16!
+        prom_len = 4*len(prom_data);
+        rounded_prom_len = 2**log2_int(prom_len, False)
+        print(f"ROM is {prom_len} bytes, using {rounded_prom_len}")
+        assert(rounded_prom_len <= 2**16)
+        self.add_ram("prom", origin=self.mem_map["prom"], size=rounded_prom_len, contents=prom_data, mode="r")
         #getattr(self,"prom").mem.init = prom_data
         #getattr(self,"prom").mem.depth = 2**15
 
@@ -501,7 +505,7 @@ class SBusFPGA(SoCCore):
             self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
             
         if (i2c):
-            self.submodules.i2c = i2c.RTLI2C(platform, pads=platform.request("i2c"))
+            self.submodules.i2c = RTLI2C(platform, pads=platform.request("i2c"))
 
         if (framebuffer):
             self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
@@ -524,7 +528,11 @@ class SBusFPGA(SoCCore):
                 self.bus.add_master(name="cg6_accel_r5_d", master=self.cg6_accel.dbus)
                 cg6_rom_file = "blit.raw"
                 cg6_rom_data = soc_core.get_mem_data(cg6_rom_file, "little")
-                self.add_ram("cg6_accel_rom", origin=self.mem_map["cg6_accel_rom"], size=2**13, contents=cg6_rom_data, mode="r")
+                cg6_rom_len = 4*len(cg6_rom_data);
+                rounded_cg6_rom_len = 2**log2_int(cg6_rom_len, False)
+                print(f"CG6 ROM is {cg6_rom_len} bytes, using {rounded_cg6_rom_len}")
+                assert(rounded_cg6_rom_len <= 2**16)
+                self.add_ram("cg6_accel_rom", origin=self.mem_map["cg6_accel_rom"], size=rounded_cg6_rom_len, contents=cg6_rom_data, mode="r")
                 self.add_ram("cg6_accel_ram", origin=self.mem_map["cg6_accel_ram"], size=2**12, mode="rw")
 
         print("IRQ to Device map:\n")

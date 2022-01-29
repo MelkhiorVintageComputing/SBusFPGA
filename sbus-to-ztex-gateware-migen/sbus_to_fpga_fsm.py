@@ -561,6 +561,7 @@ class SBusFPGABus(Module):
                               (SBUS_3V3_PPRD_i == 1)),
                              NextValue(sbus_oe_master_in, 1),
                              If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_BT_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
@@ -624,6 +625,7 @@ class SBusFPGABus(Module):
                             #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                             NextState("Slave_Error")
                          ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_FHC_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_BT_ADDR_PFX) |
@@ -746,7 +748,8 @@ class SBusFPGABus(Module):
                               (SIZ_BYTE == SBUS_3V3_SIZ_i) &
                               (SBUS_3V3_PPRD_i == 0)),
                          NextValue(sbus_oe_master_in, 1),
-                         If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                         If(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
+                             (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                              (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_BT_ADDR_PFX) |
                              (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
                             NextValue(sbus_wishbone_le,
@@ -795,7 +798,8 @@ class SBusFPGABus(Module):
                                 NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
                                 #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                                 NextState("Slave_Error")
-                             ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
+                             ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_FHC_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_BT_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
