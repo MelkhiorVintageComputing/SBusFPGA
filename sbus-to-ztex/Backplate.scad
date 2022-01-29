@@ -1,5 +1,7 @@
-add_fan = 0; // not really compatible with USB...
-add_vga = 1;
+add_fan = 1; // not really compatible with USB...
+add_vga = 0;
+add_usb = 1;
+usb_angled = 1;
 
 SBUS_WIDTH = 83.82;
 SBUS_LENGTH = 146.7;
@@ -45,6 +47,7 @@ SMALL_STRUT_WIDTH = 2;
 SMALL_STRUT_LENGTH = 20;
 
 USB_PLUG_OFFSET = (add_vga!=0 ? 65 : 30);
+USB_PLUG_IDX = (add_vga!=0 ? 3 : -4);
 
 fan_depth=8;
 fan_height=25;
@@ -52,9 +55,8 @@ fan_width=fan_height;
 fan_carrier_depth=5;
 fan_extra_height=3;
 vertical_offset=fan_height/2-SBUS_THICKNESS/2-(SBUS_BACKPLATE_PROTUSION_HEIGHT + SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM)+fan_extra_height/2;
-carrier_offset_from_backplate=8;
+carrier_offset_from_backplate=5;
 carrier_offset=-MY_FULL_LENGTH/2+fan_width/2+carrier_offset_from_backplate; // negative -> toward back
-echo(carrier_offset);
 
 module
 primary ()
@@ -98,12 +100,14 @@ difference() { // B
         -SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+7.08]) rotate([90,0,0]) color ("black") cylinder (h = FIX_HOLES_STUB_LENGTH, r1 = 2, r2 = 2, center = true);
     
     /* USB plug (StarTech cable) */
+    if (add_usb) {
     union() {
         color ("grey") 
       translate ([-SBUS_WIDTH/2+USB_PLUG_OFFSET,
         0.001-MY_FULL_LENGTH/2+4,
         14.8/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM-SBUS_BACKPLATE_PROTUSION_HEIGHT + 3.12])
 	  cube ([16.5+4, 12, 9.5+4 /* 14.8 max */], center = true);
+    }
     }
 
     if (0) for (i =[-2: 1:2]) {
@@ -112,7 +116,7 @@ difference() { // B
   } // union C
   union() { // Z
       
-      
+    if (add_usb && usb_angled) {
 	translate ([SBUS_WIDTH / 2 - USBCABLE_HOLLOWOUT_WIDTH / 2 + 5+ USBCABLE_HOLLOWOUT_OFFSETX,
                 MY_FULL_LENGTH / 2 + USBCABLE_HOLLOWOUT_LENGTH / 2 + USBCABLE_HOLLOWOUT_OFFSETY,
                 0]) {
@@ -125,7 +129,7 @@ difference() { // B
 	  color ("yellow")
 	    cube ([USBCABLE_HOLLOWOUT2_WIDTH, USBCABLE_HOLLOWOUT2_LENGTH, 50], center = true);
 	}
-    
+    }
     
     /* to fix the board to the machine */
     translate ([-SBUS_WIDTH/2+(SBUS_WIDTH-SBUS_BACKPLATE_HOLESTOHOLES)/2,
@@ -136,6 +140,7 @@ difference() { // B
         -SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+7.08]) rotate([90,0,0]) color ("yellow") cylinder (h = 10, r1 = 1.5, r2 = 1.5, center = true);
     
     /* USB plug (StarTech cable) */
+    if (add_usb) {
     union() {
         color ("yellow") 
       translate ([-SBUS_WIDTH/2+USB_PLUG_OFFSET,
@@ -143,6 +148,7 @@ difference() { // B
         14.8/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM-SBUS_BACKPLATE_PROTUSION_HEIGHT + 3.12])
 	  cube ([16, 20, 9.5], center = true);
     }
+}
       
   } // union Z
   
@@ -234,12 +240,14 @@ difference() { // B
 	  color ("yellow")
 	    cube ([PMOD_HOLLOWOUT_WIDTH, PMOD_HOLLOWOUT_LENGTH, 50], center = true);
 	}
+    if (1) { // we always need to leave space for the USB chips, w/ or w/o cable
 	translate ([SBUS_WIDTH / 2 - USB_HOLLOWOUT_WIDTH / 2 + 5+ USB_HOLLOWOUT_OFFSETX,
                 MY_FULL_LENGTH / 2 + USB_HOLLOWOUT_LENGTH / 2 + USB_HOLLOWOUT_OFFSETY,
                 0]) {
 	  color ("yellow")
 	    cube ([USB_HOLLOWOUT_WIDTH, USB_HOLLOWOUT_LENGTH, 50], center = true);
 	}
+    }
 	translate ([SBUS_WIDTH / 2 - SDCARD_HOLLOWOUT_WIDTH / 2 + 5+ SDCARD_HOLLOWOUT_OFFSETX,
                 MY_FULL_LENGTH / 2 + SDCARD_HOLLOWOUT_LENGTH / 2 + SDCARD_HOLLOWOUT_OFFSETY,
                 0]) {
@@ -254,13 +262,14 @@ difference() { // B
 	}
     
     /* USB */
+    if (add_usb) {
 	translate ([SBUS_WIDTH / 2 - USBCABLE_HOLLOWOUT_WIDTH / 2 + 5+ USBCABLE_HOLLOWOUT_OFFSETX,
                 MY_FULL_LENGTH / 2 + USBCABLE_HOLLOWOUT_LENGTH / 2 + USBCABLE_HOLLOWOUT_OFFSETY,
                 0]) {
 	  color ("yellow")
 	    cube ([USBCABLE_HOLLOWOUT_WIDTH, USBCABLE_HOLLOWOUT_LENGTH, 50], center = true);
                 }
-    
+            }
     
       } // union J
     } // difference I
@@ -277,7 +286,7 @@ extra_holes ()
       /* border line (fan & jtag sides) */
   for (i =[-8: 16:8]) {
     for (j =[-4: 1:8]) {
-        if ((i!=8) || (j < 1))
+        if ((i!=8) || (j < 1) || (add_usb == 0 && j < 5))
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = 1.5, r2 = 1.5, center = true);
       }
@@ -287,17 +296,17 @@ extra_holes ()
   for (i =[-6: 2:6]) {
     for (j =[-4: 1:5]) {
         if (((i<-4) || (i>0)) || (add_vga==0))
-           if (((i<=2) || i>=8) || (j>-3)) // USB plug
-          if (!((i>=5) && (j>=4))) // USB weakness
+          if (!add_usb || (i<=(USB_PLUG_IDX-1)) || (i>=(USB_PLUG_IDX+5)) || (j>-3)) // USB plug
+          if (!((i>=5) && ((j>=4))) || (!add_usb && j==4)) // USB weakness
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = EXTRA_RAD, r2 = EXTRA_RAD, center = true);
       }
     }
 /* holes in extension */
   for (i =[-7: 2:7]) {
-    for (j =[-4.5: 1:4.5]) {
+    for (j =[-3.5: 1:4.5]) {
         if (((i<-5) || (i>1)) || (j>0 && j<4 ) || (add_vga==0))
-           if (((i<=2) || i>=7) || (j>-3)) // USB plug
+           if ((!add_usb || (i<=(USB_PLUG_IDX)) || i>=(USB_PLUG_IDX+4)) || (j>-3)) // USB plug
 	translate ([i * 5, j * 5, 0])
 	  color ("pink") cylinder (h = 50, r1 = EXTRA_RAD, r2 = EXTRA_RAD, center = true);
       }
@@ -436,8 +445,6 @@ module vga_carveout() {
 }
 
 screw_hole_r=1.55;
-triangle_width=4;
-triangle_height=12;
 module
 fan_25mm_support() {
         union() {
@@ -447,13 +454,18 @@ fan_25mm_support() {
     }
     // support
     /* extra -2 (translate) and -4 (size) for usb */
-    translate([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth+0.5,carrier_offset-2.4-2,0]) {
-        color("purple") cube([fan_carrier_depth+5, fan_width+fan_extra_height+8-4, SBUS_THICKNESS], center = true);
+    translate([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth+0.5,(fan_width+fan_extra_height+carrier_offset_from_backplate-4)/2-MY_FULL_LENGTH/2 + SBUS_BACKPLATE_THICKNESS/2,0]) {
+        color("purple") cube([fan_carrier_depth+5, fan_width+fan_extra_height+carrier_offset_from_backplate-4, SBUS_THICKNESS], center = true);
     }
       // strut between the backplate and the fan carrier
     /* extra -2 (translate) and -4 (size) for usb */
-	translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, carrier_offset-1-2, (SBUS_BACKPLATE_FULLHEIGHT-5)/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM]) color ("purple") cube ([fan_carrier_depth/2, 38-4,SBUS_BACKPLATE_FULLHEIGHT-5 ], center = true);
+    echo(carrier_offset_from_backplate);
+    echo(carrier_offset);
+    strut_width=carrier_offset_from_backplate+0.001;
+	translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, strut_width/2-MY_FULL_LENGTH/2 + SBUS_BACKPLATE_THICKNESS/2, (SBUS_BACKPLATE_FULLHEIGHT-5)/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM]) color ("purple") cube ([fan_carrier_depth/2, strut_width,SBUS_BACKPLATE_FULLHEIGHT-5 ], center = true);
     
+    triangle_width=carrier_offset_from_backplate-3;
+    triangle_height=12;
     translate ([(SBUS_WIDTH-fan_carrier_depth)/2-fan_depth, carrier_offset-(fan_width+fan_extra_height)/2-triangle_width/2, triangle_height/2-SBUS_THICKNESS/2-SBUS_BACKPLATE_BOTTOM_TO_BOARD_BOTTOM+SBUS_BACKPLATE_FULLHEIGHT-5]) rotate([0,90,0]) color("pink") translate([0,0,-fan_carrier_depth/4]) linear_extrude(height=fan_carrier_depth/2) polygon( points=[[triangle_height/2,-triangle_width/2],[-triangle_height/2,triangle_width/2],[triangle_height/2,triangle_width/2]] );
     
     /* incompatible with usb */
