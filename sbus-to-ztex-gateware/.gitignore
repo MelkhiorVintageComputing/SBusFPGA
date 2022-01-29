@@ -1,0 +1,9 @@
+vivado*.jou
+vivado*.log
+sbus_fsm_TB_do_gcm.vhd
+sbus_fsm_TB_read_prom_burst4.vhd
+sbus_fsm_TB_read_prom_byte.vhd
+sbus_fsm_TB_read_prom_hword.vhd
+sbus_fsm_TB_read_prom_word.vhd
+sbus_fsm_TB_write_leds_byte.vhd
+sbus_fsm_TB_write_leds_word.vhd
