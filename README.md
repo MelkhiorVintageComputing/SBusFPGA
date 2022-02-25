@@ -12,6 +12,7 @@ To save on PCB cost, the board is smaller than a 'true' SBus board; the hardware
 
 ## Current status
 
+2022-02-26: Added an I2C bus option, works with a LM75-like device to report internal temperature
 2022-01-08: The V1.2 design with the Migen gateware is ongoing, with several peripherals to combine (limited by the FPGA size). It is now reasonably stable.
 
 ## The hardware
@@ -31,7 +32,7 @@ Directory 'sbus-to-ztex-gateware-migen'
 The gateware is written in the Migen language, choosen because that's what [Litex](https://github.com/enjoy-digital/litex/) uses.
 It implements a simple CPU-less Litex SoC built around a Wishbone bus, with a custom bridge between the SBus and the Wishbone.
 
-A ROM, a SDRAM controller ([litedram](https://github.com/enjoy-digital/litedram) to the on-board DDR3), a TRNG (using the [NeoRV32](https://github.com/stnolting/neorv32) TRNG), an USB OHCI (host controller, using the Litex wrapper around the [SpinalHDL](https://github.com/SpinalHDL/SpinalHDL) implementation), a Curve25519 Crypto Engine (taken from the [Betrusted.IO](https://betrusted.io/) project) and a Litex micro-sd controller can be connected to that bus. As a test feature for the Pmod connector, a bw2/cg3/cg6-compatible framebuffer can be implemented using a custom RGA222 VGA Pmod (with serious color quality restrictions).
+A ROM, a SDRAM controller ([litedram](https://github.com/enjoy-digital/litedram) to the on-board DDR3), a TRNG (using the [NeoRV32](https://github.com/stnolting/neorv32) TRNG), an USB OHCI (host controller, using the Litex wrapper around the [SpinalHDL](https://github.com/SpinalHDL/SpinalHDL) implementation), a Curve25519 Crypto Engine (taken from the [Betrusted.IO](https://betrusted.io/) project and expanded to add AES and GCM support) and a Litex micro-sd controller can be connected to that bus. As a test feature for the Pmod connector, a bw2/cg3/cg6-compatible framebuffer can be implemented using a custom RGA222 VGA Pmod (with serious color quality restrictions). Alternatively on the Pmod en I2C bus (the Betrusted.IO wrapper around an OpenCore controller) can be implemented for e.g. temperature control.
 
 ### Details
 
@@ -41,13 +42,15 @@ The ROM exposes the devices' existence and specifications to the host, initializ
 
 The USB OHCI DMA (USB 1.1) is bridged from the Wishbone to the SBus by having the physical addresses of the Wishbone (that match the virtual addresses from NetBSD DVMA allocations) to the bridge. Reads are buffered by block of 16 bytes; currently writes are unbuffered (and somewhat slow, as they need a full SBus master cycle for every transaction of 32 bits or less). The standard NetBSD OHCI driver is used, with just a small custom SBus-OHCI driver mirroring the PCI-OHCI one. It uses the interrupt level 4 by default. It connects to the micro-B USB connector, an a cable such as [this one](https://www.startech.com/en-us/cables/uusbotgra) allows to expose a conventional USB type A connector for either an external (preferably self-powered) USB Hub or a single low-power device.
 
-The SDRAM has its own custom DMA controller, using native Litedram DMA to the memory, and some FIFO to/from the SBus. A custom NetBSD driver exposes it as a drive on which you can swap. It's also usable as a 'fast', volatile disk (for e.g. /tmp or similar temporary filesystem). It can use a interrupt line, but software support isn't there yet (only synchronous polling).
+The SDRAM has its own custom DMA controller, using native Litedram interface to the memory, and some FIFO to/from the SBus. A custom NetBSD driver exposes it as a drive on which you can swap. It's also usable as a 'fast', volatile disk (for e.g. /tmp or similar temporary filesystem). It can use a interrupt line, but software support isn't there yet (only synchronous polling).
 
-The micro-sd card controller is using a similar driver to the SDRAM, so is also currently limited to sychronous polling and lack of support for interrupts (or removability). It also has similar level of support in the PROM, enabling it as a boot device (of course using a NetBSD kernel with appropriate support). For its DMA engine, the micro-sd controller uses the same Wishbone/SBus bridge as designed for the USB OHCI.
+The micro-sd card controller is using a similar driver to the SDRAM, so is also currently limited to sychronous polling and lack of support for interrupts (or removability). It also has some level of support in the PROM, enabling it as a boot device (of course using a NetBSD kernel with appropriate support). For its DMA engine, the micro-sd controller uses the same Wishbone/SBus bridge as designed for the USB OHCI.
 
 The TRNG has a NetBSD driver to add entropy to the entropy pool.
 
 The Curve25519 Engine currently exposes an IOCTL to do the computation, which has yet to be integrated usefully in e.g. OpenSSL. It could use a interrupt line, but it's not yet implemented in software. The load/store unit used the same Wishbone/SBus bridge as designed for the USB OHCI.
+
+The I2C bus currently uses a custom Pmod to plug an AT30TS74 temperature sensor (LM75-compatible, usable with 'envstat' in NetBSD), but should support most/all I2C devices supported by NetBSD.
 
 The bw2/cg3/cg6 emulation requires the custom Pmod, and colors are vert limited at 2 bits per channel, so it's for testing mostly. bw2/cg3 can work as a PROM console, a NetBSD console, and with X11, all as an non-accelerated framebuffer. Resolution can be arbitrary but is fixed in the bitstream at synthesis time, the current design can go up to 1920x1080@60Hz. cg6 emulation is similar but uses a micro-coded VexRiscv core to emulate some of the cg6 hardware acceleration, enough to accelerate the PROM console, the NetBSD console and X11 EXA acceleration in NetBSD 9.0. The cg3/cg6 emulation was also tested with the original PROM code for cg3 (501-1415) and TGX+ (501-2253), but this requires hardware-based initialization (instead of PROM-based) and prevent exposing other devices in the PROM code.
 

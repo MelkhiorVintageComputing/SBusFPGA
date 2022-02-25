@@ -80,13 +80,13 @@ struct ociic_softc {
 static inline uint8_t
 ociic_read(struct ociic_softc *sc, bus_size_t reg)
 {
-	return bus_space_read_1(sc->sc_bustag, sc->sc_bhregs_i2c, reg);
+	return (uint8_t)bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_i2c, reg);
 }
 
 static inline void
 ociic_write(struct ociic_softc *sc, bus_size_t reg, const uint8_t value)
 {
-	bus_space_write_1(sc->sc_bustag, sc->sc_bhregs_i2c, reg, value);
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_i2c, reg, (uint32_t)value);
 }
 
 static inline void
@@ -202,7 +202,7 @@ ociic_attach(device_t parent, device_t self, void *aux)
 
 		/* ociic_write(sc, I2C_PRER_LO, div & 0xff); */
 		/* ociic_write(sc, I2C_PRER_HI, div >> 8); */
-		bus_space_write_2(sc->sc_bustag, sc->sc_bhregs_i2c, I2C_PRER, div);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_i2c, I2C_PRER, div);
 		aprint_normal_dev(self, "div = %d\n", div);
 	} else {
 		aprint_error(": invalid clock/bus speed\n");

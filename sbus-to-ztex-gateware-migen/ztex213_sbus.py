@@ -206,8 +206,8 @@ _i2c_v1_0 = [
 def tempi2c_pmod_io(pmod):
     return [
         ("i2c", 0,
-            Subsignal("scl", Pins(f"{pmod}:3"), Misc("PULLUP True")),
-            Subsignal("sda", Pins(f"{pmod}:7"), Misc("PULLUP True")),
+            Subsignal("scl", Pins(f"{pmod}:7")),
+            Subsignal("sda", Pins(f"{pmod}:3")),
             IOStandard("LVCMOS33"),
         ),
 ]
