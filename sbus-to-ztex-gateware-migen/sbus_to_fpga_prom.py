@@ -9,6 +9,7 @@ from migen import *
 import bw2_fb
 import cg3_fb
 import cg6_fb
+import goblin_fb
 
 
 def get_header_map_stuff(gname, name, size, type="csr", reg=True):
@@ -103,11 +104,12 @@ def get_prom(soc,
              bw2=False,
              cg3=False,
              cg6=False,
+             goblin=False,
              cg3_res=None,
              sdcard=False,
              jareth=False):
 
-    framebuffer = (bw2 or cg3 or cg6)
+    framebuffer = (bw2 or cg3 or cg6 or goblin)
     
     r = "fcode-version2\nfload prom_csr_{}.fth\n".format(version.replace(".", "_"))
 
@@ -212,13 +214,17 @@ def get_prom(soc,
             cg3_file = open("bw2.fth")
         elif (cg3):
             cg3_file = open("cg3.fth")
-        else:
+        elif (cg6):
             cg3_file = open("cg6.fth")
+        elif (goblin):
+            cg3_file = open("goblin.fth")
         cg3_lines = cg3_file.readlines()
         if (bw2):
             buf_size=bw2_fb.bw2_rounded_size(hres, vres)
-        else:
+        elif (cg3 or cg6):
             buf_size=cg3_fb.cg3_rounded_size(hres, vres)
+        elif (goblin):
+            buf_size=goblin_fb.goblin_rounded_size(hres, vres)
         for line in cg3_lines:
             r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size:x}")
         #r += "\" LITEX,fb\" device-name\n"
@@ -231,9 +237,11 @@ def get_prom(soc,
         elif (cg3):
             r += get_header_map_stuff("cg3extraregs", "cg3", 4096, reg=False)
             r += "fload cg3_init.fth\ncg3_init!\n"
-        else:
+        elif (cg6):
             r += get_header_map_stuff("cg6extraregs", "cg6", 4096, reg=False)
             r += "fload cg6_init.fth\ncg6_init!\n"
+        elif (goblin):
+            r += "\n"
         if (sdcard or jareth):
             r += "finish-device\nnew-device\n"
         

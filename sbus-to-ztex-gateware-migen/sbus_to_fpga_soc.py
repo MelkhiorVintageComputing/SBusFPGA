@@ -40,6 +40,7 @@ import bw2_fb
 import cg3_fb
 import cg6_fb
 import cg6_accel
+import goblin_fb
 
 # Wishbone stuff
 from sbus_wb import WishboneDomainCrossingMaster
@@ -211,8 +212,8 @@ class SBusFPGA(SoCCore):
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
-    def __init__(self, variant, version, sys_clk_freq, trng, usb, sdram, engine, i2c, bw2, cg3, cg6, cg3_res, sdcard, jareth, **kwargs):
-        framebuffer = (bw2 or cg3 or cg6)
+    def __init__(self, variant, version, sys_clk_freq, trng, usb, sdram, engine, i2c, bw2, cg3, cg6, goblin, cg3_res, sdcard, jareth, **kwargs):
+        framebuffer = (bw2 or cg3 or cg6 or goblin)
         
         print(f"Building SBusFPGA for board version {version}")
         
@@ -231,11 +232,14 @@ class SBusFPGA(SoCCore):
         if (framebuffer):
             hres = int(cg3_res.split("@")[0].split("x")[0])
             vres = int(cg3_res.split("@")[0].split("x")[1])
+            cg3_fb_size = 0
             if (bw2):
                 cg3_fb_size = bw2_fb.bw2_rounded_size(hres, vres)
-            else:
+            elif (cg3 or cg6):
                 cg3_fb_size = cg3_fb.cg3_rounded_size(hres, vres)
-            print(f"Reserving {cg3_fb_size} bytes ({cg3_fb_size//1048576} MiB) for the CG3/CG6")
+            elif (goblin):
+                cg3_fb_size = goblin_fb.goblin_rounded_size(hres, vres)
+            print(f"Reserving {cg3_fb_size} bytes ({cg3_fb_size//1048576} MiB) for the Framebuffer")
         else:
             hres = 0
             vres = 0
@@ -275,7 +279,7 @@ class SBusFPGA(SoCCore):
             #"usb_shared_mem":   0x00090000, # unused ATM
             "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
             "jareth":           0x000c0000, # includes microcode (4 KiB@0) and registers (2 KiB @ 64 KiB)
-            "cg6_bt":           0x00200000, # required for compatibility, bt_regs for cg6
+            "cg6_bt":           0x00200000, # required for compatibility, bt_regs for cg6 and goblin
             #"cg6_dhc":          0x00240000, # required for compatibility, unused
             "cg6_alt":          0x00280000, # required for compatibility
             "cg6_fhc":          0x00300000, # required for compatibility
@@ -518,9 +522,12 @@ class SBusFPGA(SoCCore):
             elif (cg3):
                 self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg3 is running in cd_sys
                 self.bus.add_slave("cg3_bt", self.cg3.bus, SoCRegion(origin=self.mem_map.get("cg3_bt", None), size=0x1000, cached=False))
-            else:
+            elif (cg6):
                 self.submodules.cg6 = cg6_fb.cg6(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg6 is running in cd_sys
                 self.bus.add_slave("cg6_bt", self.cg6.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
+            elif (goblin):
+                self.submodules.goblin = goblin_fb.goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga", irq_line=Signal()) # clock_domain for the VGA side, cg6 is running in cd_sys
+                self.bus.add_slave("goblin_bt", self.goblin.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
                 
             if (cg6):
                 self.submodules.cg6_accel = cg6_accel.CG6Accel(soc = self, base_fb = base_fb, hres = hres, vres = vres)
@@ -578,6 +585,7 @@ def main():
     parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--cg3-res", default="1152x900@76Hz", help="Specify the CG3/CG6 resolution")
     parser.add_argument("--cg6", action="store_true", help="add a CG6 framebuffer [V1.2+VGA_RGB222 pmod]")
+    parser.add_argument("--goblin", action="store_true", help="add a Goblin framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--sdcard", action="store_true", help="add a sdcard {no SW yet}")
     parser.add_argument("--jareth", action="store_true", help="add a Jareth vector core [all]")
     builder_args(parser)
@@ -590,11 +598,20 @@ def main():
         print(" ***** WARNING ***** : USB on V1.0 is an ugly hack \n");
     if (args.i2c):
         print(" ***** WARNING ***** : I2C on V1.x is for testing the core \n");
-    if ((args.bw2 or args.cg3 or args.cg6) and (args.version == "V1.0")):
+    if ((args.bw2 or args.cg3 or args.cg6 or args.goblin) and (args.version == "V1.0")):
         print(" ***** ERROR ***** : VGA not supported on V1.0\n")
         assert(False)
-    if ((args.bw2 and args.cg3) or (args.bw2 and args.cg6) or (args.cg3 and args.cg6)):
-        print(" ***** ERROR ***** : can't have more than one of BW2, CG3 and CG6\n")
+    fbcount = 0
+    if (args.bw2):
+        fbcount = fbcount + 1
+    if (args.cg3):
+        fbcount = fbcount + 1
+    if (args.cg6):
+        fbcount = fbcount + 1
+    if (args.goblin):
+        fbcount = fbcount + 1
+    if (fbcount > 1):
+        print(" ***** ERROR ***** : can't have more than one of BW2, CG3, CG6 and Goblin\n")
         assert(False)
     
     soc = SBusFPGA(**soc_core_argdict(args),
@@ -609,6 +626,7 @@ def main():
                    bw2=args.bw2,
                    cg3=args.cg3,
                    cg6=args.cg6,
+                   goblin=args.goblin,
                    cg3_res=args.cg3_res,
                    sdcard=args.sdcard,
                    jareth=args.jareth)
@@ -658,6 +676,7 @@ def main():
                                               bw2=args.bw2,
                                               cg3=args.cg3,
                                               cg6=args.cg6,
+                                              goblin=args.goblin,
                                               cg3_res=args.cg3_res,
                                               sdcard=args.sdcard,
                                               jareth=args.jareth)
