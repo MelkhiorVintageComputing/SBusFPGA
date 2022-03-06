@@ -31,6 +31,8 @@ USBOHCI_ADDR_PFX =       Signal(12, reset = 0x008)
 SRAM_ADDR_PFX =          Signal(12, reset = 0x009) # unmapped ; LE
 ENGINE_ADDR_PFXA =       Signal(12, reset = 0x00a)
 ENGINE_ADDR_PFXB =       Signal(12, reset = 0x00b)
+JARETH_ADDR_PFXA =       Signal(12, reset = 0x00c)
+JARETH_ADDR_PFXB =       Signal(12, reset = 0x00d)
 CG6_BT_ADDR_PFX =        Signal(12, reset = 0x020)
 CG6_ALT_ADDR_PFX =       Signal(12, reset = 0x028)
 CG6_FHC_ADDR_PFX =       Signal(12, reset = 0x030)
@@ -503,6 +505,8 @@ class SBusFPGABus(Module):
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXA) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXB) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == JARETH_ADDR_PFXA) |
+                                 (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == JARETH_ADDR_PFXB) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_BT_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_ALT_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_FHC_ADDR_PFX) |
@@ -704,6 +708,8 @@ class SBusFPGABus(Module):
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXA) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ENGINE_ADDR_PFXB) |
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == JARETH_ADDR_PFXA) |
+                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == JARETH_ADDR_PFXB) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_BT_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_ALT_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_FHC_ADDR_PFX) |

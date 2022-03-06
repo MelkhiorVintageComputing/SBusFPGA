@@ -104,7 +104,8 @@ def get_prom(soc,
              cg3=False,
              cg6=False,
              cg3_res=None,
-             sdcard=False):
+             sdcard=False,
+             jareth=False):
 
     framebuffer = (bw2 or cg3 or cg6)
     
@@ -119,7 +120,7 @@ def get_prom(soc,
     r += "\" RDOL,sbusstat\" device-name\n"
     r += get_header_map_stuff("sbus_bus_stat", "sbus_bus_stat", 256)
     
-    if (trng or usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard):
+    if (trng or usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or jareth):
         r += "finish-device\nnew-device\n"
 
     if (trng):
@@ -131,7 +132,7 @@ def get_prom(soc,
         r += "  map-out-trng\n"
         r += ";\n"
         r += "disabletrng!\n"
-        if (usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard):
+        if (usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or jareth):
             r += "finish-device\nnew-device\n"
 
     if (usb):
@@ -151,7 +152,7 @@ def get_prom(soc,
         r += " map-out-usb_host_ctrl\n"
         r += ";\n"
         r += "my-reset!\n"
-        if ((sdram or not sdram) or engine or i2c or framebuffer or sdcard):
+        if ((sdram or not sdram) or engine or i2c or framebuffer or sdcard or jareth):
             r += "finish-device\nnew-device\n"
         
     if (sdram):
@@ -176,15 +177,15 @@ def get_prom(soc,
         r += "\" RDOL,hidden_sdram\" device-name\n"
         r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram" ], [ 4096, 4096 ], [ "csr", "csr" ])
         r += "fload sdram_init.fth\ninit!\n"
-    if (engine or i2c or framebuffer or sdcard):
+    if (engine or i2c or framebuffer or sdcard or jareth):
         r += "finish-device\nnew-device\n"
     
     if (engine):
         r += "\" betrustedc25519e\" device-name\n"
         r += ": sbusfpga_regionaddr_curve25519engine-microcode sbusfpga_regionaddr_curve25519engine ;\n"
         r += ": sbusfpga_regionaddr_curve25519engine-regfile sbusfpga_regionaddr_curve25519engine h# 10000 + ;\n"
-        r += get_header_mapx_stuff("curve25519engine", [ "curve25519engine-regs", "curve25519engine-microcode", "curve25519engine-regfile" ], [ 4096, 4096, 65536 ] , ["csr", "region", "region" ] )
-        if (i2c or framebuffer or sdcard):
+        r += get_header_mapx_stuff("curve25519engine", [ "curve25519engine", "curve25519engine-microcode", "curve25519engine-regfile" ], [ 4096, 4096, 65536 ] , ["csr", "region", "region" ] )
+        if (i2c or framebuffer or sdcard or jareth):
             r += "finish-device\nnew-device\n"
         
     if (i2c):
@@ -199,7 +200,7 @@ def get_prom(soc,
         r += "  \" lm75\" encode-string \" compatible\" property\n"
         r += "  h# 48 encode-int \" addr\" property\n"
         r += "  finish-device\n"
-        if (framebuffer or sdcard):
+        if (framebuffer or sdcard or jareth):
             r += "finish-device\nnew-device\n"
         
     if (framebuffer):
@@ -233,7 +234,7 @@ def get_prom(soc,
         else:
             r += get_header_map_stuff("cg6extraregs", "cg6", 4096, reg=False)
             r += "fload cg6_init.fth\ncg6_init!\n"
-        if (sdcard):
+        if (sdcard or jareth):
             r += "finish-device\nnew-device\n"
         
     if (sdcard):
@@ -249,6 +250,15 @@ def get_prom(soc,
         r += "sdcard-init!\n"
         r += "fload sdcard.fth\n"
         r += "fload sdcard_access.fth\n"
+        if (jareth):
+            r += "finish-device\nnew-device\n"
+
+    if (jareth):
+        r += "\" jareth\" device-name\n"
+        r += ": sbusfpga_regionaddr_jareth-microcode sbusfpga_regionaddr_jareth ;\n"
+        r += ": sbusfpga_regionaddr_jareth-regfile sbusfpga_regionaddr_jareth h# 10000 + ;\n"
+        r += get_header_mapx_stuff("jareth", [ "jareth", "jareth-microcode", "jareth-regfile" ], [ 4096, 4096, 4096 ] , ["csr", "region", "region" ] )
+
     r += "end0\n"
 
     return r

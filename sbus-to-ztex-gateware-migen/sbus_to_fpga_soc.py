@@ -40,7 +40,6 @@ import bw2_fb
 import cg3_fb
 import cg6_fb
 import cg6_accel
-#import cgtrois
 
 # Wishbone stuff
 from sbus_wb import WishboneDomainCrossingMaster
@@ -65,7 +64,7 @@ class _CRG(Module):
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         if (usb):
             self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
-        if (engine): # also used for cgtrois
+        if (engine): # also used for Jareth
             self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
             #self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
             self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
@@ -121,7 +120,7 @@ class _CRG(Module):
         #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
-        if (engine): # also used for cgtrois
+        if (engine): # also used for Jareth
             pll.create_clkout(self.cd_clk50, sys_clk_freq/2, ce=pll.locked & self.curve25519_on)
             platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
             num_clk = num_clk + 1
@@ -212,7 +211,7 @@ class SBusFPGA(SoCCore):
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
-    def __init__(self, variant, version, sys_clk_freq, trng, usb, sdram, engine, i2c, bw2, cg3, cg6, cg3_res, sdcard, **kwargs):
+    def __init__(self, variant, version, sys_clk_freq, trng, usb, sdram, engine, i2c, bw2, cg3, cg6, cg3_res, sdcard, jareth, **kwargs):
         framebuffer = (bw2 or cg3 or cg6)
         
         print(f"Building SBusFPGA for board version {version}")
@@ -275,6 +274,7 @@ class SBusFPGA(SoCCore):
             "usb_host":         0x00080000, # OHCI registers are here, not in CSR
             #"usb_shared_mem":   0x00090000, # unused ATM
             "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
+            "jareth":           0x000c0000, # includes microcode (4 KiB@0) and registers (2 KiB @ 64 KiB)
             "cg6_bt":           0x00200000, # required for compatibility, bt_regs for cg6
             #"cg6_dhc":          0x00240000, # required for compatibility, unused
             "cg6_alt":          0x00280000, # required for compatibility
@@ -291,7 +291,9 @@ class SBusFPGA(SoCCore):
             "dvma_bridge":      0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=engine, framebuffer=framebuffer, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=(engine or jareth), framebuffer=framebuffer, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
+            
+        
         #self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
 
         ## add our custom timings after the clocks have been defined
@@ -484,7 +486,7 @@ class SBusFPGA(SoCCore):
             #self.comb += pad_sdcard_interrupt.eq(sig_sdcard_interrupt)
             #self.comb += sig_sdcard_interrupt.eq(~self.sdirq.irq) ##
 
-        if (usb or engine or sdcard):
+        if (usb or engine or sdcard or jareth): # jareth only for testing
             if (not single_dvma_master):
                 self.bus.add_slave(name="dvma_bridge", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("dvma_bridge", None), size=0x03ffffff, cached=False))
 
@@ -502,7 +504,8 @@ class SBusFPGA(SoCCore):
                 self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
             else:
                 self.comb += self.curve25519engine.busls.connect(self.wishbone_slave_sys)
-            self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
+            if (not jareth):
+                self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
             
         if (i2c):
             self.submodules.i2c = RTLI2C(platform, pads=platform.request("i2c"))
@@ -535,6 +538,16 @@ class SBusFPGA(SoCCore):
                 self.add_ram("cg6_accel_rom", origin=self.mem_map["cg6_accel_rom"], size=rounded_cg6_rom_len, contents=cg6_rom_data, mode="r")
                 self.add_ram("cg6_accel_ram", origin=self.mem_map["cg6_accel_ram"], size=2**12, mode="rw")
 
+        if (jareth):
+            from jareth import Jareth;
+            self.submodules.jareth = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Jareth(platform=platform,prefix=self.mem_map.get("jareth", None))) # , "sys":"clk100"
+            self.bus.add_slave("jareth", self.jareth.bus, SoCRegion(origin=self.mem_map.get("jareth", None), size=0x20000, cached=False))
+            self.bus.add_master(name="jarethLS", master=self.jareth.busls) # Jareth doesn't need the DVMA
+            if (not engine):
+                self.comb += self.crg.curve25519_on.eq(self.jareth.power.fields.on)
+            else:
+                self.comb += self.crg.curve25519_on.eq(self.jareth.power.fields.on | self.curve25519engine.power.fields.on)
+
         print("IRQ to Device map:\n")
         print(platform.irq_device_map)
         print("Device to IRQ map:\n")
@@ -566,12 +579,13 @@ def main():
     parser.add_argument("--cg3-res", default="1152x900@76Hz", help="Specify the CG3/CG6 resolution")
     parser.add_argument("--cg6", action="store_true", help="add a CG6 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--sdcard", action="store_true", help="add a sdcard {no SW yet}")
+    parser.add_argument("--jareth", action="store_true", help="add a Jareth vector core [all]")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
 
     if (args.sdram == False):
-        print(" ***** WARNING ***** : not enablling the SDRAM still adds a controller, but doesn't add the DMA engines\n")
+        print(" ***** WARNING ***** : not enabling the SDRAM still adds a controller, but doesn't add the DMA engines\n")
     if (args.usb and (args.version == "V1.0")):
         print(" ***** WARNING ***** : USB on V1.0 is an ugly hack \n");
     if (args.i2c):
@@ -596,7 +610,8 @@ def main():
                    cg3=args.cg3,
                    cg6=args.cg6,
                    cg3_res=args.cg3_res,
-                   sdcard=args.sdcard)
+                   sdcard=args.sdcard,
+                   jareth=args.jareth)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
 
     version_for_filename = args.version.replace(".", "_")
@@ -644,7 +659,8 @@ def main():
                                               cg3=args.cg3,
                                               cg6=args.cg6,
                                               cg3_res=args.cg3_res,
-                                              sdcard=args.sdcard)
+                                              sdcard=args.sdcard,
+                                              jareth=args.jareth)
     write_to_file(os.path.join(f"prom_{version_for_filename}.fth"), prom_content)
     
     

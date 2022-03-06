@@ -1,0 +1,23 @@
+[package]
+name = "jareth_code"
+version = "0.1.0"
+authors = ["Romain Dolbeau <romain@dolbeau.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+[dependencies.jareth-as]
+#git="https://github.com/betrusted-io/jareth-as.git"
+#rev="6681e73c1fdc4a460b5ef9f9c7c91aef546d00f3"
+path = "/home/dolbeau/jareth-as"
+
+[dev-dependencies.jareth-as]
+#git="https://github.com/betrusted-io/jareth-as.git"
+#rev="6681e73c1fdc4a460b5ef9f9c7c91aef546d00f3"
+path = "/home/dolbeau/jareth-as"
+
+[[bin]]
+name = "jareth_code"
+path = "jareth_code.rs"
