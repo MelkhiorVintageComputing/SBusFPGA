@@ -20,14 +20,10 @@ h# 20 constant /goblin-off-dac
 h# 800000 constant goblin-off-fb
 h# SBUSFPGA_CG3_BUFSIZE constant /goblin-off-fb
 
-: >goblin-reg-spec ( offset size -- encoded-reg )
-  >r 0 my-address d+ my-space encode-phys r> encode-int encode+
-;
-
 : goblin-reg
-  \ FIXME: we don't have to do this like the cg3...
-  h# 0 h# 1000000 >goblin-reg-spec
-  " reg" property
+  my-address sbusfpga_regionaddr_goblin_bt + my-space encode-phys /goblin-off-dac encode-int encode+
+  my-address goblin-off-fb + my-space encode-phys encode+ /goblin-off-fb encode-int encode+
+" reg" property
 ;
 
 : do-map-in ( offset size -- virt )
@@ -52,11 +48,11 @@ h# SBUSFPGA_CG3_BUFSIZE constant /goblin-off-fb
 external
 
 : color!  ( r g b c# -- )
-  h# 18 << h# 14 dac!       ( r g b )
+  h# 14 dac!       ( r g b )
   swap rot     ( b g r )
-  h# 18 << h# 18 dac!       ( b g )
-  h# 18 << h# 18 dac!       ( b )
-  h# 18 << h# 18 dac!       (  )
+  h# 18 dac!       ( b g )
+  h# 18 dac!       ( b )
+  h# 18 dac!       (  )
 ;
 
 headerless
@@ -102,8 +98,6 @@ headerless
 : qemu-goblin-driver-install ( -- )
   goblin-dac -1 = if
     map-regs
-
-	0 h# 4 dac! \ disable irq
 	
 	fb-map
 
@@ -144,13 +138,14 @@ headerless
 
   h# 39 encode-int 0 encode-int encode+ " intr" property
 
-  \ Monitor sense. Some searching suggests that this is
-  \ 5 for 1024x768 and 7 for 1152x900
-  h# 7 encode-int " monitor-sense" property
-
   " RDOL" encode-string " manufacturer" property
   " ISO8859-1" encode-string " character-set" property
   h# c encode-int " cursorshift" property
+  /goblin-off-fb h# 14 >> encode-int " vmsize" property
+  
+  map-regs
+  0 h# 4 dac! \ disable irq
+  unmap-regs
 
   ['] qemu-goblin-driver-install is-install
   ['] qemu-goblin-driver-remove is-remove

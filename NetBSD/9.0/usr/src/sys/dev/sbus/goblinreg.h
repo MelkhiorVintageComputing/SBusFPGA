@@ -1,6 +1,6 @@
 /*	$NetBSD$ */
 
-/*-
+/*
  * Copyright (c) 2022 Romain Dolbeau <romain@dolbeau.org>
  * All rights reserved.
  *
@@ -26,37 +26,31 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _JARETH_H_
-#define _JARETH_H_
+/*
+ * goblin display registers
+ */
 
-#define MAX_SESSION 32 // HW limit
-#define MAX_ACTIVE_SESSION 8 // SW-imposed limit
-// Single 4KiB pages per session
-#define JARETH_VAL_DMA_MAX_SZ (MAX_ACTIVE_SESSION*4*1024)
+/* offsets */
+#define GOBOFB_REG_BASE       0x200000
+#define GOBOFB_MEM_BASE       0x800000
+#define GOBOFB_MODE           0x0
+#define GOBOFB_VBL_MASK       0x4
+#define GOBOFB_VIDEOCTRL      0x8
+#define GOBOFB_INTR_CLEAR     0xc
+#define GOBOFB_RESET          0x10
+#define GOBOFB_LUT_ADDR       0x14
+#define GOBOFB_LUT            0x18
 
-struct jareth_softc {
-	device_t sc_dev;		/* us as a device */
-	u_int	sc_rev;			/* revision */
-	int	sc_node;		/* PROM node ID */
-	int	sc_burst;		/* DVMA burst size in effect */
-	bus_space_tag_t	sc_bustag;	/* bus tag */
-	bus_space_handle_t sc_bhregs_jareth;	/* bus handle */
-	bus_space_handle_t sc_bhregs_microcode;	/* bus handle */
-	bus_space_handle_t sc_bhregs_regfile;	/* bus handle */
-	//void *	sc_buffer;		/* VA of the registers */
-	int	sc_bufsiz_jareth;		/* Size of buffer */
-	int	sc_bufsiz_microcode;		/* Size of buffer */
-	int	sc_bufsiz_regfile;		/* Size of buffer */
-	int initialized;
-	uint32_t active_sessions;
-	uint32_t mapped_sessions;
-	uint32_t sessions_cookies[MAX_ACTIVE_SESSION];
-	/* DMA kernel structures */
-	bus_dma_tag_t		sc_dmatag;
-	bus_dmamap_t		sc_dmamap;
-	bus_dma_segment_t       sc_segs;
-	int                     sc_rsegs;
-	void *              sc_dma_kva;
-};
+#define GOBOFB_MODE_1BIT  0x0
+#define GOBOFB_MODE_2BIT  0x1
+#define GOBOFB_MODE_4BIT  0x2
+#define GOBOFB_MODE_8BIT  0x3
+#define GOBOFB_MODE_24BIT 0x10
 
-#endif /* _JARETH_H_ */
+#define GOBOFB_VBL_MASK_OFF 0x0
+#define GOBOFB_VBL_MASK_ON 0x1
+
+#define GOBOFB_VIDEOCTRL_OFF 0x0
+#define GOBOFB_VIDEOCTRL_ON  0x3
+
+#define GOBOFB_INTR_CLEAR_CLEAR     0x0

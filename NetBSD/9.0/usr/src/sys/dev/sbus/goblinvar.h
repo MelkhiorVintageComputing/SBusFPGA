@@ -1,6 +1,6 @@
 /*	$NetBSD$ */
 
-/*-
+/*
  * Copyright (c) 2022 Romain Dolbeau <romain@dolbeau.org>
  * All rights reserved.
  *
@@ -26,37 +26,41 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef _JARETH_H_
-#define _JARETH_H_
+#include "wsdisplay.h"
+#include <dev/wscons/wsdisplay_vconsvar.h>
 
-#define MAX_SESSION 32 // HW limit
-#define MAX_ACTIVE_SESSION 8 // SW-imposed limit
-// Single 4KiB pages per session
-#define JARETH_VAL_DMA_MAX_SZ (MAX_ACTIVE_SESSION*4*1024)
+/*
+ * color display (goblin) driver.
+ */
 
-struct jareth_softc {
-	device_t sc_dev;		/* us as a device */
-	u_int	sc_rev;			/* revision */
-	int	sc_node;		/* PROM node ID */
-	int	sc_burst;		/* DVMA burst size in effect */
-	bus_space_tag_t	sc_bustag;	/* bus tag */
-	bus_space_handle_t sc_bhregs_jareth;	/* bus handle */
-	bus_space_handle_t sc_bhregs_microcode;	/* bus handle */
-	bus_space_handle_t sc_bhregs_regfile;	/* bus handle */
-	//void *	sc_buffer;		/* VA of the registers */
-	int	sc_bufsiz_jareth;		/* Size of buffer */
-	int	sc_bufsiz_microcode;		/* Size of buffer */
-	int	sc_bufsiz_regfile;		/* Size of buffer */
-	int initialized;
-	uint32_t active_sessions;
-	uint32_t mapped_sessions;
-	uint32_t sessions_cookies[MAX_ACTIVE_SESSION];
-	/* DMA kernel structures */
-	bus_dma_tag_t		sc_dmatag;
-	bus_dmamap_t		sc_dmamap;
-	bus_dma_segment_t       sc_segs;
-	int                     sc_rsegs;
-	void *              sc_dma_kva;
+struct goblin_fbcontrol {
+	uint32_t mode;
+	uint32_t vbl_mask;
+	uint32_t videoctrl;
+	uint32_t intr_clear;
+	uint32_t reset;
+	uint32_t lut_addr;
+	uint32_t lut;
 };
 
-#endif /* _JARETH_H_ */
+/* per-display variables */
+struct goblin_softc {
+	device_t	      sc_dev;	  /* base device */
+	struct fbdevice	  sc_fb;	  /* frame buffer device */
+	bus_space_tag_t	  sc_bustag;
+	bus_addr_t	      sc_reg_fbc_paddr;	  /* phys address for device mmap() */
+	bus_addr_t	      sc_fb_paddr;	  /* phys address for device mmap() */
+	uint32_t          sc_size; /* full memory size */
+	
+	volatile struct goblin_fbcontrol *sc_fbc;	/* control registers */
+#if NWSDISPLAY > 0	
+	uint32_t          sc_width;
+	uint32_t          sc_height;  /* display width / height */
+	uint32_t          sc_stride;
+	int               sc_mode;
+	struct vcons_data vd;
+#endif	
+	union	bt_cmap   sc_cmap;	  /* DAC color map */
+};
+
+void	goblinattach(struct goblin_softc *, const char *, int);
