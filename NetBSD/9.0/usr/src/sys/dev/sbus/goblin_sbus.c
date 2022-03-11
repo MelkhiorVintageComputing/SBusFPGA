@@ -155,5 +155,53 @@ goblinattach_sbus(device_t parent, device_t self, void *args)
 		fb->fb_pixels = (char *)bus_space_vaddr(sa->sa_bustag, bh);
 	}
 
+	sc->sc_has_jareth = prom_getpropint(node, "goblin_has_jareth", 0);
+
+	if (sc->sc_has_jareth) {
+		if (sa->sa_nreg < 5) {
+			aprint_error(": Not enough registers spaces for Jareth\n");
+			sc->sc_has_jareth = 0;
+		} else {
+			/* map registers */
+			if (sbus_bus_map(sc->sc_bustag,
+							 sa->sa_reg[2].oa_space /* sa_slot */,
+							 sa->sa_reg[2].oa_base /* sa_offset */,
+							 sa->sa_reg[2].oa_size /* sa_size */,
+							 BUS_SPACE_MAP_LINEAR,
+							 &sc->sc_bhregs_jareth) != 0) {
+				aprint_error(": cannot map Jareth registers\n");
+				sc->sc_has_jareth = 0;
+			} else {
+				aprint_normal_dev(self, "Jareth registers @ %p\n", (void*)sc->sc_bhregs_jareth);
+				/* map microcode */
+				if (sbus_bus_map(sc->sc_bustag,
+								 sa->sa_reg[3].oa_space /* sa_slot */,
+								 sa->sa_reg[3].oa_base /* sa_offset */,
+								 sa->sa_reg[3].oa_size /* sa_size */,
+								 BUS_SPACE_MAP_LINEAR,
+								 &sc->sc_bhregs_microcode) != 0) {
+					aprint_error(": cannot map Jareth microcode\n");
+					sc->sc_has_jareth = 0;
+				} else {
+					aprint_normal_dev(self, "Jareth microcode @ %p\n", (void*)sc->sc_bhregs_microcode);
+					/* map register file */
+					if (sbus_bus_map(sc->sc_bustag,
+									 sa->sa_reg[4].oa_space /* sa_slot */,
+									 sa->sa_reg[4].oa_base /* sa_offset */,
+									 sa->sa_reg[4].oa_size /* sa_size */,
+									 BUS_SPACE_MAP_LINEAR,
+									 &sc->sc_bhregs_regfile) != 0) {
+						aprint_error(": cannot map Jareth regfile\n");
+						sc->sc_has_jareth = 0;
+					} else {
+						aprint_normal_dev(self, "Jareth regfile @ %p\n", (void*)sc->sc_bhregs_regfile);
+					}
+				}
+			}
+		}
+	} else {
+		aprint_normal_dev(self, "Jareth not available\n");
+	}
+
 	goblinattach(sc, name, isconsole);
 }

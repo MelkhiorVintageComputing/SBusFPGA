@@ -45,10 +45,9 @@
 #define GOBOFB_VBL_MASK_ON 0x1
 
 #define GOBOFB_VIDEOCTRL_OFF 0x0
-#define GOBOFB_VIDEOCTRL_ON  0x3
+#define GOBOFB_VIDEOCTRL_ON 0x1
 
 #define GOBOFB_INTR_CLEAR_CLEAR     0x0
-
 
 typedef struct goblin_fbc {
 	uint32_t mode;

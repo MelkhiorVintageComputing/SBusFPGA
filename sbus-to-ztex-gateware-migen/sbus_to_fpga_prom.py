@@ -46,13 +46,16 @@ def get_header_map2_stuff(gname, name1, name2, size1, size2, type1="csr", type2=
     r += ";\n"
     return r
 
-def get_header_map3_stuff(gname, name1, name2, name3, size1, size2, size3, type1="csr", type2="csr", type3="csr"):
-    r  = f"my-address sbusfpga_{type1}addr_{name1} + my-space encode-phys         h# {size1:x} encode-int encode+\n"
-    r += f"my-address sbusfpga_{type2}addr_{name2} + my-space encode-phys encode+ h# {size2:x} encode-int encode+\n"
-    r += f"my-address sbusfpga_{type3}addr_{name3} + my-space encode-phys encode+ h# {size3:x} encode-int encode+\n"
-    r += "\" reg\" property\n"
-    r += "h# 7f encode-int \" slave-burst-sizes\" property\n" # fixme: burst-sizes
-    r += "h# 7f encode-int \" burst-sizes\" property\n" # fixme: burst-sizes
+def get_header_map3_stuff(gname, name1, name2, name3, size1, size2, size3, type1="csr", type2="csr", type3="csr", doreg=True):
+    if (doreg):
+        r  = f"my-address sbusfpga_{type1}addr_{name1} + my-space encode-phys         h# {size1:x} encode-int encode+\n"
+        r += f"my-address sbusfpga_{type2}addr_{name2} + my-space encode-phys encode+ h# {size2:x} encode-int encode+\n"
+        r += f"my-address sbusfpga_{type3}addr_{name3} + my-space encode-phys encode+ h# {size3:x} encode-int encode+\n"
+        r += "\" reg\" property\n"
+        r += "h# 7f encode-int \" slave-burst-sizes\" property\n" # fixme: burst-sizes
+        r += "h# 7f encode-int \" burst-sizes\" property\n" # fixme: burst-sizes
+    else:
+        r = ""
     r += "headers\n"
     r += f"-1 instance value {name1}-virt\n"
     r += f"-1 instance value {name2}-virt\n"
@@ -71,13 +74,16 @@ def get_header_map3_stuff(gname, name1, name2, name3, size1, size2, size3, type1
     r += ";\n"
     return r
 
-def get_header_mapx_stuff(gname, names, sizes, types):
-    r  = f"my-address sbusfpga_{types[0]}addr_{names[0]} + my-space encode-phys             h# {sizes[0]:x} encode-int encode+\n"
-    for i in range(1, len(names)):
-        r += f"my-address sbusfpga_{types[i]}addr_{names[i]} + my-space encode-phys encode+ h# {sizes[i]:x} encode-int encode+\n"
-    r += "\" reg\" property\n"
-    r += "h# 7f encode-int \" slave-burst-sizes\" property\n" # fixme: burst-sizes
-    r += "h# 7f encode-int \" burst-sizes\" property\n" # fixme: burst-sizes
+def get_header_mapx_stuff(gname, names, sizes, types, doreg=True):
+    if (doreg):
+        r  = f"my-address sbusfpga_{types[0]}addr_{names[0]} + my-space encode-phys             h# {sizes[0]:x} encode-int encode+\n"
+        for i in range(1, len(names)):
+            r += f"my-address sbusfpga_{types[i]}addr_{names[i]} + my-space encode-phys encode+ h# {sizes[i]:x} encode-int encode+\n"
+        r += "\" reg\" property\n"
+        r += "h# 7f encode-int \" slave-burst-sizes\" property\n" # fixme: burst-sizes
+        r += "h# 7f encode-int \" burst-sizes\" property\n" # fixme: burst-sizes
+    else:
+        r = ""
     r += "headers\n"
     for i in range(0, len(names)):
         r += f"-1 instance value {names[i]}-virt\n"
@@ -122,7 +128,7 @@ def get_prom(soc,
     r += "\" RDOL,sbusstat\" device-name\n"
     r += get_header_map_stuff("sbus_bus_stat", "sbus_bus_stat", 256)
     
-    if (trng or usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or jareth):
+    if (trng or usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or (jareth and not goblin)):
         r += "finish-device\nnew-device\n"
 
     if (trng):
@@ -134,7 +140,7 @@ def get_prom(soc,
         r += "  map-out-trng\n"
         r += ";\n"
         r += "disabletrng!\n"
-        if (usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or jareth):
+        if (usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or (jareth and not goblin)):
             r += "finish-device\nnew-device\n"
 
     if (usb):
@@ -154,7 +160,7 @@ def get_prom(soc,
         r += " map-out-usb_host_ctrl\n"
         r += ";\n"
         r += "my-reset!\n"
-        if ((sdram or not sdram) or engine or i2c or framebuffer or sdcard or jareth):
+        if ((sdram or not sdram) or engine or i2c or framebuffer or sdcard or (jareth and not goblin)):
             r += "finish-device\nnew-device\n"
         
     if (sdram):
@@ -179,7 +185,7 @@ def get_prom(soc,
         r += "\" RDOL,hidden_sdram\" device-name\n"
         r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram" ], [ 4096, 4096 ], [ "csr", "csr" ])
         r += "fload sdram_init.fth\ninit!\n"
-    if (engine or i2c or framebuffer or sdcard or jareth):
+    if (engine or i2c or framebuffer or sdcard or (jareth and not goblin)):
         r += "finish-device\nnew-device\n"
     
     if (engine):
@@ -187,7 +193,7 @@ def get_prom(soc,
         r += ": sbusfpga_regionaddr_curve25519engine-microcode sbusfpga_regionaddr_curve25519engine ;\n"
         r += ": sbusfpga_regionaddr_curve25519engine-regfile sbusfpga_regionaddr_curve25519engine h# 10000 + ;\n"
         r += get_header_mapx_stuff("curve25519engine", [ "curve25519engine", "curve25519engine-microcode", "curve25519engine-regfile" ], [ 4096, 4096, 65536 ] , ["csr", "region", "region" ] )
-        if (i2c or framebuffer or sdcard or jareth):
+        if (i2c or framebuffer or sdcard or (jareth and not goblin)):
             r += "finish-device\nnew-device\n"
         
     if (i2c):
@@ -202,7 +208,7 @@ def get_prom(soc,
         r += "  \" lm75\" encode-string \" compatible\" property\n"
         r += "  h# 48 encode-int \" addr\" property\n"
         r += "  finish-device\n"
-        if (framebuffer or sdcard or jareth):
+        if (framebuffer or sdcard or (jareth and not goblin)):
             r += "finish-device\nnew-device\n"
         
     if (framebuffer):
@@ -210,6 +216,23 @@ def get_prom(soc,
         vres = int(cg3_res.split("@")[0].split("x")[1])
         hres_h=(f"{hres:x}").replace("0x", "")
         vres_h=(f"{vres:x}").replace("0x", "")
+
+        if (goblin):
+            if (jareth):
+                # first add the jareth stuff so we can use it from the goblin init
+                r += ": sbusfpga_regionaddr_jareth-microcode sbusfpga_regionaddr_jareth ;\n"
+                r += ": sbusfpga_regionaddr_jareth-regfile sbusfpga_regionaddr_jareth h# 10000 + ;\n"
+                r += get_header_mapx_stuff("jareth", [ "jareth", "jareth-microcode", "jareth-regfile" ], [ 4096, 4096, 4096 ], ["csr", "region", "region" ], doreg=False )
+                r += "h# 1 constant goblin_has_jareth\n"
+                r += "fload goblin_jareth_define.fth\n"
+                r += "fload goblin_jareth_init.fth\n"
+            else:
+                # use some placeholder so the 'reg' proeperty works
+                r += "h# -1 constant sbusfpga_csraddr_jareth\n"
+                r += "h# -1 constant sbusfpga_regionaddr_jareth-microcode\n"
+                r += "h# -1 constant sbusfpga_regionaddr_jareth-regfile\n"
+                r += "h# 0 constant goblin_has_jareth\n"
+        
         if (bw2):
             cg3_file = open("bw2.fth")
         elif (cg3):
@@ -242,7 +265,7 @@ def get_prom(soc,
             r += "fload cg6_init.fth\ncg6_init!\n"
         elif (goblin):
             r += "\n"
-        if (sdcard or jareth):
+        if (sdcard or (jareth and not goblin)):
             r += "finish-device\nnew-device\n"
         
     if (sdcard):
@@ -261,7 +284,7 @@ def get_prom(soc,
         if (jareth):
             r += "finish-device\nnew-device\n"
 
-    if (jareth):
+    if (jareth and not goblin): # if there's a goblin, jareth is part of it
         r += "\" jareth\" device-name\n"
         r += ": sbusfpga_regionaddr_jareth-microcode sbusfpga_regionaddr_jareth ;\n"
         r += ": sbusfpga_regionaddr_jareth-regfile sbusfpga_regionaddr_jareth h# 10000 + ;\n"

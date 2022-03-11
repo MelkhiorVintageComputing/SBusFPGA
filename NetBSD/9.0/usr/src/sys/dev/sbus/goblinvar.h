@@ -51,6 +51,12 @@ struct goblin_softc {
 	bus_addr_t	      sc_reg_fbc_paddr;	  /* phys address for device mmap() */
 	bus_addr_t	      sc_fb_paddr;	  /* phys address for device mmap() */
 	uint32_t          sc_size; /* full memory size */
+	int	              sc_opens; /* number of open() to track 8/24 bits */
+	int               sc_has_jareth; /* whether we have a Jareth vector engine available */
+	
+	bus_space_handle_t sc_bhregs_jareth;	/* bus handle */
+	bus_space_handle_t sc_bhregs_microcode;	/* bus handle */
+	bus_space_handle_t sc_bhregs_regfile;	/* bus handle */
 	
 	volatile struct goblin_fbcontrol *sc_fbc;	/* control registers */
 #if NWSDISPLAY > 0	
@@ -58,9 +64,12 @@ struct goblin_softc {
 	uint32_t          sc_height;  /* display width / height */
 	uint32_t          sc_stride;
 	int               sc_mode;
-	struct vcons_data vd;
+	struct vcons_data sc_vd;
+	int               sc_depth;
 #endif	
 	union	bt_cmap   sc_cmap;	  /* DAC color map */
 };
+
+#define GOBLIN_SET_PIXELMODE	_IOW('M', 3, int)
 
 void	goblinattach(struct goblin_softc *, const char *, int);

@@ -528,6 +528,10 @@ class SBusFPGA(SoCCore):
             elif (goblin):
                 self.submodules.goblin = goblin_fb.goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga", irq_line=Signal()) # clock_domain for the VGA side, cg6 is running in cd_sys
                 self.bus.add_slave("goblin_bt", self.goblin.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
+                #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+                #SBUS_DATA_OE_LED_o = Signal()
+                #self.comb += pad_SBUS_DATA_OE_LED.eq(SBUS_DATA_OE_LED_o)
+                #self.comb += SBUS_DATA_OE_LED_o.eq(self.goblin.video_framebuffer_vtg.enable)
                 
             if (cg6):
                 self.submodules.cg6_accel = cg6_accel.CG6Accel(soc = self, base_fb = base_fb, hres = hres, vres = vres)

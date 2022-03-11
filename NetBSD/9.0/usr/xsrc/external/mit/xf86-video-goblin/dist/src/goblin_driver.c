@@ -673,9 +673,26 @@ GOBLINValidMode(SCRN_ARG_TYPE arg, DisplayModePtr mode, Bool verbose, int flags)
 static Bool
 GOBLINSaveScreen(ScreenPtr pScreen, int mode)
 {
-/*     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum]; */
-/*     GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn); */
-/*     xf86Msg(X_INFO, "%s: %s\n", pGoblin->psdp->device, __PRETTY_FUNCTION__); */
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+    /* xf86Msg(X_INFO, "%s: %s\n", pGoblin->psdp->device, __PRETTY_FUNCTION__); */
+	
+    switch(mode)
+    {
+    case SCREEN_SAVER_ON:
+    case SCREEN_SAVER_CYCLE:
+		if (pGoblin->fbc->videoctrl != GOBOFB_VIDEOCTRL_OFF)
+			pGoblin->fbc->videoctrl = GOBOFB_VIDEOCTRL_OFF;
+       break;
+    case SCREEN_SAVER_OFF:
+    case SCREEN_SAVER_FORCER:
+		if (pGoblin->fbc->videoctrl != GOBOFB_VIDEOCTRL_ON)
+			pGoblin->fbc->videoctrl = GOBOFB_VIDEOCTRL_ON;
+       break;
+    default:
+       return FALSE;
+    }
+	
     return TRUE;
 }
 

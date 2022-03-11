@@ -71,13 +71,16 @@ static void	goblinloadcmap(struct goblin_softc *, int, int);
 static void	goblin_set_video(struct goblin_softc *, int);
 static int	goblin_get_video(struct goblin_softc *);
 
+static void jareth_copyrows(void *, int, int, int);
+
 dev_type_open(goblinopen);
+dev_type_close(goblinclose);
 dev_type_ioctl(goblinioctl);
 dev_type_mmap(goblinmmap);
 
 const struct cdevsw goblin_cdevsw = {
 	.d_open = goblinopen,
-	.d_close = nullclose,
+	.d_close = goblinclose,
 	.d_read = noread,
 	.d_write = nowrite,
 	.d_ioctl = goblinioctl,
@@ -107,12 +110,39 @@ struct wsscreen_descr goblin_defaultscreen = {
 	NULL	/* modecookie */
 };
 
+struct scrolltest {
+	int y0;
+	int y1;
+	int x0;
+	int w;
+	int n;
+};
+#define GOBLIN_SCROLL	_IOW('X', 0, struct scrolltest)
+#define GOBLIN_FILL     _IOW('X', 1, struct scrolltest)
+
 static int 	goblin_ioctl(void *, void *, u_long, void *, int, struct lwp *);
 static paddr_t	goblin_mmap(void *, void *, off_t, int);
 static void	goblin_init_screen(void *, struct vcons_screen *, int, long *);
 
-int	goblin_putcmap(struct goblin_softc *, struct wsdisplay_cmap *);
-int	goblin_getcmap(struct goblin_softc *, struct wsdisplay_cmap *);
+static int	goblin_putcmap(struct goblin_softc *, struct wsdisplay_cmap *);
+static int	goblin_getcmap(struct goblin_softc *, struct wsdisplay_cmap *);
+static void goblin_init(struct goblin_softc *);
+static void goblin_reset(struct goblin_softc *);
+
+/* Jareth stuff */
+static int init_programs(struct goblin_softc *sc);
+static int power_on(struct goblin_softc *sc);
+static int power_off(struct goblin_softc *sc);
+static int scroll(struct goblin_softc *sc, int y0, int y1, int x0, int w, int n);
+static int fill(struct goblin_softc *sc, int y0, int pat, int x0, int w, int n);
+static const uint32_t program_scroll128[12] = { 0x407c0012,0x00140080,0x201c0013,0x60fc7013,0x00170146,0xfe000148,0x000e10c6,0x010000c9,0x00004005,0xfb000809,0x0000000a,0x0000000a };
+static const uint32_t program_fill128[12] =   { 0x407c0012,0x00140080,0x607c1013,0x00170146,0xfe800148,0x000e10c6,0x010000c9,0x00004005,0xfb800809,0x0000000a,0x0000000a,0x0000000a };
+
+static const uint32_t* programs[3] = { program_scroll128, program_fill128, NULL };
+static const uint32_t program_len[3] = { 12, 12, 0 };
+static       uint32_t program_offset[3];
+
+static void goblin_set_depth(struct goblin_softc *, int);
 
 struct wsdisplay_accessops goblin_accessops = {
 	goblin_ioctl,
@@ -148,9 +178,23 @@ goblinattach(struct goblin_softc *sc, const char *name, int isconsole)
 	unsigned long defattr;
 	volatile struct goblin_fbcontrol *fbc = sc->sc_fbc;
 
+	/* boot Jareth if present */
+	if (sc->sc_has_jareth) {
+		/* first we need to turn the engine power on ... */
+		power_on(sc);
+		if (init_programs(sc)) {
+			if (init_programs(sc)) {
+				aprint_normal_dev(sc->sc_dev, "INIT - FAILED\n");
+				sc->sc_has_jareth = 0;
+			}
+		}
+		power_off(sc);
+	}
+
 	fb->fb_driver = &goblinfbdriver;
+	fb->fb_pfour = NULL;
 	fb->fb_type.fb_cmsize = 256;
-	fb->fb_type.fb_size = fb->fb_type.fb_height * fb->fb_linebytes;
+	fb->fb_type.fb_size = sc->sc_size; //fb->fb_type.fb_height * fb->fb_linebytes;
 	printf(": %s, %d x %d", name,
 		fb->fb_type.fb_width, fb->fb_type.fb_height);
 
@@ -158,7 +202,6 @@ goblinattach(struct goblin_softc *sc, const char *name, int isconsole)
 	fbc->vbl_mask = GOBOFB_VBL_MASK_OFF;
 
 	/* Enable display in a supported mode */
-	fbc->videoctrl = GOBOFB_VIDEOCTRL_OFF;
 	fbc->mode = GOBOFB_MODE_8BIT;
 	fbc->videoctrl = GOBOFB_VIDEOCTRL_ON;
 
@@ -173,25 +216,31 @@ goblinattach(struct goblin_softc *sc, const char *name, int isconsole)
 	sc->sc_stride = fb->fb_type.fb_width;
 	sc->sc_height = fb->fb_type.fb_height;
 
+	wsfont_init();
+	
 	/* setup rasops and so on for wsdisplay */
 	sc->sc_mode = WSDISPLAYIO_MODE_EMUL;
+	sc->sc_opens = 0;
 
-	vcons_init(&sc->vd, sc, &goblin_defaultscreen, &goblin_accessops);
-	sc->vd.init_screen = goblin_init_screen;
-
+	vcons_init(&sc->sc_vd, sc, &goblin_defaultscreen, &goblin_accessops);
+	sc->sc_vd.init_screen = goblin_init_screen;
+	
 	if(isconsole) {
 		/* we mess with gobo_console_screen only once */
-		vcons_init_screen(&sc->vd, &gobo_console_screen, 1,
-		    &defattr);
+		goblin_set_depth(sc, 8);
+		vcons_init_screen(&sc->sc_vd, &gobo_console_screen, 1,
+						  &defattr);
+		/* clear the screen */
 		memset(sc->sc_fb.fb_pixels, (defattr >> 16) & 0xff,
-		    sc->sc_stride * sc->sc_height);
+			   sc->sc_stride * sc->sc_height);
 		gobo_console_screen.scr_flags |= VCONS_SCREEN_IS_STATIC;
-
+		
 		goblin_defaultscreen.textops = &ri->ri_ops;
 		goblin_defaultscreen.capabilities = ri->ri_caps;
 		goblin_defaultscreen.nrows = ri->ri_rows;
 		goblin_defaultscreen.ncols = ri->ri_cols;
-		sc->vd.active = &gobo_console_screen;
+		sc->sc_vd.active = &gobo_console_screen;
+		
 		wsdisplay_cnattach(&goblin_defaultscreen, ri, 0, 0, defattr);
 		vcons_replay_msgbuf(&gobo_console_screen);
 	} else {
@@ -199,15 +248,17 @@ goblinattach(struct goblin_softc *sc, const char *name, int isconsole)
 		 * we're not the console so we just clear the screen and don't 
 		 * set up any sort of text display
 		 */
+		memset(sc->sc_fb.fb_pixels, (defattr >> 16) & 0xff,
+			   sc->sc_stride * sc->sc_height);
 	}
-
+	
 	/* Initialize the default color map. */
 	gobo_setup_palette(sc);
 
 	aa.scrdata = &goblin_screenlist;
 	aa.console = isconsole;
 	aa.accessops = &goblin_accessops;
-	aa.accesscookie = &sc->vd;
+	aa.accesscookie = &sc->sc_vd;
 	config_found(sc->sc_dev, &aa, wsemuldisplaydevprint);
 }
 
@@ -215,10 +266,38 @@ goblinattach(struct goblin_softc *sc, const char *name, int isconsole)
 int
 goblinopen(dev_t dev, int flags, int mode, struct lwp *l)
 {
-	int unit = minor(dev);
-
-	if (device_lookup(&goblin_cd, unit) == NULL)
+	struct goblin_softc *sc = device_lookup_private(&goblin_cd,
+							 minor(dev));
+	int oldopens;
+ 
+	if (sc == NULL)
 		return (ENXIO);
+
+	oldopens = sc->sc_opens++;
+
+	if (oldopens == 0)	/* first open only */
+		goblin_init(sc);
+	
+	return (0);
+}
+
+int
+goblinclose(dev_t dev, int flags, int mode, struct lwp *l)
+{
+	struct goblin_softc *sc = device_lookup_private(&goblin_cd,
+							 minor(dev));
+	int opens;
+
+	opens = --sc->sc_opens;
+	if (sc->sc_opens < 0) /* should not happen... */
+		opens = sc->sc_opens = 0;
+
+	/*
+	 * Restore video state to make the PROM happy, on last close.
+	 */
+	if (opens == 0) {
+		goblin_reset(sc);
+	}
 	return (0);
 }
 
@@ -270,6 +349,28 @@ goblinioctl(dev_t dev, u_long cmd, void *data, int flags, struct lwp *l)
 		goblin_set_video(sc, *(int *)data);
 		break;
 
+	case GOBLIN_SET_PIXELMODE: {
+		int depth = *(int *)data;
+
+		if (sc->sc_mode == WSDISPLAYIO_MODE_EMUL)
+			return EINVAL;
+
+		goblin_set_depth(sc, depth);
+		}
+		break;
+
+	case GOBLIN_SCROLL: {
+		struct scrolltest *st = (struct scrolltest *)data;
+		scroll(sc, st->y0, st->y1, st->x0, st->w, st->n);
+	}
+		break;
+
+	case GOBLIN_FILL: {
+		struct scrolltest *st = (struct scrolltest *)data;
+		fill(sc, st->y0, st->y1, st->x0, st->w, st->n);
+	}
+		break;
+
 	default:
 		return (ENOTTY);
 	}
@@ -284,6 +385,13 @@ goblinunblank(device_t self)
 {
 	struct goblin_softc *sc = device_private(self);
 
+#if NWSDISPLAY > 0
+	if (sc->sc_mode != WSDISPLAYIO_MODE_EMUL) {
+		goblin_set_depth(sc, 8);
+		vcons_redraw_screen(sc->sc_vd.active);
+		sc->sc_mode = WSDISPLAYIO_MODE_EMUL;
+	}
+#endif
 	goblin_set_video(sc, 1);
 }
 
@@ -425,7 +533,7 @@ goblin_ioctl(void *v, void *vs, u_long cmd, void *data, int flag,
 	struct vcons_data *vd = v;
 	struct goblin_softc *sc = vd->cookie;
 	struct wsdisplay_fbinfo *wdf;
-	struct vcons_screen *ms = sc->vd.active;
+	struct vcons_screen *ms = sc->sc_vd.active;
 	struct rasops_info *ri = &ms->scr_ri;
 	switch (cmd) {
 		case WSDISPLAYIO_GTYPE:
@@ -486,7 +594,7 @@ goblin_mmap(void *v, void *vs, off_t offset, int prot)
 		prot, BUS_SPACE_MAP_LINEAR);
 }
 
-int
+static int
 goblin_putcmap(struct goblin_softc *sc, struct wsdisplay_cmap *cm)
 {
 	u_int index = cm->index;
@@ -516,7 +624,7 @@ goblin_putcmap(struct goblin_softc *sc, struct wsdisplay_cmap *cm)
 	return 0;
 }
 
-int
+static int
 goblin_getcmap(struct goblin_softc *sc, struct wsdisplay_cmap *cm)
 {
 	u_int index = cm->index;
@@ -552,7 +660,7 @@ goblin_init_screen(void *cookie, struct vcons_screen *scr,
 	struct goblin_softc *sc = cookie;
 	struct rasops_info *ri = &scr->scr_ri;
 
-	scr->scr_flags |= VCONS_DONT_READ;
+	scr->scr_flags |= VCONS_NO_COPYCOLS;
 
 	ri->ri_depth = 8;
 	ri->ri_width = sc->sc_width;
@@ -568,4 +676,310 @@ goblin_init_screen(void *cookie, struct vcons_screen *scr,
 		    sc->sc_width / ri->ri_font->fontwidth);
 
 	ri->ri_hw = scr;
+	if (sc->sc_has_jareth) {
+		ri->ri_ops.copyrows = jareth_copyrows;
+		device_printf(sc->sc_dev, "Jareth enabled\n");
+	}
+}
+
+static void
+goblin_set_depth(struct goblin_softc *sc, int depth)
+{
+	if (sc->sc_depth == depth)
+		return;
+
+	switch (depth) {
+		case 8:
+			sc->sc_fbc->mode = GOBOFB_MODE_8BIT;
+			sc->sc_depth = 8;
+			break;
+		case 32:
+			sc->sc_fbc->mode = GOBOFB_MODE_24BIT;
+			sc->sc_depth = 32;
+			break;
+		default:
+			printf("%s: can't change to depth %d\n",
+			    device_xname(sc->sc_dev), depth);
+	}
+}
+
+/* Initialize the framebuffer, storing away useful state for later reset */
+static void
+goblin_init(struct goblin_softc *sc)
+{
+	//goblin_set_depth(sc, 32);
+}
+
+static void
+/* Restore the state saved on goblin_init */
+goblin_reset(struct goblin_softc *sc)
+{
+	//goblin_set_depth(sc, 8);
+}
+
+
+#define CONFIG_CSR_DATA_WIDTH 32
+#define sbusfpga_jareth_softc goblin_softc
+#include "dev/sbus/sbusfpga_csr_jareth.h"
+#undef sbusfpga_jareth_softc
+
+#define REG_BASE(reg) (base + (reg * 32))
+#define SUBREG_ADDR(reg, off) (REG_BASE(reg) + (off)*4)
+
+static int start_job(struct goblin_softc *sc);
+static int wait_job(struct goblin_softc *sc, uint32_t param);
+
+static int scroll(struct goblin_softc *sc, int y0, int y1, int x0, int w, int n) {
+	const uint32_t base = 0;
+	const int pidx = 0;
+	int i;
+
+	power_on(sc);
+
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (0x8f800000 + y1 * sc->sc_stride + x0));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
+	for (i = 1 ; i < 8 ; i++) {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0);
+	}
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (sc->sc_stride));
+	jareth_mpstart_write(sc, program_offset[pidx]);
+	jareth_mplen_write(sc, program_len[pidx]);
+	
+	(void)start_job(sc);
+	delay(1);
+	(void)wait_job(sc, 2);
+
+	power_off(sc);
+
+	return 0;
+}
+
+
+static int fill(struct goblin_softc *sc, int y0, int pat, int x0, int w, int n) {
+	const uint32_t base = 0;
+	const int pidx = 1;
+	int i;
+
+	power_on(sc);
+
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0));
+	for (i = 0 ; i < 8 ; i++) {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,i), pat);
+	}
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
+	for (i = 1 ; i < 8 ; i++) {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0);
+	}
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
+	jareth_mpstart_write(sc, program_offset[pidx]);
+	jareth_mplen_write(sc, program_len[pidx]);
+	
+	(void)start_job(sc);
+	delay(1);
+	(void)wait_job(sc, 1);
+
+	power_off(sc);
+
+	return 0;
+}
+
+static void
+jareth_copyrows(void *cookie, int src, int dst, int n)
+{
+	struct rasops_info *ri = cookie;
+	struct vcons_screen *scr = ri->ri_hw;
+	struct goblin_softc *sc = scr->scr_cookie;
+	
+	if (dst == src)
+		return;
+	if (src < 0) {
+		n += src;
+		src = 0;
+	}
+	if (src+n > ri->ri_rows)
+		n = ri->ri_rows - src;
+	if (dst < 0) {
+		n += dst;
+		dst = 0;
+	}
+	if (dst+n > ri->ri_rows)
+		n = ri->ri_rows - dst;
+	if (n <= 0)
+		return;
+	
+	n *= ri->ri_font->fontheight;
+	src *= ri->ri_font->fontheight;
+	dst *= ri->ri_font->fontheight;
+
+	
+	int x0 = ri->ri_xorigin;
+	int y0 = ri->ri_yorigin + src;
+	//int x1 = ri->ri_xorigin + ri->ri_emuwidth - 1;
+	/* int y1 = ri->ri_yorigin + src + n - 1; */
+	/* int x2 = ri->ri_xorigin; */
+	int y2 = ri->ri_yorigin + dst;
+	/* int x3 = ri->ri_xorigin + ri->ri_emuwidth - 1; */
+	/* int y3 = ri->ri_yorigin + dst + n - 1; */
+
+	scroll(sc, y0, y2, x0, ri->ri_emuwidth, n);
+
+#if 0
+	if (y0 > y2) {
+		int x, y;
+		for (y = 0 ; y < n ; y++) {
+			for (x = x0 & ~3 ; x < x1 ; x+= 4) {
+				uint32_t* srcadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y0 + y) * sc->sc_stride + x);
+				uint32_t* dstadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y2 + y) * sc->sc_stride + x);
+				*dstadr = *srcadr;
+			}
+		}
+	} else {
+		int x, y;
+		for (y = n-1 ; y >= 0 ; y--) {
+			for (x = x0 & ~3; x < x1 ; x+= 4) {
+				uint32_t* srcadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y0 + y) * sc->sc_stride + x);
+				uint32_t* dstadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y2 + y) * sc->sc_stride + x);
+				*dstadr = *srcadr;
+			}
+		}
+	}
+#endif
+}
+
+static int start_job(struct goblin_softc *sc) {
+	uint32_t status = jareth_status_read(sc);
+	if (status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) {
+		aprint_error_dev(sc->sc_dev, "START - Jareth status: 0x%08x, still running?\n", status);
+		return ENXIO;
+	}
+	jareth_control_write(sc, 1);
+	//aprint_normal_dev(sc->sc_dev, "START - Jareth status: 0x%08x\n", jareth_status_read(sc));
+	
+	return 0;
+}
+
+static int wait_job(struct goblin_softc *sc, uint32_t param) {
+	uint32_t status = jareth_status_read(sc);
+	int count = 0;
+	int max_count = 2000;
+	int del = 1;
+	const int max_del = 64;
+	static int max_del_seen = 1;
+	static int max_cnt_seen = 0;
+	
+	while ((status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) && (count < max_count)) {
+		//uint32_t ls_status = jareth_ls_status_read(sc);
+		//aprint_normal_dev(sc->sc_dev, "WAIT - ongoing, Jareth status: 0x%08x [%d] ls_status: 0x%08x\n", status, count, ls_status);
+		count ++;
+		delay(del * param);
+		del = del < max_del ? 2*del : del;
+		status = jareth_status_read(sc);
+	}
+	if (del > max_del_seen) {
+		max_del_seen = del;
+		aprint_normal_dev(sc->sc_dev, "WAIT - new max delay %d after %d count (param was %u)\n", max_del_seen, count, param);
+	}
+	if (count > max_cnt_seen) {
+		max_cnt_seen = count;
+		aprint_normal_dev(sc->sc_dev, "WAIT - new max count %d with %d delay (param was %u)\n", max_cnt_seen, del, param);
+		
+	}
+	
+	//jareth_control_write(sc, 0);
+	if (status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) {
+		aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x (pc 0x%08x), did not finish in time? [inst: 0x%08x ls_status: 0x%08x]\n", status, (status>>1)&0x03ff, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
+		return ENXIO;
+	} else if (status & (1<<CSR_JARETH_STATUS_SIGILL_OFFSET)) {
+		aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, sigill [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
+		return ENXIO;
+	} else if (status & (1<<CSR_JARETH_STATUS_ABORT_OFFSET)) {
+		aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, aborted [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
+		return ENXIO;
+	} else {
+		//aprint_normal_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x [%d] ls_status: 0x%08x\n", status, count, jareth_ls_status_read(sc));
+	}
+
+	return 0;
+}
+
+static int init_programs(struct goblin_softc *sc) {
+	/* the microcode is a the beginning */
+	int err = 0;
+	uint32_t i, j;
+	uint32_t offset = 0;
+
+	for (j = 0 ; programs[j] != NULL; j ++) {
+		program_offset[j] = offset;
+		for (i = 0 ; i < program_len[j] ; i++) {
+			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_microcode, ((offset+i)*4), programs[j][i]);
+			if ((i%16)==15)
+				delay(1);
+		}
+		offset += program_len[j];
+	}
+
+	jareth_window_write(sc, 0); /* could use window_window to access fields, but it creates a RMW cycle for nothing */
+	jareth_mpstart_write(sc, 0); /* EC25519 */
+	jareth_mplen_write(sc, program_len[0]); /* EC25519 */
+
+	aprint_normal_dev(sc->sc_dev, "INIT - Jareth status: 0x%08x\n", jareth_status_read(sc));
+
+#if 1
+	/* double check */
+	u_int32_t x;
+	int count = 0;
+	for (i = 0 ; i < program_len[0] && count < 10; i++) {
+		x = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_microcode, (i*4));
+		if (x != programs[0][i]) {
+			aprint_error_dev(sc->sc_dev, "INIT - Jareth program failure: [%d] 0x%08x <> 0x%08x\n", i, x, programs[0][i]);
+			err = 1;
+			count ++;
+		}
+		if ((i%8)==7)
+			delay(1);
+	}
+	if ((x = jareth_window_read(sc)) != 0) {
+			aprint_error_dev(sc->sc_dev, "INIT - Jareth register failure: window = 0x%08x\n", x);
+			err = 1;
+	}
+	if ((x = jareth_mpstart_read(sc)) != 0) {
+			aprint_error_dev(sc->sc_dev, "INIT - Jareth register failure: mpstart = 0x%08x\n", x);
+			err = 1;
+	}
+	if ((x = jareth_mplen_read(sc)) != program_len[0]) {
+			aprint_error_dev(sc->sc_dev, "INIT - Jareth register failure: mplen = 0x%08x\n", x);
+			err = 1;
+	}
+	const int test_reg_num = 73;
+	const uint32_t test_reg_value = 0x0C0FFEE0;
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile, 4*test_reg_num, test_reg_value);
+	delay(1);
+	if ((x = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile, 4*test_reg_num)) != test_reg_value) {
+		aprint_error_dev(sc->sc_dev, "INIT - Jareth register file failure: 0x%08x != 0x%08x\n", x, test_reg_value);
+		err = 1;
+	}
+#endif
+	
+	return err;
+}
+
+static int power_on(struct goblin_softc *sc) {
+	int err = 0;
+	if ((jareth_power_read(sc) & 1) == 0) {
+		jareth_power_write(sc, 1);
+		delay(1);
+	}
+	return err;
+}
+
+static int power_off(struct goblin_softc *sc) {
+	int err = 0;
+	jareth_power_write(sc, 0);
+	return err;
 }

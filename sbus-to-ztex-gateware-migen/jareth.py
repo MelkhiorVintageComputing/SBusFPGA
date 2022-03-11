@@ -17,10 +17,12 @@ opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shif
     # 2 MSK
     "XOR" : [3, "Wd $\gets$ Ra ^ Rb  // bitwise XOR"],
     "NOT" : [4, "Wd $\gets$ ~Ra   // binary invert"],
-    "ADD" : [5, "Wd $\gets$ Ra + Rb  // 256-bit binary add"],
-    "SUB" : [6, "Wd $\gets$ Ra - Rb  // 256-bit binary subtraction"],
+    "ADD32" : [5, "Wd[x..x+32] $\gets$ Ra[x..x+32] + Rb[x..x+32] // vector 32-bit binary add"],
+    "SUB32" : [6, "Wd[x..x+32] $\gets$ Ra[x..x+32] - Rb[x..x+32] // vector 32-bit binary add"],
+    #"ADD" : [5, "Wd $\gets$ Ra + Rb  // 256-bit binary add"],
+    #"SUB" : [6, "Wd $\gets$ Ra - Rb  // 256-bit binary subtraction"],
     "AND" : [7, "Wd $\gets$ Ra & Rb  // bitwise AND"], # replace MUL
-    "BRNZ" : [8, "If Ra != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero"], # relace TRD
+    "BRNZ" : [8, "If Ra != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero"], # replace TRD
     "BRZ" : [9, "If Ra == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero"],
     "FIN" : [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
     "SHL" : [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
@@ -231,6 +233,7 @@ class JarethConst(Module, AutoDoc):
             #3: [3, "three", "The number three"],
             #4: [4, "four", "The number four"],
             #5: [5, "five", "The number five"],
+            5: [32, "thirty-two", "The number thirty-two"],
             #6: [6, "six", "The number six"],
             #7: [7, "seven", "The number seven"],
             #8: [8, "eight", "The number eight"],
@@ -328,41 +331,8 @@ passthrough.
 
 class ExecAddSub(ExecUnit, AutoDoc):
     def __init__(self, width=256):
-        ExecUnit.__init__(self, width, ["ADD", "SUB"])
+        ExecUnit.__init__(self, width, ["ADD32", "SUB32"])
         self.notes = ModuleDoc(title="Add/Sub ExecUnit Subclass", body=f"""
-This execution module implements 256-bit binary addition and subtraction.
-
-Note that to implement operations in $\mathbf{{F}}_p$, where *p* is $2^{{255}}-19$, this must be compounded
-with other operators as follows:
-
-Addition of Ra + Rb into Rc in {field_latex}:
-
-.. code-block:: c
-
-  ADD Rc, Ra, Rb    // Rc <- Ra + Rb
-  TRD Rd, Rc        // Rd <- ReductionValue(Rc)
-  SUB Rc, Rc, Rd    // Rc <- Rc - Rd
-
-Negation of Ra into Rc in {field_latex}:
-
-.. code-block:: c
-
-  SUB Rc, #FIELDPRIME, Ra   //  Rc <- 2^255-19 - Ra
-
-Note that **#FIELDPRIME** is one of the 32 available hard-coded constants
-that can be substituted for any register in any arithmetic operation, please
-see the section on "Constants" for more details.
-
-Subtraction of Ra - Rb into Rc in {field_latex}:
-
-.. code-block:: c
-
-  SUB Rb, #FIELDPRIME, Rb   //  Rb <- 2^255-19 - Rb
-  ADD Rc, Ra, Rb    // Rc <- Ra + Rb
-  TRD Rd, Rc        // Rd <- ReductionValue(Rc)
-  SUB Rc, Rc, Rd    // Rc <- Rc - Rd
-
-In all the examples above, Ra and Rb must be members of {field_latex}.
         """)
 
         self.sync.eng_clk += [
@@ -370,10 +340,10 @@ In all the examples above, Ra and Rb must be members of {field_latex}.
             self.instruction_out.eq(self.instruction_in),
         ]
         self.comb += [
-            If(self.instruction.opcode == opcodes["ADD"][0],
-               self.q.eq(self.a + self.b),
-            ).Elif(self.instruction.opcode == opcodes["SUB"][0],
-               self.q.eq(self.a - self.b),
+            If(self.instruction.opcode == opcodes["ADD32"][0],
+                   [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] + self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
+            ).Elif(self.instruction.opcode == opcodes["SUB32"][0],
+                   [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] - self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
             ),
         ]
 

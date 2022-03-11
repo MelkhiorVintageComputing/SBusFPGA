@@ -23,7 +23,12 @@ h# SBUSFPGA_CG3_BUFSIZE constant /goblin-off-fb
 : goblin-reg
   my-address sbusfpga_regionaddr_goblin_bt + my-space encode-phys /goblin-off-dac encode-int encode+
   my-address goblin-off-fb + my-space encode-phys encode+ /goblin-off-fb encode-int encode+
-" reg" property
+  h# 1 goblin_has_jareth = if
+    my-address sbusfpga_csraddr_jareth + my-space encode-phys encode+ h# 1000 encode-int encode+
+    my-address sbusfpga_regionaddr_jareth-microcode + my-space encode-phys encode+ h# 1000 encode-int encode+
+    my-address sbusfpga_regionaddr_jareth-regfile + my-space encode-phys encode+ h# 1000 encode-int encode+
+  then
+  " reg" property
 ;
 
 : do-map-in ( offset size -- virt )
@@ -80,11 +85,11 @@ headerless
 ;
 
 : map-regs
-  dac-map fb-map
+  dac-map
 ;
 
 : unmap-regs
-  dac-unmap fb-unmap
+  dac-unmap
 ;
 
 \
@@ -95,7 +100,7 @@ headerless
 " display" device-type
 " RDOL,sbusfpga" model
 
-: qemu-goblin-driver-install ( -- )
+: goblin-driver-install ( -- )
   goblin-dac -1 = if
     map-regs
 	
@@ -104,30 +109,31 @@ headerless
     \ Initial palette taken from Sun's "Writing FCode Programs"
     h# ff h# ff h# ff h# 0  color!    \ Background white
     h# 0  h# 0  h# 0  h# ff color!    \ Foreground black
-    h# 64 h# 41 h# b4 h# 1  color!    \ SUN-blue logo
+    \ h# 64 h# 41 h# b4 h# 1  color!    \ SUN-blue logo
+    h# b4 h# 41 h# 64 h# 1  color!    \ SUN-blue logo
 
     fb-addr to frame-buffer-adr
     default-font set-font
 
     frame-buffer-adr encode-int " address" property \ CHECKME
 
-	h# 3 h# 8 dac! \ enable DMA, VTG
+	h# 1 h# 8 dac! \ enable
 
     openbios-video-width openbios-video-height over char-width / over char-height /
     fb8-install
   then
 ;
 
-: qemu-goblin-driver-remove ( -- )
+: goblin-driver-remove ( -- )
   goblin-dac -1 <> if
   		  unmap-regs
 		  fb-unmap
 		  -1 to frame-buffer-adr
-		  " address" delete-attribute
+		  " address" delete-property
   then
 ;
 
-: qemu-goblin-driver-init
+: goblin-driver-init
 
   goblin-reg
 
@@ -142,13 +148,15 @@ headerless
   " ISO8859-1" encode-string " character-set" property
   h# c encode-int " cursorshift" property
   /goblin-off-fb h# 14 >> encode-int " vmsize" property
+  goblin_has_jareth encode-int " goblin_has_jareth" property
   
   map-regs
-  0 h# 4 dac! \ disable irq
+  h# 0 h# 4 dac! \ disable irq
+  h# 0 h# 8 dac! \ turn off videoctrl
   unmap-regs
 
-  ['] qemu-goblin-driver-install is-install
-  ['] qemu-goblin-driver-remove is-remove
+  ['] goblin-driver-install is-install
+  ['] goblin-driver-remove is-remove
 ;
 
-qemu-goblin-driver-init
+goblin-driver-init

@@ -25,7 +25,7 @@ fn main() -> std::io::Result<()> {
 				// slow
 				setmq %31, %1, #16
 				and %5, %2, #15
-				sub %6, %2, %5
+				sub32 %6, %2, %5
 				brz done, %6
 		loop:
 			psa %18, %16
@@ -33,7 +33,7 @@ fn main() -> std::io::Result<()> {
 				psa* %17, %16
 			psa %20, %17
 				store128inc %31, %2, %17
-				sub %6, %6, #16
+				sub32 %6, %6, #16
 				brz last, %6
 				loadh128inc %16, %0, %16
 				loadh128inc %17, %1, %17
@@ -48,50 +48,125 @@ fn main() -> std::io::Result<()> {
 				fin
 				fin
 	);
-    let _mcode3 = assemble_jareth!(
-	// 0..0 / $DST / $SRC in %0
-	// size in %2
-	// pattern in %3
-               start:
-			   resm %31
-			   psa %31, #0
-			   psa %30, #1
-			   sub %30, %31, %30
-			   psa %29, #2
-			   setmq %31, %29, %2
-			   setma %31, %0, %2
-			   psa* %30, %3
-			   getm %3
-			   resm %31
-			   psa %2, %30
-			   setadr %31 , %0
-			   load256 %1, %0
-			   load128 %0, %0
-			   fin
-			   fin
+	
+    let mcode_scroll256 = assemble_jareth!(
+	// x..x / $DST / $SRC in %0, aligned on 128 bits ; $DST < $SRC
+	// x..x / X size in %2, multiple of 256 bits (32 bytes)
+	// x..x / Y size in %3, arbitrary
+	// x..x / dst_stride / src_stride in %4 (screen width)
+	// -----
+	// live X count in %5
+	// // live Y count in %3
+	// data in %7
+	// 0/scrap in %31
+         start:
+				// reset masks (probably not necessary with the starred-instruction)
+				// resm %31
+		loop_y:
+				// set source and destination addresses for current Y, X=first
+				setadr %31, %0
+				psa %5, %2
+		loop_x:
+				// load from SRC w/ post-increment
+				load256inc %7, %0
+				// store to DST w/ post-increment
+				store256inc %31, %1, %7
+				// sub 32 (#5 is 32...) from live X count
+				sub32 %5, %5, #5
+				// if X count is not 0, keep looping
+				brnz loop_x, %5
+
+				// decrement Y count
+				sub32 %3, %3, #1
+				// if 0, finished
+				brz done, %3
+				// add strides to initial addresses
+				add32 %0, %0, %4
+				// loop to do next line
+				brz loop_y, #0
+		done:
+				fin
+				fin
 	);
-    let _mcode2 = assemble_jareth!(
-				psa %1, %3
-			    setma %31, %0, %2
-				psa %2, %3
-				getm %3
+	
+    let mcode_scroll128 = assemble_jareth!(
+	// x..x / $DST / $SRC in %0, aligned on 128 bits ; $DST < $SRC
+	// x..x / X size in %2, multiple of 128 bits (16 bytes)
+	// x..x / Y size in %3, arbitrary
+	// x..x / dst_stride / src_stride in %4 (screen width)
+	// -----
+	// live X count in %5
+	// // live Y count in %3
+	// data in %7
+	// 0/scrap in %31
+         start:
+				// reset masks (probably not necessary with the starred-instruction)
+				// resm %31
+		loop_y:
+				// set source and destination addresses for current Y, X=first
+				setadr %31, %0
+				psa %5, %2
+		loop_x:
+				// load from SRC w/ post-increment
+				load128inc %7, %0
+				// store to DST w/ post-increment
+				store128inc %31, %1, %7
+				// sub 16 (#16 is 16) from live X count
+				sub32 %5, %5, #16
+				// if X count is not 0, keep looping
+				brnz loop_x, %5
+
+				// decrement Y count
+				sub32 %3, %3, #1
+				// if 0, finished
+				brz done, %3
+				// add strides to initial addresses
+				add32 %0, %0, %4
+				// loop to do next line
+				brz loop_y, #0
+		done:
 				fin
 				fin
-			    resm %31
-				psa %0, %3
-				setmq %31, %1, %2
-				psa %1, %3
+	);
+	
+    let mcode_fill128 = assemble_jareth!(
+	// x..x / $DST in %0, aligned on 128 bits
+	// 128-bits pattern in %1
+	// x..x / X size in %2, multiple of 128 bits (16 bytes)
+	// x..x / Y size in %3, arbitrary
+	// x..x / dst_stride in %4 (screen width)
+	// -----
+	// live X count in %5
+	// // live Y count in %3
+	// data in %7
+	// 0/scrap in %31
+         start:
+				// reset masks (probably not necessary with the starred-instruction)
+				// resm %31
+		loop_y:
+				// set source and destination addresses for current Y, X=first
+				setadr %31, %0
+				psa %5, %2
+		loop_x:
+				// store to DST w/ post-increment
+				store128inc %31, %0, %1
+				// sub 16 (#16 is 16) from live X count
+				sub32 %5, %5, #16
+				// if X count is not 0, keep looping
+				brnz loop_x, %5
+
+				// decrement Y count
+				sub32 %3, %3, #1
+				// if 0, finished
+				brz done, %3
+				// add strides to initial addresses
+				add32 %0, %0, %4
+				// loop to do next line
+				brz loop_y, #0
+		done:
 				fin
 				fin
-				fin
-				setma %31, %0, %2
-				setma %31, %0, %2
-			    resm %31
-				fin
-				fin
-				fin
-				fin
-    );
+	);
 
     let mut pos;
 
@@ -103,6 +178,33 @@ fn main() -> std::io::Result<()> {
     }
 	println!("");
 	println!("-> {}", mcode.len());
+
+	pos = 0;
+	println!("scroll256:");
+    while pos < mcode_scroll256.len() {
+		  print!("0x{:08x},", mcode_scroll256[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", mcode_scroll256.len());
+
+	pos = 0;
+	println!("scroll128:");
+    while pos < mcode_scroll128.len() {
+		  print!("0x{:08x},", mcode_scroll128[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", mcode_scroll128.len());
+
+	pos = 0;
+	println!("fill128:");
+    while pos < mcode_fill128.len() {
+		  print!("0x{:08x},", mcode_fill128[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", mcode_fill128.len());
 
 	Ok(())
 }
