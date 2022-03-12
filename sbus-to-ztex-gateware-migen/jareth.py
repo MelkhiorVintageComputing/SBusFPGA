@@ -10,19 +10,17 @@ prime_string = "$2^{{255}}-19$"  # 2\ :sup:`255`-19
 field_latex = "$\mathbf{{F}}_{{{{2^{{255}}}}-19}}$"
 
 opcode_bits = 5  # number of bits used to encode the opcode field
-opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shift a
+opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shift a/b/q (star)
     "UDF" : [-1, "Placeholder for undefined opcodes"],
     "PSA" : [0, "Wd $\gets$ Ra  // pass A"],
-    "PSB" : [1, "Wd $\gets$ Rb  // pass B"],
+    "PSB" : [1, "Wd $\gets$ Rb  // pass B"], # for star version mostly
     # 2 MSK
     "XOR" : [3, "Wd $\gets$ Ra ^ Rb  // bitwise XOR"],
     "NOT" : [4, "Wd $\gets$ ~Ra   // binary invert"],
-    "ADD32" : [5, "Wd[x..x+32] $\gets$ Ra[x..x+32] + Rb[x..x+32] // vector 32-bit binary add"],
-    "SUB32" : [6, "Wd[x..x+32] $\gets$ Ra[x..x+32] - Rb[x..x+32] // vector 32-bit binary add"],
-    #"ADD" : [5, "Wd $\gets$ Ra + Rb  // 256-bit binary add"],
-    #"SUB" : [6, "Wd $\gets$ Ra - Rb  // 256-bit binary subtraction"],
+    "ADD32V" : [5, "Wd[x..x+32] $\gets$ Ra[x..x+32] + Rb[x..x+32] // vector 32-bit binary add"],
+    "SUB32V" : [6, "Wd[x..x+32] $\gets$ Ra[x..x+32] - Rb[x..x+32] // vector 32-bit binary add"],
     "AND" : [7, "Wd $\gets$ Ra & Rb  // bitwise AND"], # replace MUL
-    "BRNZ" : [8, "If Ra != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero"], # replace TRD
+    "BRNZ32" : [8, "If Ra[0:32] != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero"], # replace TRD
     "BRZ" : [9, "If Ra == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero"],
     "FIN" : [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
     "SHL" : [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
@@ -331,7 +329,7 @@ passthrough.
 
 class ExecAddSub(ExecUnit, AutoDoc):
     def __init__(self, width=256):
-        ExecUnit.__init__(self, width, ["ADD32", "SUB32"])
+        ExecUnit.__init__(self, width, ["ADD32V", "SUB32V"])
         self.notes = ModuleDoc(title="Add/Sub ExecUnit Subclass", body=f"""
         """)
 
@@ -340,9 +338,9 @@ class ExecAddSub(ExecUnit, AutoDoc):
             self.instruction_out.eq(self.instruction_in),
         ]
         self.comb += [
-            If(self.instruction.opcode == opcodes["ADD32"][0],
+            If(self.instruction.opcode == opcodes["ADD32V"][0],
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] + self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
-            ).Elif(self.instruction.opcode == opcodes["SUB32"][0],
+            ).Elif(self.instruction.opcode == opcodes["SUB32V"][0],
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] - self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
             ),
         ]
@@ -1057,8 +1055,8 @@ Here are the currently implemented opcodes for The Engine:
         seq.act("EXEC", # not a great name. This is actually where the register file fetches its contents.
             If(instruction.opcode == opcodes["BRZ"][0],
                 NextState("DO_BRZ"),
-            ).Elif(instruction.opcode == opcodes["BRNZ"][0],
-                NextState("DO_BRNZ"),
+            ).Elif(instruction.opcode == opcodes["BRNZ32"][0],
+                NextState("DO_BRNZ32"),
             ).Elif(instruction.opcode == opcodes["FIN"][0],
                 NextState("IDLE"),
                 NextValue(running, 0),
@@ -1107,8 +1105,8 @@ Here are the currently implemented opcodes for The Engine:
                 )
             ),
         )
-        seq.act("DO_BRNZ",
-            If(ra_dat != 0,
+        seq.act("DO_BRNZ32",
+            If(ra_dat[0:32] != 0,
                 If( (sext_immediate + mpc + 1 < mpc_stop) & (sext_immediate + mpc + 1 >= self.mpstart.fields.mpstart), # validate new PC is in range
                     NextState("FETCH"),
                     NextValue(mpc, sext_immediate + mpc + 1),

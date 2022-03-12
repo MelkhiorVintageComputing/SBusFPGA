@@ -25,7 +25,7 @@ fn main() -> std::io::Result<()> {
 				// slow
 				setmq %31, %1, #16
 				and %5, %2, #15
-				sub32 %6, %2, %5
+				sub32v %6, %2, %5
 				brz done, %6
 		loop:
 			psa %18, %16
@@ -33,7 +33,7 @@ fn main() -> std::io::Result<()> {
 				psa* %17, %16
 			psa %20, %17
 				store128inc %31, %2, %17
-				sub32 %6, %6, #16
+				sub32v %6, %6, #16
 				brz last, %6
 				loadh128inc %16, %0, %16
 				loadh128inc %17, %1, %17
@@ -72,16 +72,16 @@ fn main() -> std::io::Result<()> {
 				// store to DST w/ post-increment
 				store256inc %31, %1, %7
 				// sub 32 (#5 is 32...) from live X count
-				sub32 %5, %5, #5
+				sub32v %5, %5, #5
 				// if X count is not 0, keep looping
-				brnz loop_x, %5
+				brnz32 loop_x, %5
 
 				// decrement Y count
-				sub32 %3, %3, #1
+				sub32v %3, %3, #1
 				// if 0, finished
 				brz done, %3
 				// add strides to initial addresses
-				add32 %0, %0, %4
+				add32v %0, %0, %4
 				// loop to do next line
 				brz loop_y, #0
 		done:
@@ -112,16 +112,16 @@ fn main() -> std::io::Result<()> {
 				// store to DST w/ post-increment
 				store128inc %31, %1, %7
 				// sub 16 (#16 is 16) from live X count
-				sub32 %5, %5, #16
+				sub32v %5, %5, #16
 				// if X count is not 0, keep looping
-				brnz loop_x, %5
+				brnz32 loop_x, %5
 
 				// decrement Y count
-				sub32 %3, %3, #1
+				sub32v %3, %3, #1
 				// if 0, finished
 				brz done, %3
 				// add strides to initial addresses
-				add32 %0, %0, %4
+				add32v %0, %0, %4
 				// loop to do next line
 				brz loop_y, #0
 		done:
@@ -151,16 +151,16 @@ fn main() -> std::io::Result<()> {
 				// store to DST w/ post-increment
 				store128inc %31, %0, %1
 				// sub 16 (#16 is 16) from live X count
-				sub32 %5, %5, #16
+				sub32v %5, %5, #16
 				// if X count is not 0, keep looping
-				brnz loop_x, %5
+				brnz32 loop_x, %5
 
 				// decrement Y count
-				sub32 %3, %3, #1
+				sub32v %3, %3, #1
 				// if 0, finished
 				brz done, %3
 				// add strides to initial addresses
-				add32 %0, %0, %4
+				add32v %0, %0, %4
 				// loop to do next line
 				brz loop_y, #0
 		done:

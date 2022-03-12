@@ -133,8 +133,8 @@ static void goblin_reset(struct goblin_softc *);
 static int init_programs(struct goblin_softc *sc);
 static int power_on(struct goblin_softc *sc);
 static int power_off(struct goblin_softc *sc);
-static int scroll(struct goblin_softc *sc, int y0, int y1, int x0, int w, int n);
-static int fill(struct goblin_softc *sc, int y0, int pat, int x0, int w, int n);
+static int jareth_scroll(struct goblin_softc *sc, int y0, int y1, int x0, int w, int n);
+static int jareth_fill(struct goblin_softc *sc, int y0, int pat, int x0, int w, int n);
 static const uint32_t program_scroll128[12] = { 0x407c0012,0x00140080,0x201c0013,0x60fc7013,0x00170146,0xfe000148,0x000e10c6,0x010000c9,0x00004005,0xfb000809,0x0000000a,0x0000000a };
 static const uint32_t program_fill128[12] =   { 0x407c0012,0x00140080,0x607c1013,0x00170146,0xfe800148,0x000e10c6,0x010000c9,0x00004005,0xfb800809,0x0000000a,0x0000000a,0x0000000a };
 
@@ -361,13 +361,13 @@ goblinioctl(dev_t dev, u_long cmd, void *data, int flags, struct lwp *l)
 
 	case GOBLIN_SCROLL: {
 		struct scrolltest *st = (struct scrolltest *)data;
-		scroll(sc, st->y0, st->y1, st->x0, st->w, st->n);
+		jareth_scroll(sc, st->y0, st->y1, st->x0, st->w, st->n);
 	}
 		break;
 
 	case GOBLIN_FILL: {
 		struct scrolltest *st = (struct scrolltest *)data;
-		fill(sc, st->y0, st->y1, st->x0, st->w, st->n);
+		jareth_fill(sc, st->y0, st->y1, st->x0, st->w, st->n);
 	}
 		break;
 
@@ -726,32 +726,39 @@ goblin_reset(struct goblin_softc *sc)
 #define REG_BASE(reg) (base + (reg * 32))
 #define SUBREG_ADDR(reg, off) (REG_BASE(reg) + (off)*4)
 
-static int start_job(struct goblin_softc *sc);
-static int wait_job(struct goblin_softc *sc, uint32_t param);
+static int start_job(struct goblin_softc *sc, int verbose);
+static int wait_job(struct goblin_softc *sc, uint32_t param, int verbose);
 
-static int scroll(struct goblin_softc *sc, int y0, int y1, int x0, int w, int n) {
+static int jareth_scroll(struct goblin_softc *sc, int y0, int y1, int x0, int w, int n) {
 	const uint32_t base = 0;
 	const int pidx = 0;
 	int i;
 
 	power_on(sc);
 
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (0x8f800000 + y1 * sc->sc_stride + x0));
+	if (y0 > y1) {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0)); /* fixme: replace 0x8f800000 by a prom attributes */
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (0x8f800000 + y1 * sc->sc_stride + x0));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (sc->sc_stride));
+	} else {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0 + (n-1) * sc->sc_stride)); /* fixme: replace 0x8f800000 by a prom attributes */
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (0x8f800000 + y1 * sc->sc_stride + x0 + (n-1) * sc->sc_stride));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (-sc->sc_stride));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (-sc->sc_stride));
+	}
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
 	for (i = 1 ; i < 8 ; i++) {
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0);
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0);
 	}
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (sc->sc_stride));
 	jareth_mpstart_write(sc, program_offset[pidx]);
 	jareth_mplen_write(sc, program_len[pidx]);
 	
-	(void)start_job(sc);
+	(void)start_job(sc, 0);
 	delay(1);
-	(void)wait_job(sc, 2);
+	(void)wait_job(sc, 2, 0);
 
 	power_off(sc);
 
@@ -759,7 +766,7 @@ static int scroll(struct goblin_softc *sc, int y0, int y1, int x0, int w, int n)
 }
 
 
-static int fill(struct goblin_softc *sc, int y0, int pat, int x0, int w, int n) {
+static int jareth_fill(struct goblin_softc *sc, int y0, int pat, int x0, int w, int n) {
 	const uint32_t base = 0;
 	const int pidx = 1;
 	int i;
@@ -780,9 +787,9 @@ static int fill(struct goblin_softc *sc, int y0, int pat, int x0, int w, int n) 
 	jareth_mpstart_write(sc, program_offset[pidx]);
 	jareth_mplen_write(sc, program_len[pidx]);
 	
-	(void)start_job(sc);
+	(void)start_job(sc, 0);
 	delay(1);
-	(void)wait_job(sc, 1);
+	(void)wait_job(sc, 1, 0);
 
 	power_off(sc);
 
@@ -827,7 +834,7 @@ jareth_copyrows(void *cookie, int src, int dst, int n)
 	/* int x3 = ri->ri_xorigin + ri->ri_emuwidth - 1; */
 	/* int y3 = ri->ri_yorigin + dst + n - 1; */
 
-	scroll(sc, y0, y2, x0, ri->ri_emuwidth, n);
+	jareth_scroll(sc, y0, y2, x0, ri->ri_emuwidth, n);
 
 #if 0
 	if (y0 > y2) {
@@ -852,10 +859,11 @@ jareth_copyrows(void *cookie, int src, int dst, int n)
 #endif
 }
 
-static int start_job(struct goblin_softc *sc) {
+static int start_job(struct goblin_softc *sc, int verbose) {
 	uint32_t status = jareth_status_read(sc);
 	if (status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) {
-		aprint_error_dev(sc->sc_dev, "START - Jareth status: 0x%08x, still running?\n", status);
+		if (verbose)
+			aprint_error_dev(sc->sc_dev, "START - Jareth status: 0x%08x, still running?\n", status);
 		return ENXIO;
 	}
 	jareth_control_write(sc, 1);
@@ -864,10 +872,10 @@ static int start_job(struct goblin_softc *sc) {
 	return 0;
 }
 
-static int wait_job(struct goblin_softc *sc, uint32_t param) {
+static int wait_job(struct goblin_softc *sc, uint32_t param, int verbose) {
 	uint32_t status = jareth_status_read(sc);
 	int count = 0;
-	int max_count = 2000;
+	int max_count = 3000;
 	int del = 1;
 	const int max_del = 64;
 	static int max_del_seen = 1;
@@ -883,23 +891,27 @@ static int wait_job(struct goblin_softc *sc, uint32_t param) {
 	}
 	if (del > max_del_seen) {
 		max_del_seen = del;
-		aprint_normal_dev(sc->sc_dev, "WAIT - new max delay %d after %d count (param was %u)\n", max_del_seen, count, param);
+		if (verbose)
+			aprint_normal_dev(sc->sc_dev, "WAIT - new max delay %d after %d count (param was %u)\n", max_del_seen, count, param);
 	}
 	if (count > max_cnt_seen) {
 		max_cnt_seen = count;
-		aprint_normal_dev(sc->sc_dev, "WAIT - new max count %d with %d delay (param was %u)\n", max_cnt_seen, del, param);
-		
+		if (verbose)
+			aprint_normal_dev(sc->sc_dev, "WAIT - new max count %d with %d delay (param was %u)\n", max_cnt_seen, del, param);
 	}
 	
 	//jareth_control_write(sc, 0);
 	if (status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) {
-		aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x (pc 0x%08x), did not finish in time? [inst: 0x%08x ls_status: 0x%08x]\n", status, (status>>1)&0x03ff, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
+		if (verbose)
+			aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x (pc 0x%08x), did not finish in time? [inst: 0x%08x ls_status: 0x%08x]\n", status, (status>>1)&0x03ff, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
 		return ENXIO;
 	} else if (status & (1<<CSR_JARETH_STATUS_SIGILL_OFFSET)) {
-		aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, sigill [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
+		if (verbose)
+			aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, sigill [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
 		return ENXIO;
 	} else if (status & (1<<CSR_JARETH_STATUS_ABORT_OFFSET)) {
-		aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, aborted [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
+		if (verbose)
+			aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, aborted [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
 		return ENXIO;
 	} else {
 		//aprint_normal_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x [%d] ls_status: 0x%08x\n", status, count, jareth_ls_status_read(sc));
