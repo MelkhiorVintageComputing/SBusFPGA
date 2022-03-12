@@ -72,6 +72,7 @@ static void	goblin_set_video(struct goblin_softc *, int);
 static int	goblin_get_video(struct goblin_softc *);
 
 static void jareth_copyrows(void *, int, int, int);
+static void jareth_eraserows(void *, int, int, long int);
 
 dev_type_open(goblinopen);
 dev_type_close(goblinclose);
@@ -682,6 +683,7 @@ goblin_init_screen(void *cookie, struct vcons_screen *scr,
 	ri->ri_hw = scr;
 	if (sc->sc_has_jareth) {
 		ri->ri_ops.copyrows = jareth_copyrows;
+		ri->ri_ops.eraserows = jareth_eraserows;
 		device_printf(sc->sc_dev, "Jareth enabled\n");
 	}
 }
@@ -736,7 +738,7 @@ static int wait_job(struct goblin_softc *sc, uint32_t param, enum jareth_verbosi
 static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n) {
 	const uint32_t base = 0;
 	const int pidx = 0;
-	int i;
+	/* int i; */
 
 	power_on(sc);
 
@@ -753,10 +755,10 @@ static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose,
 	}
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
-	for (i = 1 ; i < 8 ; i++) {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0);
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0);
-	}
+	/* for (i = 1 ; i < 8 ; i++) { */
+	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
+	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
+	/* } */
 	jareth_mpstart_write(sc, program_offset[pidx]);
 	jareth_mplen_write(sc, program_len[pidx]);
 	
@@ -783,10 +785,10 @@ static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, i
 	}
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
-	for (i = 1 ; i < 8 ; i++) {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0);
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0);
-	}
+	/* for (i = 1 ; i < 8 ; i++) { */
+	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
+	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
+	/* } */
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
 	jareth_mpstart_write(sc, program_offset[pidx]);
 	jareth_mplen_write(sc, program_len[pidx]);
@@ -827,7 +829,6 @@ jareth_copyrows(void *cookie, int src, int dst, int n)
 	n *= ri->ri_font->fontheight;
 	src *= ri->ri_font->fontheight;
 	dst *= ri->ri_font->fontheight;
-
 	
 	int x0 = ri->ri_xorigin;
 	int y0 = ri->ri_yorigin + src;
@@ -839,28 +840,35 @@ jareth_copyrows(void *cookie, int src, int dst, int n)
 	/* int y3 = ri->ri_yorigin + dst + n - 1; */
 
 	jareth_scroll(sc, jareth_silent, y0, y2, x0, ri->ri_emuwidth, n);
+}
 
-#if 0
-	if (y0 > y2) {
-		int x, y;
-		for (y = 0 ; y < n ; y++) {
-			for (x = x0 & ~3 ; x < x1 ; x+= 4) {
-				uint32_t* srcadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y0 + y) * sc->sc_stride + x);
-				uint32_t* dstadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y2 + y) * sc->sc_stride + x);
-				*dstadr = *srcadr;
-			}
-		}
-	} else {
-		int x, y;
-		for (y = n-1 ; y >= 0 ; y--) {
-			for (x = x0 & ~3; x < x1 ; x+= 4) {
-				uint32_t* srcadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y0 + y) * sc->sc_stride + x);
-				uint32_t* dstadr = (uint32_t*)(((uint8_t*)sc->sc_fb.fb_pixels) + (y2 + y) * sc->sc_stride + x);
-				*dstadr = *srcadr;
-			}
-		}
+static void
+jareth_eraserows(void *cookie, int row, int n, long int attr)
+{
+	struct rasops_info *ri = cookie;
+	struct vcons_screen *scr = ri->ri_hw;
+	struct goblin_softc *sc = scr->scr_cookie;
+	uint32_t pat;
+
+	if (row < 0) {
+		n += row;
+		row = 0;
 	}
-#endif
+	if (row+n > ri->ri_rows)
+		n = ri->ri_rows - row;
+	if (n <= 0)
+		return;
+
+	pat = ri->ri_devcmap[(attr >> 16) & 0xff];
+	pat |= pat << 8;
+	pat |= pat << 16;
+	
+	if ((n == ri->ri_rows) && (ri->ri_flg & RI_FULLCLEAR)) {
+		(void)jareth_fill(sc, jareth_silent, 0, pat, 0, ri->ri_width, ri->ri_height);
+	} else {
+		row *= ri->ri_font->fontheight;
+		(void)jareth_fill(sc, jareth_silent, ri->ri_yorigin + row, pat, ri->ri_xorigin, ri->ri_emuwidth, n * ri->ri_font->fontheight);
+	}
 }
 
 static int start_job(struct goblin_softc *sc, enum jareth_verbosity verbose) {

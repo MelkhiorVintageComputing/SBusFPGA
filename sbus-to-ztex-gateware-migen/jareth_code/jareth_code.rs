@@ -26,7 +26,7 @@ fn main() -> std::io::Result<()> {
 				setmq %31, %1, #16
 				and %5, %2, #15
 				sub32v %6, %2, %5
-				brz done, %6
+				brz32 done, %6
 		loop:
 			psa %18, %16
 			psa %19, %17
@@ -34,10 +34,10 @@ fn main() -> std::io::Result<()> {
 			psa %20, %17
 				store128inc %31, %2, %17
 				sub32v %6, %6, #16
-				brz last, %6
+				brz32 last, %6
 				loadh128inc %16, %0, %16
 				loadh128inc %17, %1, %17
-				brz loop, #0
+				brz32 loop, #0
 		last:
 				// FIXME: not if Q is aligned
 				loadh128inc %17, %1, %17
@@ -79,11 +79,11 @@ fn main() -> std::io::Result<()> {
 				// decrement Y count
 				sub32v %3, %3, #1
 				// if 0, finished
-				brz done, %3
+				brz32 done, %3
 				// add strides to initial addresses
 				add32v %0, %0, %4
 				// loop to do next line
-				brz loop_y, #0
+				brz32 loop_y, #0
 		done:
 				fin
 				fin
@@ -119,11 +119,11 @@ fn main() -> std::io::Result<()> {
 				// decrement Y count
 				sub32v %3, %3, #1
 				// if 0, finished
-				brz done, %3
+				brz32 done, %3
 				// add strides to initial addresses
 				add32v %0, %0, %4
 				// loop to do next line
-				brz loop_y, #0
+				brz32 loop_y, #0
 		done:
 				fin
 				fin
@@ -158,11 +158,11 @@ fn main() -> std::io::Result<()> {
 				// decrement Y count
 				sub32v %3, %3, #1
 				// if 0, finished
-				brz done, %3
+				brz32 done, %3
 				// add strides to initial addresses
 				add32v %0, %0, %4
 				// loop to do next line
-				brz loop_y, #0
+				brz32 loop_y, #0
 		done:
 				fin
 				fin

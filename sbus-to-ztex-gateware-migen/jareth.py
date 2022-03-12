@@ -21,7 +21,7 @@ opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shif
     "SUB32V" : [6, "Wd[x..x+32] $\gets$ Ra[x..x+32] - Rb[x..x+32] // vector 32-bit binary add"],
     "AND" : [7, "Wd $\gets$ Ra & Rb  // bitwise AND"], # replace MUL
     "BRNZ32" : [8, "If Ra[0:32] != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero"], # replace TRD
-    "BRZ" : [9, "If Ra == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero"],
+    "BRZ32" : [9, "If Ra[0:32] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero"],
     "FIN" : [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
     "SHL" : [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
     # 12 XBT
@@ -1144,8 +1144,8 @@ Here are the currently implemented opcodes for The Engine:
             )
         )
         seq.act("EXEC", # not a great name. This is actually where the register file fetches its contents.
-            If(instruction.opcode == opcodes["BRZ"][0],
-                NextState("DO_BRZ"),
+            If(instruction.opcode == opcodes["BRZ32"][0],
+                NextState("DO_BRZ32"),
             ).Elif(instruction.opcode == opcodes["BRNZ32"][0],
                 NextState("DO_BRNZ32"),
             ).Elif(instruction.opcode == opcodes["FIN"][0],
@@ -1174,8 +1174,8 @@ Here are the currently implemented opcodes for The Engine:
             NextValue(running, 0),
             illegal_opcode.eq(1),
         )
-        seq.act("DO_BRZ",
-            If(ra_dat == 0,
+        seq.act("DO_BRZ32",
+            If(ra_dat[0:32] == 0,
                 If( (sext_immediate + mpc + 1 < mpc_stop) & (sext_immediate + mpc + 1 >= self.mpstart.fields.mpstart), # validate new PC is in range
                     NextState("FETCH"),
                     NextValue(mpc, sext_immediate + mpc + 1),
