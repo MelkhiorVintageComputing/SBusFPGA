@@ -23,8 +23,6 @@ from sbus_to_fpga_fsmstat import *
 from sbus_to_fpga_blk_dma import *
 from sbus_to_fpga_trng import *
 
-from litedram.frontend.dma import *
-
 from engine import Engine
 from migen.genlib.cdc import BusSynchronizer
 from migen.genlib.resetsync import AsyncResetSynchronizer
@@ -551,7 +549,7 @@ class SBusFPGA(SoCCore):
 
         if (jareth):
             from jareth import Jareth;
-            self.submodules.jareth = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Jareth(platform=platform,prefix=self.mem_map.get("jareth", None))) # , "sys":"clk100"
+            self.submodules.jareth = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Jareth(platform=platform,prefix=self.mem_map.get("jareth", None), memoryport=self.sdram.crossbar.get_port(mode="both", data_width=128))) # , "sys":"clk100"
             self.bus.add_slave("jareth", self.jareth.bus, SoCRegion(origin=self.mem_map.get("jareth", None), size=0x20000, cached=False))
             self.bus.add_master(name="jarethLS", master=self.jareth.busls) # Jareth doesn't need the DVMA
             if (not engine):

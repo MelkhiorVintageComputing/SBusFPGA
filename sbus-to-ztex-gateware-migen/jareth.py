@@ -346,7 +346,7 @@ class ExecAddSub(ExecUnit, AutoDoc):
         ]
 
 class ExecLS(ExecUnit, AutoDoc):
-    def __init__(self, width=256, interface=None, r_dat_f=None, r_dat_m=None, granule=0):
+    def __init__(self, width=256, interface=None, memoryport=None, r_dat_f=None, r_dat_m=None, granule=0):
         ExecUnit.__init__(self, width, ["MEM", "SETM", "ADR", "LOADH", "GETM"])
         
         self.notes = ModuleDoc(title=f"Load/Store ExecUnit Subclass", body=f"""
@@ -357,7 +357,9 @@ class ExecLS(ExecUnit, AutoDoc):
         ]
 
         assert(width == 256) # fixme
-        assert(len(interface.sel) == 16) # 128 bits Wishbone
+        assert((len(interface.sel) == 16)) # 128 bits Wishbone
+        assert((len(memoryport.rdata.data) == 128)) # 128 bits memory
+        assert((len(memoryport.wdata.data) == 128)) # 128 bits memory
 
         start_pipe = Signal()
         self.sync.mul_clk += start_pipe.eq(self.start) # break critical path of instruction decode -> SETUP_A state muxes
@@ -380,34 +382,28 @@ class ExecLS(ExecUnit, AutoDoc):
         offsetpsize = Signal(max_size_bits+1, reset = 0)
 
         addresses = Array(Signal(28) for x in range(width//32)) # 128-bits chunk, so 16-bytes chunk, so low 4 bits are ignored
+        address = Signal(28)
+
+        wishbone = Signal()
+        #if ((interface != None) and (memoryport != None)):
+        #    self.comb += [ wishbone.eq(addresses[self.instruction.immediate[0:log2_int(width//32)]][24:28] != 0x8), ] # fixme ; 0x8 is SDRAM memory map prefix
+        #else:
+        #    if (interface == None):
+        #        self.comb += [ wishbone.eq(0), ]
+        #    else: # memoryport == None
+        #        self.comb += [ wishbone.eq(1), ]
+
+        #if (memoryport != None):
+        self.comb += [ memoryport.rdata.ready.eq(1),
+                       memoryport.wdata.we.eq(Replicate(1, len(memoryport.wdata.we))), ]
 
         lsseq.act("IDLE",
                   If(start_pipe,
-                     If(self.instruction.opcode == opcodes["MEM"][0],
+                     If((self.instruction.opcode == opcodes["MEM"][0]) | (self.instruction.opcode == opcodes["LOADH"][0]),
                         NextValue(cpar, 0),
-                        NextValue(self.has_timeout, 0),
-                        NextValue(self.has_failure, 0),
-                        NextValue(interface.cyc, 1),
-                        NextValue(interface.stb, 1),
-                        NextValue(interface.sel, 2**len(interface.sel)-1),
-                        NextValue(interface.adr, addresses[self.instruction.immediate[0:log2_int(width//32)]]),
-                        NextValue(interface.we, self.instruction.immediate[7]),
-                        NextValue(timeout, 2047),
-                        If(self.instruction.immediate[7], # do we need those tests or could we always update dat_w/dat_r ?
-                           NextValue(interface.dat_w, self.b[0:128])),
-                        NextState("MEMl") # MEMl
-                     ).Elif(self.instruction.opcode == opcodes["LOADH"][0],
-                            NextValue(cpar, 0),
-                            NextValue(self.has_timeout, 0),
-                            NextValue(self.has_failure, 0),
-                            NextValue(interface.cyc, 1),
-                            NextValue(interface.stb, 1),
-                            NextValue(interface.sel, 2**len(interface.sel)-1),
-                            NextValue(interface.adr, addresses[self.instruction.immediate[0:log2_int(width//32)]]),
-                            NextValue(interface.we, self.instruction.immediate[7]),
-                            NextValue(timeout, 2047),
-                            NextValue(lbuf[0:128], self.b[128:256]),
-                            NextState("MEMh") # MEMl
+                        NextValue(address, addresses[self.instruction.immediate[0:log2_int(width//32)]]),
+                        NextValue(wishbone, ~(addresses[self.instruction.immediate[0:log2_int(width//32)]] == 0x8)),
+                        NextState("DOMEM"),
                      ).Elif(self.instruction.opcode == opcodes["SETM"][0],
                             Case(self.instruction.immediate[0:2],
                                  { 0x3 : [ NextValue(r_dat_f[0], 0),
@@ -443,6 +439,52 @@ class ExecLS(ExecUnit, AutoDoc):
                      )
                   )
         )
+        lsseq.act("DOMEM",
+                  NextValue(cpar, cpar ^ 1),
+                  If(self.instruction.opcode == opcodes["MEM"][0],
+                     NextValue(self.has_timeout, 0),
+                     NextValue(self.has_failure, 0),
+                     NextValue(timeout, 2047),
+                     If(wishbone,
+                        NextValue(interface.cyc, 1),
+                        NextValue(interface.stb, 1),
+                        NextValue(interface.sel, 2**len(interface.sel)-1),
+                        NextValue(interface.adr, address),
+                        NextValue(interface.we, self.instruction.immediate[7]),
+                        If(self.instruction.immediate[7], # do we need those tests or could we always update dat_w/dat_r ?
+                           NextValue(interface.dat_w, self.b[0:128])),
+                        NextState("MEMl") # MEMl
+                     ).Else(
+                         memoryport.cmd.we.eq(self.instruction.immediate[7]),
+                         memoryport.cmd.addr.eq(address[0:]),
+                         memoryport.cmd.valid.eq(1),
+                         If(memoryport.cmd.ready,
+                            NextState("MEMl")
+                         )
+                     ),
+                  ).Elif(self.instruction.opcode == opcodes["LOADH"][0],
+                         NextValue(cpar, 0),
+                         NextValue(self.has_timeout, 0),
+                         NextValue(self.has_failure, 0),
+                         NextValue(timeout, 2047),
+                         NextValue(lbuf[0:128], self.b[128:256]),
+                         If(wishbone,
+                            NextValue(interface.cyc, 1),
+                            NextValue(interface.stb, 1),
+                            NextValue(interface.sel, 2**len(interface.sel)-1),
+                            NextValue(interface.adr, address),
+                            NextValue(interface.we, self.instruction.immediate[7]),
+                            NextState("MEMh") # MEMl
+                         ).Else(
+                             memoryport.cmd.we.eq(self.instruction.immediate[7]),
+                             memoryport.cmd.addr.eq(address[0:]),
+                             memoryport.cmd.valid.eq(1),
+                             If(memoryport.cmd.ready,
+                                NextState("MEMh")
+                             )
+                         )
+                  )
+        )
         for X in range(0, granule_num):
             lsseq.act("GENMASK_R" + str(X),
                       NextValue(cpar, cpar ^ 1),
@@ -469,20 +511,28 @@ class ExecLS(ExecUnit, AutoDoc):
                       NextState("MEM_EVEN1")
                   )
         )
-            
         lsseq.act("MEMl",
                   NextValue(cpar, cpar ^ 1),
-                  If(interface.ack,
+                  If(wishbone & interface.ack,
                      If(~self.instruction.immediate[7],
                         NextValue(lbuf[0:128], interface.dat_r)),
                      NextValue(interface.cyc, 0),
                      NextValue(interface.stb, 0),
                      NextState("MEMl2")
-                  ).Elif(interface.err,
+                  ).Elif(wishbone & interface.err,
                          NextValue(self.has_failure[0], 1),
                          NextValue(interface.cyc, 0),
                          NextValue(interface.stb, 0),
                          NextState("ERR"),
+                  ).Elif(~wishbone & ~self.instruction.immediate[7] & memoryport.rdata.valid,
+                         NextValue(lbuf[0:128], memoryport.rdata.data),
+                         NextState("MEMl2"),
+                  ).Elif(~wishbone & self.instruction.immediate[7],
+                         memoryport.wdata.data.eq(self.b[0:128]),
+                         memoryport.wdata.valid.eq(1),
+                         If(memoryport.wdata.ready,
+                            NextState("MEMl2"),
+                         ),
                   ).Elif(timeout == 0,
                          NextValue(self.has_timeout[0], 1),
                          NextValue(interface.cyc, 0),
@@ -491,7 +541,7 @@ class ExecLS(ExecUnit, AutoDoc):
                   ))
         lsseq.act("MEMl2",
                   NextValue(cpar, cpar ^ 1),
-                  If(~interface.ack,
+                  If(wishbone & ~interface.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
                      ),
@@ -499,7 +549,7 @@ class ExecLS(ExecUnit, AutoDoc):
                         NextValue(interface.cyc, 1),
                         NextValue(interface.stb, 1),
                         NextValue(interface.sel, 2**len(interface.sel)-1),
-                        NextValue(interface.adr, (addresses[self.instruction.immediate[0:log2_int(width//32)]]) + 1),
+                        NextValue(interface.adr, address + 1),
                         NextValue(interface.we, self.instruction.immediate[7]),
                         NextValue(timeout, 2047),
                         If(self.instruction.immediate[7],
@@ -513,20 +563,52 @@ class ExecLS(ExecUnit, AutoDoc):
                              NextState("MEM_EVEN1")
                          )
                      )
+                  ).Elif(~wishbone,
+                         If(self.instruction.immediate[8],
+                            memoryport.cmd.we.eq(self.instruction.immediate[7]),
+                            memoryport.cmd.addr.eq(address[0:] + 1),
+                            memoryport.cmd.valid.eq(1),
+                            NextValue(timeout, 2047),
+                            If(memoryport.cmd.ready,
+                               If(self.instruction.immediate[6], # post-inc
+                                  NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                               ),
+                               NextState("MEMh"),
+                            )
+                         ).Else( # no high
+                             If(self.instruction.immediate[6], # post-inc
+                                NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                             ),
+                             NextValue(lbuf[128:256], 0),
+                             If(cpar, ## checkme
+                                NextState("MEM_ODD")
+                             ).Else(
+                                 NextState("MEM_EVEN1")
+                             )
+                         ),
                   ))
         lsseq.act("MEMh",
                   NextValue(cpar, cpar ^ 1),
-                  If(interface.ack,
+                  If(wishbone & interface.ack,
                      If(~self.instruction.immediate[7],
                         NextValue(lbuf[128:256], interface.dat_r)),
                      NextValue(interface.cyc, 0),
                      NextValue(interface.stb, 0),
                      NextState("MEMh2")
-                  ).Elif(interface.err,
+                  ).Elif(wishbone & interface.err,
                          NextValue(self.has_failure[1], 1),
                          NextValue(interface.cyc, 0),
                          NextValue(interface.stb, 0),
                          NextState("ERR"),
+                  ).Elif(~wishbone & ~self.instruction.immediate[7] & memoryport.rdata.valid,
+                         NextValue(lbuf[128:256], memoryport.rdata.data),
+                         NextState("MEMh2"),
+                  ).Elif(~wishbone & self.instruction.immediate[7],
+                         memoryport.wdata.data.eq(self.b[128:256]),
+                         memoryport.wdata.valid.eq(1),
+                         If(memoryport.wdata.ready,
+                            NextState("MEMh2"),
+                         ),
                   ).Elif(timeout == 0,
                          NextValue(self.has_timeout[1], 1),
                          NextValue(interface.cyc, 0),
@@ -535,7 +617,7 @@ class ExecLS(ExecUnit, AutoDoc):
                   ))
         lsseq.act("MEMh2",
                   NextValue(cpar, cpar ^ 1),
-                  If(~interface.ack,
+                  If(wishbone & ~interface.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
                      ),
@@ -545,6 +627,15 @@ class ExecLS(ExecUnit, AutoDoc):
                      ).Else(
                         NextState("MEM_EVEN1")
                      )
+                  ).Elif(~wishbone,
+                         If(self.instruction.immediate[6], # post-inc
+                            NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                         ),
+                         If(cpar, ## checkme
+                            NextState("MEM_ODD")
+                         ).Else(
+                             NextState("MEM_EVEN1")
+                         )
                   ))
         lsseq.act("MEM_ODD", # clock alignement cycle
                   NextState("MEM_EVEN1"))
@@ -617,7 +708,7 @@ class ExecLS(ExecUnit, AutoDoc):
 
         
 class Jareth(Module, AutoCSR, AutoDoc):
-    def __init__(self, platform, prefix, sim=False, build_prefix=""):
+    def __init__(self, platform, prefix, memoryport, sim=False, build_prefix=""):
         opdoc = "\n"
         for mnemonic, description in opcodes.items():
             opdoc += f" * **{mnemonic}** ({str(description[0])}) -- {description[1]} \n"
@@ -1141,7 +1232,7 @@ Here are the currently implemented opcodes for The Engine:
         exec_units = {
             "exec_logic"     : ExecLogic(width=rf_width_raw),
             "exec_addsub"    : ExecAddSub(width=rf_width_raw),
-            "exec_ls"        : ExecLS(width=rf_width_raw, interface=self.busls, r_dat_f=r_dat_f, r_dat_m=r_dat_m, granule=granule),
+            "exec_ls"        : ExecLS(width=rf_width_raw, interface=self.busls, memoryport=memoryport, r_dat_f=r_dat_f, r_dat_m=r_dat_m, granule=granule),
         }
         exec_units_shift = {
             "exec_logic": True,
