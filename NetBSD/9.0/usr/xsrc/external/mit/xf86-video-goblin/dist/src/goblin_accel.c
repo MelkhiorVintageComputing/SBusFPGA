@@ -90,13 +90,13 @@ GoblinDGAInit(ScreenPtr pScreen)
     mode->bytesPerScanline = mode->imageWidth;
 
     mode->byteOrder = pScrn->imageByteOrder;
-    mode->depth = 8;
-    mode->bitsPerPixel = 8;
+    mode->depth = pScrn->depth;
+    mode->bitsPerPixel = pScrn->bitsPerPixel;
     mode->red_mask = pScrn->mask.red;
     mode->green_mask = pScrn->mask.green;
     mode->blue_mask = pScrn->mask.blue;
     
-    mode->visualClass = PseudoColor;
+    mode->visualClass = TrueColor;
     mode->address = pGoblin->fb;
 
     result = DGAInit(pScreen, &Goblin_DGAFuncs, mode, 1);

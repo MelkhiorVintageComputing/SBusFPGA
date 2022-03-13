@@ -96,7 +96,7 @@ const struct cdevsw goblin_cdevsw = {
 
 /* frame buffer generic driver */
 static struct fbdriver goblinfbdriver = {
-	goblinunblank, goblinopen, nullclose, goblinioctl, nopoll,
+	goblinunblank, goblinopen, goblinclose, goblinioctl, nopoll,
 	goblinmmap, nokqfilter
 };
 
@@ -713,16 +713,15 @@ goblin_set_depth(struct goblin_softc *sc, int depth)
 static void
 goblin_init(struct goblin_softc *sc)
 {
-	//goblin_set_depth(sc, 32);
+	goblin_set_depth(sc, 32);
 }
 
 static void
 /* Restore the state saved on goblin_init */
 goblin_reset(struct goblin_softc *sc)
 {
-	//goblin_set_depth(sc, 8);
+	goblin_set_depth(sc, 8);
 }
-
 
 #define CONFIG_CSR_DATA_WIDTH 32
 #define sbusfpga_jareth_softc goblin_softc
@@ -743,13 +742,13 @@ static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose,
 	power_on(sc);
 
 	if (y0 > y1) {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0)); /* fixme: replace 0x8f800000 by a prom attributes */
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (0x8f800000 + y1 * sc->sc_stride + x0));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (sc->sc_internal_adr + y1 * sc->sc_stride + x0));
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (sc->sc_stride));
 	} else {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0 + (n-1) * sc->sc_stride)); /* fixme: replace 0x8f800000 by a prom attributes */
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (0x8f800000 + y1 * sc->sc_stride + x0 + (n-1) * sc->sc_stride));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0 + (n-1) * sc->sc_stride));
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (sc->sc_internal_adr + y1 * sc->sc_stride + x0 + (n-1) * sc->sc_stride));
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (-sc->sc_stride));
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (-sc->sc_stride));
 	}
@@ -779,7 +778,7 @@ static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, i
 
 	power_on(sc);
 
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (0x8f800000 + y0 * sc->sc_stride + x0));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
 	for (i = 0 ; i < 8 ; i++) {
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,i), pat);
 	}

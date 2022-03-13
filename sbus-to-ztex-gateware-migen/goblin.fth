@@ -17,13 +17,16 @@
 sbusfpga_regionaddr_goblin_bt constant goblin-off-dac
 h# 20 constant /goblin-off-dac
 
-h# 800000 constant goblin-off-fb
+h# 1000000 constant goblin-off-fb
 h# SBUSFPGA_CG3_BUFSIZE constant /goblin-off-fb
+\ only map the first two MiB
+h# 200000 constant /goblin-mapped-fb
+h# 8f000000 constant goblin-internal-fb
 
 : goblin-reg
   my-address sbusfpga_regionaddr_goblin_bt + my-space encode-phys /goblin-off-dac encode-int encode+
   my-address goblin-off-fb + my-space encode-phys encode+ /goblin-off-fb encode-int encode+
-  h# 1 goblin_has_jareth = if
+  h# 1 goblin-has-jareth = if
     my-address sbusfpga_csraddr_jareth + my-space encode-phys encode+ h# 1000 encode-int encode+
     my-address sbusfpga_regionaddr_jareth-microcode + my-space encode-phys encode+ h# 1000 encode-int encode+
     my-address sbusfpga_regionaddr_jareth-regfile + my-space encode-phys encode+ h# 1000 encode-int encode+
@@ -76,11 +79,11 @@ headerless
 ;
 
 : fb-map
-  goblin-off-fb /goblin-off-fb do-map-in to fb-addr
+  goblin-off-fb /goblin-mapped-fb do-map-in to fb-addr
 ;
 
 : fb-unmap
-  goblin-off-fb /goblin-off-fb do-map-out
+  goblin-off-fb /goblin-mapped-fb do-map-out
   -1 to fb-addr
 ;
 
@@ -147,8 +150,10 @@ headerless
   " RDOL" encode-string " manufacturer" property
   " ISO8859-1" encode-string " character-set" property
   h# c encode-int " cursorshift" property
+  /goblin-mapped-fb h# 14 >> encode-int " vmmapped" property
   /goblin-off-fb h# 14 >> encode-int " vmsize" property
-  goblin_has_jareth encode-int " goblin_has_jareth" property
+  goblin-internal-fb encode-int " goblin-internal-fb" property
+  goblin-has-jareth encode-int " goblin-has-jareth" property
   
   map-regs
   h# 0 h# 4 dac! \ disable irq

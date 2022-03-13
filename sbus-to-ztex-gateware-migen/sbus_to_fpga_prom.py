@@ -223,7 +223,7 @@ def get_prom(soc,
                 r += ": sbusfpga_regionaddr_jareth-microcode sbusfpga_regionaddr_jareth ;\n"
                 r += ": sbusfpga_regionaddr_jareth-regfile sbusfpga_regionaddr_jareth h# 10000 + ;\n"
                 r += get_header_mapx_stuff("jareth", [ "jareth", "jareth-microcode", "jareth-regfile" ], [ 4096, 4096, 4096 ], ["csr", "region", "region" ], doreg=False )
-                r += "h# 1 constant goblin_has_jareth\n"
+                r += "h# 1 constant goblin-has-jareth\n"
                 r += "fload goblin_jareth_define.fth\n"
                 r += "fload goblin_jareth_init.fth\n"
             else:
@@ -231,7 +231,7 @@ def get_prom(soc,
                 r += "h# -1 constant sbusfpga_csraddr_jareth\n"
                 r += "h# -1 constant sbusfpga_regionaddr_jareth-microcode\n"
                 r += "h# -1 constant sbusfpga_regionaddr_jareth-regfile\n"
-                r += "h# 0 constant goblin_has_jareth\n"
+                r += "h# 0 constant goblin-has-jareth\n"
         
         if (bw2):
             cg3_file = open("bw2.fth")

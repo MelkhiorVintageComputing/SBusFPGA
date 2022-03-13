@@ -27,6 +27,7 @@
 #endif
 
 #include <string.h>
+#include <sys/ioctl.h>
 
 #include "goblin.h"
 #include "xf86.h"
@@ -39,6 +40,29 @@
 
 #include "compat-api.h"
 
+/*
+
+
+                                                     0011 src
+                                                     0101 dst
+GXclear				0x0 	0                        0000
+GXand				0x1 	src AND dst              0001
+GXandReverse		0x2 	src AND NOT dst          0010
+GXcopy				0x3 	src                      0011
+GXandInverted		0x4 	(NOT src) AND dst        0100
+GXnoop				0x5 	dst                      0101
+GXxor				0x6 	src XOR dst              0110
+GXor				0x7 	src OR dst               0111
+GXnor				0x8 	(NOT src) AND (NOT dst)  1000
+GXequiv				0x9 	(NOT src) XOR dst        1001
+GXinvert			0xa 	NOT dst                  1010
+GXorReverse			0xb 	src OR (NOT dst)         1011
+GXcopyInverted		0xc 	NOT src                  1100
+GXorInverted		0xd 	(NOT src) OR dst         1101
+GXnand				0xe 	(NOT src) OR (NOT dst)   1110
+GXset				0xf 	1                        1111
+*/
+
 static const OptionInfoRec * GOBLINAvailableOptions(int chipid, int busid);
 static void	GOBLINIdentify(int flags);
 static Bool	GOBLINProbe(DriverPtr drv, int flags);
@@ -48,6 +72,8 @@ static Bool	GOBLINEnterVT(VT_FUNC_ARGS_DECL);
 static void	GOBLINLeaveVT(VT_FUNC_ARGS_DECL);
 static Bool	GOBLINCloseScreen(CLOSE_SCREEN_ARGS_DECL);
 static Bool	GOBLINSaveScreen(ScreenPtr pScreen, int mode);
+static void	GOBLINInitCplane24(ScrnInfoPtr pScrn);
+static void	GOBLINExitCplane24(ScrnInfoPtr pScrn);
 
 /* Required if the driver supports mode switching */
 static Bool	GOBLINSwitchMode(SWITCH_MODE_ARGS_DECL);
@@ -328,7 +354,7 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
     /*********************
     deal with depth
     *********************/
-    
+#if 0
     if (!xf86SetDepthBpp(pScrn, 8, 0, 0, NoDepth24Support)) {
 	return FALSE;
     } else {
@@ -344,6 +370,22 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
 	    return FALSE;
 	}
     }
+#else
+    if (!xf86SetDepthBpp(pScrn, 0, 0, 0, Support24bppFb|Support32bppFb))
+		return FALSE;
+    /* Check that the returned depth is one we support */
+    switch (pScrn->depth) {
+	case 32:
+	case 24:
+	    /* OK */
+	    break;
+	default:
+	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		       "Given depth (%d) is not supported by this driver\n",
+		       pScrn->depth);
+	    return FALSE;
+    }
+#endif
 
     /* Collect all of the relevant option flags (fill in pScrn->options) */
     xf86CollectOptions(pScrn, NULL);
@@ -352,9 +394,31 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
 	return FALSE;
     memcpy(pGoblin->Options, GOBLINOptions, sizeof(GOBLINOptions));
     xf86ProcessOptions(pScrn->scrnIndex, pScrn->options, pGoblin->Options);
+	
+    /*
+     * This must happen after pScrn->display has been set because
+     * xf86SetWeight references it.
+     */
+    if (pScrn->depth > 8) {
+	rgb weight = {0, 0, 0};
+	rgb mask = {0xff, 0xff00, 0xff0000};
+                                       
+	if (!xf86SetWeight(pScrn, weight, mask)) {
+	    return FALSE;
+	}
+    }
     
     if (!xf86SetDefaultVisual(pScrn, -1))
 	return FALSE;
+    else if (pScrn->depth > 8) {
+	/* We don't currently support DirectColor */
+	if (pScrn->defaultVisual != TrueColor) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Given default visual"
+		       " (%s) is not supported\n",
+		       xf86GetVisualName(pScrn->defaultVisual));
+	    return FALSE;
+	}
+    }   
 
     /*
      * The new cmap code requires this to be initialised.
@@ -434,7 +498,7 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
      */
 
     pGoblin->fb = NULL;
-    for (i = 8 ; (i > 0) && (pGoblin->fb == NULL)  ; i = i / 2) {
+    for (i = 16 ; (i > 0) && (pGoblin->fb == NULL)  ; i = i / 2) {
 	    pGoblin->vidmem = i * 1024 * 1024;
 	    pGoblin->fb = xf86MapSbusMem(psdp, GOBLIN_RAM_VOFF, pGoblin->vidmem);
     }
@@ -479,9 +543,11 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
      */
     miClearVisualTypes();
 
+#if 0
     /* Set the bits per RGB for 8bpp mode */
     pScrn->rgbBits = 8;
-
+#endif
+	
     /* Setup the visuals we support. */
 
     if (!miSetVisualTypes(pScrn->depth, miGetDefaultVisualMask(pScrn->depth),
@@ -494,12 +560,13 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
      * Call the framebuffer layer's ScreenInit function, and fill in other
      * pScreen fields.
      */
-
+	
+	GOBLINInitCplane24(pScrn);
     ret = fbScreenInit(pScreen, pGoblin->fb, pScrn->virtualX,
-		       pScrn->virtualY, pScrn->xDpi, pScrn->yDpi,
-		       pScrn->virtualX, 8);
+					   pScrn->virtualY, pScrn->xDpi, pScrn->yDpi,
+					   pScrn->virtualX, pScrn->bitsPerPixel);
     if (!ret)
-	return FALSE;
+		return FALSE;
 
     pGoblin->width = pScrn->virtualX;
     pGoblin->height = pScrn->virtualY;
@@ -511,6 +578,22 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
     xf86SetSilkenMouse(pScreen);
 
     xf86SetBlackWhitePixels(pScreen);
+
+    if (pScrn->bitsPerPixel > 8) {
+		VisualPtr visual;
+		/* Fixup RGB ordering */
+		visual = pScreen->visuals + pScreen->numVisuals;
+		while (--visual >= pScreen->visuals) {
+			if ((visual->class | DynamicClass) == DirectColor) {
+				visual->offsetRed = pScrn->offset.red;
+				visual->offsetGreen = pScrn->offset.green;
+				visual->offsetBlue = pScrn->offset.blue;
+				visual->redMask = pScrn->mask.red;
+				visual->greenMask = pScrn->mask.green;
+				visual->blueMask = pScrn->mask.blue;
+			}
+		}
+    }
 
     if (!pGoblin->NoAccel) {
 #if 0
@@ -543,18 +626,20 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
 
     /* Initialise default colourmap */
     if (!miCreateDefColormap(pScreen))
-	return FALSE;
-
+		return FALSE;
+	
+#if 0
     if(!xf86SbusHandleColormaps(pScreen, pGoblin->psdp))
-	return FALSE;
-
+		return FALSE;
+#endif
+	
     pGoblin->CloseScreen = pScreen->CloseScreen;
     pScreen->CloseScreen = GOBLINCloseScreen;
     pScreen->SaveScreen = GOBLINSaveScreen;
 
     /* Report any unused options (only for the first generation) */
     if (serverGeneration == 1) {
-	xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
+		xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
     }
 
     /* unblank the screen */
@@ -595,8 +680,9 @@ static Bool
 GOBLINEnterVT(VT_FUNC_ARGS_DECL)
 {
     SCRN_INFO_PTR(arg);
-    GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+    /* GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn); */
 
+    GOBLINInitCplane24 (pScrn);
     return TRUE;
 }
 
@@ -609,6 +695,10 @@ GOBLINEnterVT(VT_FUNC_ARGS_DECL)
 static void
 GOBLINLeaveVT(VT_FUNC_ARGS_DECL)
 {
+    SCRN_INFO_PTR(arg);
+    /* GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn); */
+	
+    GOBLINExitCplane24 (pScrn);
     return;
 }
 
@@ -638,6 +728,8 @@ GOBLINCloseScreen(CLOSE_SCREEN_ARGS_DECL)
         xf86UnmapSbusMem(psdp, pGoblin->fb, pGoblin->vidmem);
         pGoblin->fb = NULL;
     }
+	
+    GOBLINExitCplane24(pScrn);
 
     pScreen->CloseScreen = pGoblin->CloseScreen;
     return (*pScreen->CloseScreen)(CLOSE_SCREEN_ARGS);
@@ -714,3 +806,31 @@ GOBLINDriverFunc(ScrnInfoPtr pScrn, xorgDriverFuncOp op,
 	}
 }
 
+
+
+/*
+ * This initializes the card for 24 bit mode.
+ */
+static void
+GOBLINInitCplane24(ScrnInfoPtr pScrn)
+{
+  GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+  int size, bpp;
+              
+  size = pScrn->virtualX * pScrn->virtualY;
+  bpp = 32;
+  ioctl (pGoblin->psdp->fd, GOBLIN_SET_PIXELMODE, &bpp);
+  memset (pGoblin->fb, 0, size * 4);
+}                                                  
+
+/*
+ * This initializes the card for 8 bit mode.
+ */
+static void
+GOBLINExitCplane24(ScrnInfoPtr pScrn)
+{
+  GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+  int bpp = 8;
+              
+  ioctl (pGoblin->psdp->fd, GOBLIN_SET_PIXELMODE, &bpp);
+}

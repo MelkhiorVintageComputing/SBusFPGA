@@ -53,6 +53,7 @@ struct goblin_softc {
 	uint32_t          sc_size; /* full memory size */
 	int	              sc_opens; /* number of open() to track 8/24 bits */
 	int               sc_has_jareth; /* whether we have a Jareth vector engine available */
+	uint32_t          sc_internal_adr;
 	
 	bus_space_handle_t sc_bhregs_jareth;	/* bus handle */
 	bus_space_handle_t sc_bhregs_microcode;	/* bus handle */

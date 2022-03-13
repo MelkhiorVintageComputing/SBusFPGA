@@ -37,15 +37,7 @@
 
 /* Various offsets in virtual (ie. mmap()) spaces Linux and Solaris support. */
 #define GOBLIN_FBC_VOFF	0x70000000
-
-
-#define GOBLIN_TEC_VOFF	0x70001000
-#define GOBLIN_BTREGS_VOFF	0x70002000
-#define GOBLIN_FHC_VOFF	0x70004000
-#define GOBLIN_THC_VOFF	0x70005000
-#define GOBLIN_ROM_VOFF	0x70006000
 #define GOBLIN_RAM_VOFF	0x70016000
-#define GOBLIN_DHC_VOFF	0x80000000
 
 typedef struct {
 	unsigned int fg, bg;			/* FG/BG colors for stipple */
@@ -101,5 +93,13 @@ extern int goblinRopTable[];
 int GOBLINAccelInit(ScrnInfoPtr);
 Bool GoblinDGAInit(ScreenPtr);
 int GOBLINEXAInit(ScreenPtr);
+
+#ifdef __NetBSD__
+#include <dev/sun/fbio.h>
+#include <sys/ioccom.h>
+#define GOBLIN_SET_PIXELMODE	_IOW('M', 3, int)
+#else
+#define GOBLIN_SET_PIXELMODE	(('M' << 8) | 3)
+#endif
 
 #endif /* GOBLIN_H */

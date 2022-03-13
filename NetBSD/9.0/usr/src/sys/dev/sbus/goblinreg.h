@@ -32,7 +32,7 @@
 
 /* offsets */
 #define GOBOFB_REG_BASE       0x200000
-#define GOBOFB_MEM_BASE       0x800000
+#define GOBOFB_MEM_BASE       0x1000000
 #define GOBOFB_MODE           0x0
 #define GOBOFB_VBL_MASK       0x4
 #define GOBOFB_VIDEOCTRL      0x8

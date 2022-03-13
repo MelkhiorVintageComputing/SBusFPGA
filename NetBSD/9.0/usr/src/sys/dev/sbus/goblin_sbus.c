@@ -155,7 +155,8 @@ goblinattach_sbus(device_t parent, device_t self, void *args)
 		fb->fb_pixels = (char *)bus_space_vaddr(sa->sa_bustag, bh);
 	}
 
-	sc->sc_has_jareth = prom_getpropint(node, "goblin_has_jareth", 0);
+	sc->sc_has_jareth = prom_getpropint(node, "goblin-has-jareth", 0);
+	sc->sc_internal_adr = prom_getpropint(node, "goblin-internal-fb", 0x8f000000);
 
 	if (sc->sc_has_jareth) {
 		if (sa->sa_nreg < 5) {

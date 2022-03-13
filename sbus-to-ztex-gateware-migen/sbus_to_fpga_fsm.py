@@ -225,6 +225,11 @@ class SBusFPGABus(Module):
             CG3_KEPT_UPPER_BIT=23
             CG3_PIXELS_ADDR_BIGVAL = 0x08>>3
             CG3_PIXELS_ADDR_BIGPFX = Signal(5, reset = CG3_PIXELS_ADDR_BIGVAL)
+        elif (cg3_fb_size == 16*1048576):
+            CG3_UPPER_BITS=8
+            CG3_KEPT_UPPER_BIT=24
+            CG3_PIXELS_ADDR_BIGVAL = 0x10>>4
+            CG3_PIXELS_ADDR_BIGPFX = Signal(4, reset = CG3_PIXELS_ADDR_BIGVAL)
         else:
             print(f"{cg3_fb_size//1048576} mebibytes framebuffer not supported")
             assert(False)
