@@ -157,6 +157,7 @@ goblinattach_sbus(device_t parent, device_t self, void *args)
 
 	sc->sc_has_jareth = prom_getpropint(node, "goblin-has-jareth", 0);
 	sc->sc_internal_adr = prom_getpropint(node, "goblin-internal-fb", 0x8f000000);
+	aprint_normal_dev(self, "Goblin framebuffer internally @ %p\n", (void*)sc->sc_internal_adr);
 
 	if (sc->sc_has_jareth) {
 		if (sa->sa_nreg < 5) {
@@ -173,6 +174,7 @@ goblinattach_sbus(device_t parent, device_t self, void *args)
 				aprint_error(": cannot map Jareth registers\n");
 				sc->sc_has_jareth = 0;
 			} else {
+				sc->sc_jareth_reg_paddr = sbus_bus_addr(sa->sa_bustag, sa->sa_reg[2].oa_space, sa->sa_reg[2].oa_base);
 				aprint_normal_dev(self, "Jareth registers @ %p\n", (void*)sc->sc_bhregs_jareth);
 				/* map microcode */
 				if (sbus_bus_map(sc->sc_bustag,
@@ -184,6 +186,7 @@ goblinattach_sbus(device_t parent, device_t self, void *args)
 					aprint_error(": cannot map Jareth microcode\n");
 					sc->sc_has_jareth = 0;
 				} else {
+					sc->sc_jareth_microcode_paddr = sbus_bus_addr(sa->sa_bustag, sa->sa_reg[3].oa_space, sa->sa_reg[3].oa_base);
 					aprint_normal_dev(self, "Jareth microcode @ %p\n", (void*)sc->sc_bhregs_microcode);
 					/* map register file */
 					if (sbus_bus_map(sc->sc_bustag,
@@ -195,6 +198,7 @@ goblinattach_sbus(device_t parent, device_t self, void *args)
 						aprint_error(": cannot map Jareth regfile\n");
 						sc->sc_has_jareth = 0;
 					} else {
+						sc->sc_jareth_regfile_paddr = sbus_bus_addr(sa->sa_bustag, sa->sa_reg[4].oa_space, sa->sa_reg[4].oa_base);
 						aprint_normal_dev(self, "Jareth regfile @ %p\n", (void*)sc->sc_bhregs_regfile);
 					}
 				}

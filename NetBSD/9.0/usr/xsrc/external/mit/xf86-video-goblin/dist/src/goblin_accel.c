@@ -31,7 +31,19 @@
 #include "goblin_regs.h"
 #include "dgaproc.h"
 
+#include <unistd.h>
+
 /* DGA stuff */
+
+#define DEBUG_GOBLIN 1
+
+#ifdef DEBUG_GOBLIN
+#define ENTER xf86Msg(X_ERROR, "%s>\n", __func__);
+#define DPRINTF xf86Msg
+#else
+#define ENTER
+#define DPRINTF while (0) xf86Msg
+#endif
 
 static Bool Goblin_OpenFramebuffer(ScrnInfoPtr pScrn, char **, unsigned char **mem,
     int *, int *, int *);
@@ -39,6 +51,14 @@ static Bool Goblin_SetMode(ScrnInfoPtr, DGAModePtr);
 static void Goblin_SetViewport(ScrnInfoPtr, int, int, int);
 static int Goblin_GetViewport(ScrnInfoPtr);
 
+static void GoblinWaitMarker(ScreenPtr pScreen, int Marker);
+static Bool GoblinUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src, int src_pitch);
+static Bool GoblinDownloadFromScreen(PixmapPtr pSrc, int x, int y, int w, int h, char *dst, int dst_pitch);
+static Bool GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg);
+static void GoblinSolid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2);
+static void GoblinDone(PixmapPtr pDstPixmap);
+static Bool GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap, int xdir, int ydir, int alu, Pixel planemask);
+static void GoblinCopy(PixmapPtr pDstPixmap, int srcX, int srcY, int dstX, int dstY, int w, int h);
 static void GoblinSync(ScrnInfoPtr);
 
 static DGAFunctionRec Goblin_DGAFuncs = {
@@ -152,4 +172,317 @@ Goblin_GetViewport(ScrnInfoPtr pScrn)
 {
     /* No viewports, none pending... */
     return 0;
+}
+
+
+int
+GOBLINEXAInit(ScreenPtr pScreen)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+    ExaDriverPtr pExa;
+
+    pExa = exaDriverAlloc();
+    if (!pExa)
+	return FALSE;
+
+    pGoblin->pExa = pExa;
+
+    pExa->exa_major = EXA_VERSION_MAJOR;
+    pExa->exa_minor = EXA_VERSION_MINOR;
+
+    pExa->memoryBase = pGoblin->fb;
+
+    pExa->memorySize = pGoblin->vidmem - 32;
+    pExa->offScreenBase = pGoblin->width * pGoblin->height * 4; // 32-bits
+
+    /*
+     * Jareth has 128-bits memory access
+     */
+    pExa->pixmapOffsetAlign = 16;
+    pExa->pixmapPitchAlign = 16;
+
+    pExa->flags = EXA_OFFSCREEN_PIXMAPS;/*  | EXA_MIXED_PIXMAPS; */ /* | EXA_SUPPORTS_OFFSCREEN_OVERLAPS; */
+	
+	/*
+	 * these limits are bogus
+	 * Jareth doesn't deal with coordinates at all, so there is no limit but
+	 * we have to put something here
+	 */
+    pExa->maxX = 4096;
+    pExa->maxY = 4096;
+
+    pExa->WaitMarker = GoblinWaitMarker;
+
+    pExa->PrepareSolid = GoblinPrepareSolid;
+    pExa->Solid = GoblinSolid;
+    pExa->DoneSolid = GoblinDone;
+
+    pExa->PrepareCopy = GoblinPrepareCopy;
+    pExa->Copy = GoblinCopy;
+    pExa->DoneCopy = GoblinDone;
+
+    pExa->UploadToScreen = GoblinUploadToScreen;
+    pExa->DownloadFromScreen = GoblinDownloadFromScreen;
+
+    return exaDriverInit(pScreen, pExa);;
+}
+
+static inline void
+GoblinWait(GoblinPtr pGoblin)
+{
+	uint32_t status = pGoblin->jreg->status;
+	int count = 0;
+	int max_count = 1000;
+	int del = 1;
+	const int param = 1;
+	const int max_del = 32;
+
+	ENTER;
+	
+	while ((status & 1) && (count < max_count)) {
+		count ++;
+		usleep(del * param);
+		del = del < max_del ? 2*del : del;
+		status = pGoblin->jreg->status;
+	}
+
+	if (status & 1) {
+		xf86Msg(X_ERROR, "Jareth wait for idle timed out %08x %08x\n", status);
+	}
+}
+
+static void
+GoblinWaitMarker(ScreenPtr pScreen, int Marker)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+	GoblinPtr p = GET_GOBLIN_FROM_SCRN(pScrn);
+
+	GoblinWait(p);
+}
+
+/*
+ * Memcpy-based UTS.
+ */
+static Bool
+GoblinUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src, int src_pitch)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pDst->drawable.pScreen->myNum];
+	GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+	char  *dst        = pGoblin->fb + exaGetPixmapOffset(pDst);
+	int    dst_pitch  = exaGetPixmapPitch(pDst);
+
+	int bpp    = pDst->drawable.bitsPerPixel;
+	int cpp    = (bpp + 7) >> 3;
+	int wBytes = w * cpp;
+
+	ENTER;
+	DPRINTF(X_ERROR, "%s depth %d\n", __func__, bpp);
+	dst += (x * cpp) + (y * dst_pitch);
+
+	GoblinWait(pGoblin);
+
+	while (h--) {
+		memcpy(dst, src, wBytes);
+		src += src_pitch;
+		dst += dst_pitch;
+	}
+	__asm("stbar;");
+	return TRUE;
+}
+
+/*
+ * Memcpy-based DFS.
+ */
+static Bool
+GoblinDownloadFromScreen(PixmapPtr pSrc, int x, int y, int w, int h, char *dst, int dst_pitch)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pSrc->drawable.pScreen->myNum];
+	GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+	char  *src        = pGoblin->fb + exaGetPixmapOffset(pSrc);
+	int    src_pitch  = exaGetPixmapPitch(pSrc);
+
+	ENTER;
+	int bpp    = pSrc->drawable.bitsPerPixel;
+	int cpp    = (bpp + 7) >> 3;
+	int wBytes = w * cpp;
+
+	src += (x * cpp) + (y * src_pitch);
+
+	GoblinWait(pGoblin);
+
+	while (h--) {
+		memcpy(dst, src, wBytes);
+		src += src_pitch;
+		dst += dst_pitch;
+	}
+
+	return TRUE;
+}
+
+static Bool
+GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pPixmap->drawable.pScreen->myNum];
+	GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+	int i;
+
+	ENTER;
+	DPRINTF(X_ERROR, "bits per pixel: %d\n",
+	    pPixmap->drawable.bitsPerPixel);
+
+	if ((pGoblin->jreg->power & 1) != 1)
+		pGoblin->jreg->power = 1;
+	
+	GoblinWait(pGoblin);
+
+	pGoblin->fg = fg;
+	for (i = 0 ; i < 8; i++)
+		pGoblin->jregfile->reg[1][i] = fg;
+
+	pGoblin->jregfile->reg[5][0] = planemask;
+	pGoblin->jregfile->reg[5][1] = alu;
+	
+	pGoblin->last_mask = planemask;
+	pGoblin->last_rop = alu;
+
+	if ((alu == 0x3) && // GCcopy
+		(planemask == 0xFFFFFFFF)) {
+		// fill
+		pGoblin->jreg->mpstart = 37;
+		pGoblin->jreg->mplen = 38;
+	} else {
+		// fillrop
+		pGoblin->jreg->mpstart = 75;
+		pGoblin->jreg->mplen = 41;
+	}
+		
+	DPRINTF(X_ERROR, "%s: %x; %x\n", __func__, alu, planemask);
+	return TRUE;
+}
+
+static void
+GoblinSolid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pPixmap->drawable.pScreen->myNum];
+	GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+	int w = x2 - x1, h = y2 - y1, dstoff, dstpitch;
+	int start, depth;
+	uint32_t ptr;
+	ENTER;
+
+	if (pGoblin->last_rop == 5) // GXnoop
+		return;
+	
+	dstpitch = exaGetPixmapPitch(pPixmap);
+	dstoff = exaGetPixmapOffset(pPixmap);
+
+	depth = pPixmap->drawable.bitsPerPixel;
+	switch (depth) {
+		case 32:
+			start = dstoff + (y1 * dstpitch) + (x1 << 2);
+			/* we work in bytes not pixels */
+			w = w * 4;
+			break;
+		case 8:
+			start = dstoff + (y1 * dstpitch) + x1;
+			break;
+	}
+
+	ptr = 0x8f000000; // fixme
+	ptr += start;
+
+	GoblinWait(pGoblin);
+
+	pGoblin->jregfile->reg[0][0] = ptr;
+	pGoblin->jregfile->reg[2][0] = w;
+	pGoblin->jregfile->reg[3][0] = h;
+	pGoblin->jregfile->reg[4][0] = dstpitch;
+
+	DPRINTF(X_ERROR, "Solid %d %d %d %d [%d %d], %d %d -> %d (%p: %p)\n", x1, y1, x2, y2,
+			w, h, dstpitch, dstoff, start, (void*)start, ptr);
+
+	pGoblin->jreg->control = 1; // start
+	
+	exaMarkSync(pPixmap->drawable.pScreen);
+}
+
+static void GoblinDone(PixmapPtr pDstPixmap) {
+}
+
+
+static Bool
+GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
+		int xdir, int ydir, int alu, Pixel planemask)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pDstPixmap->drawable.pScreen->myNum];
+	GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+	ENTER;
+
+	pGoblin->srcpitch = exaGetPixmapPitch(pSrcPixmap);
+	pGoblin->srcoff = exaGetPixmapOffset(pSrcPixmap);
+	pGoblin->xdir = xdir;
+	pGoblin->ydir = ydir;
+	
+	return TRUE;
+}
+
+static void
+GoblinCopy(PixmapPtr pDstPixmap,
+         int srcX, int srcY, int dstX, int dstY, int w, int h)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pDstPixmap->drawable.pScreen->myNum];
+	GoblinPtr pGoblin = GET_GOBLIN_FROM_SCRN(pScrn);
+	int dstoff = exaGetPixmapOffset(pDstPixmap);
+	int dstpitch = exaGetPixmapPitch(pDstPixmap);
+	int srcstart, dststart;
+	char *src, *dst;
+	int i, j;
+	ENTER;
+
+	DPRINTF(X_ERROR, "Copy %d %d -> %d %d [%d x %d]\n", srcX, srcY, dstX, dstY, w, h);
+	
+	srcstart = (srcX << 2) + (pGoblin->srcpitch * srcY) + pGoblin->srcoff;
+	dststart = (dstX << 2) + (         dstpitch * dstY) +          dstoff;
+	
+	src = pGoblin->fb + srcstart;
+	dst = pGoblin->fb + dststart;
+	
+	if (ydir > 0 && xdir > 0) {
+		for (j = 0 ; j < h ; j++) {
+			for (i = 0 ; i < w; i ++) {
+				*(src+i) = *(dst+i);
+			}
+			src += srcpitch;
+			dst += dstpitch;
+		}
+	} else if (ydir > 0 && xdir < 0) {
+		for (j = 0 ; j < h ; j++) {
+			for (i = w - 1 ; i >= 0 ; i --) {
+				*(src+i) = *(dst+i);
+			}
+			src += srcpitch;
+			dst += dstpitch;
+		}
+	} else if (ydir < 0 && xdir > 0) {
+		src += srcpitch * h;
+		dst += dstpitch * h;
+		for (j = 0 ; j < h ; j++) {
+			src -= srcpitch;
+			dst -= dstpitch;
+			for (i = 0 ; i < w; i ++) {
+				*(src+i) = *(dst+i);
+			}
+		}
+	} else if (ydir < 0 && xdir < 0) {
+		src += srcpitch * h;
+		dst += dstpitch * h;
+		for (j = 0 ; j < h ; j++) {
+			src -= srcpitch;
+			dst -= dstpitch;
+			for (i = w - 1 ; i >= 0 ; i --) {
+				*(src+i) = *(dst+i);
+			}
+		}
+	}	
 }

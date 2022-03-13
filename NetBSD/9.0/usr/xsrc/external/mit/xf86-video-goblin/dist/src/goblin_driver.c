@@ -40,9 +40,11 @@
 
 #include "compat-api.h"
 
+#ifndef SBUS_DEVICE_GOBLIN
+#define SBUS_DEVICE_GOBLIN 0x0010
+#endif
+
 /*
-
-
                                                      0011 src
                                                      0101 dst
 GXclear				0x0 	0                        0000
@@ -309,8 +311,8 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
 {
     GoblinPtr pGoblin;
     sbusDevicePtr psdp;
-    MessageType from;
-    int i;
+    int i, prom, len;
+    char *ptr;
 
     if (flags & PROBE_DETECT) return FALSE;
 
@@ -350,6 +352,24 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
 	} else
 	    return FALSE;
     }
+	
+    prom = sparcPromInit();
+	len = 4;
+    if ((ptr = sparcPromGetProperty(&psdp->node, "goblin-has-jareth", &len))) {
+    	if (len >= 1) {
+			/* if (ptr[0]) */
+			/* 	pGoblin->has_accel = TRUE; */
+			/* else */
+			/* 	pGoblin->has_accel = FALSE; */
+			pGoblin->has_accel = TRUE;
+		} else {
+			pGoblin->has_accel = FALSE;
+		}
+    }
+	if (pGoblin->has_accel)
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Jareth found\n");
+	else
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "no Jareth (%p)\n", ptr);
 
     /*********************
     deal with depth
@@ -432,12 +452,9 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
 	}
     }
 
-    /* Set the bits per RGB for 8bpp mode */
-    from = X_DEFAULT;
-
     if (xf86ReturnOptValBool(pGoblin->Options, OPTION_NOACCEL, FALSE)) {
-	pGoblin->NoAccel = TRUE;
-	xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Acceleration disabled\n");
+		pGoblin->NoAccel = TRUE;
+		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Acceleration disabled\n");
     }
 
     char *optstr;
@@ -526,6 +543,21 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
         return FALSE;
     }
 
+	if (pGoblin->has_accel && !pGoblin->NoAccel) {
+		// map Jareth registers
+	    pGoblin->jreg = xf86MapSbusMem(psdp, JARETH_REG_VOFF, sizeof(JarethReg));
+	    pGoblin->jmicrocode = xf86MapSbusMem(psdp, JARETH_MICROCODE_VOFF, sizeof(JarethReg));
+	    pGoblin->jregfile = xf86MapSbusMem(psdp, JARETH_REGFILE_VOFF, sizeof(JarethMicrocode));
+		if ((pGoblin->jreg == NULL) ||
+			(pGoblin->jmicrocode == NULL) ||
+			(pGoblin->jregfile == NULL)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "xf86MapSbusMem failed for Jareth\n");
+			pGoblin->has_accel = FALSE;
+		} else {
+			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Jareth successfully mapped\n");
+		}
+	}
+
     /* Darken the screen for aesthetic reasons and set the viewport */
     GOBLINSaveScreen(pScreen, SCREEN_SAVER_ON);
 
@@ -595,26 +627,24 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
 		}
     }
 
-    if (!pGoblin->NoAccel) {
-#if 0
-	 {
-	    /* EXA */
-	    XF86ModReqInfo req;
-	    int errmaj, errmin;
-
-	    memset(&req, 0, sizeof(XF86ModReqInfo));
-	    req.majorversion = EXA_VERSION_MAJOR;
-	    req.minorversion = EXA_VERSION_MINOR;
-	    if (!LoadSubModule(pScrn->module, "exa", NULL, NULL, NULL, &req,
-		&errmaj, &errmin)) {
-		LoaderErrorMsg(NULL, "exa", errmaj, errmin);
-		return FALSE;
-	    }
-	    if (!GOBLINEXAInit(pScreen))
-		return FALSE;
-	    xf86Msg(X_INFO, "%s: Using EXA acceleration\n", pGoblin->psdp->device);
-	}
-#endif
+    if (!pGoblin->NoAccel && pGoblin->has_accel) {
+		{
+			/* EXA */
+			XF86ModReqInfo req;
+			int errmaj, errmin;
+			
+			memset(&req, 0, sizeof(XF86ModReqInfo));
+			req.majorversion = EXA_VERSION_MAJOR;
+			req.minorversion = EXA_VERSION_MINOR;
+			if (!LoadSubModule(pScrn->module, "exa", NULL, NULL, NULL, &req,
+							   &errmaj, &errmin)) {
+				LoaderErrorMsg(NULL, "exa", errmaj, errmin);
+			return FALSE;
+			}
+			if (!GOBLINEXAInit(pScreen))
+				return FALSE;
+			xf86Msg(X_INFO, "%s: Using EXA acceleration\n", pGoblin->psdp->device);
+		}
     }
 
     /* setup DGA */

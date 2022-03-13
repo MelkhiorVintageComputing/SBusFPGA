@@ -14,17 +14,20 @@ opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shif
     "UDF" : [-1, "Placeholder for undefined opcodes"],
     "PSA" : [0, "Wd $\gets$ Ra  // pass A"],
     "PSB" : [1, "Wd $\gets$ Rb  // pass B"], # for star version mostly
-    # 2 MSK
+    "ROP32V" : [2, "Wd $\gets$ ((Rb ROP Ra) & planemask) | (Ra & ~planemask)" ], # replace MSK
     "XOR" : [3, "Wd $\gets$ Ra ^ Rb  // bitwise XOR"],
     "NOT" : [4, "Wd $\gets$ ~Ra   // binary invert"],
     "ADD32V" : [5, "Wd[x..x+32] $\gets$ Ra[x..x+32] + Rb[x..x+32] // vector 32-bit binary add"],
-    "SUB32V" : [6, "Wd[x..x+32] $\gets$ Ra[x..x+32] - Rb[x..x+32] // vector 32-bit binary add"],
+    "SUB32V" : [6, "Wd[x..x+32] $\gets$ Ra[x..x+32] - Rb[x..x+32] // vector 32-bit binary sub"],
     "AND" : [7, "Wd $\gets$ Ra & Rb  // bitwise AND"], # replace MUL
-    "BRNZ32" : [8, "If Ra[0:32] != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero"], # replace TRD
-    "BRZ32" : [9, "If Ra[0:32] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero"],
+    "BRNZ32" : [8, "If Ra[0:32] != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero (32-bits)"], # replace TRD
+    "BRZ32" : [9, "If Ra[0:32] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (32-bits)"],
     "FIN" : [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
     "SHL" : [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
-    # 12 XBT
+    "SROP" : [12, "set planemask & rop from Ra[0:32] and Ra[32:36]" ], # was XBT
+    "BRZ4" : [13, "If Ra[0:4] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (4-bits)"],
+    "BRZ5" : [14, "If Ra[0:5] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (5-bits)"],
+    "MIN32V" : [15, "Wd[x..x+32] $\gets$ umin(Ra[x..x+32], Rb[x..x+32]) // vector 32-bit umin"],
     # for MEM, bit #31 (imm[8]) indicates both lanes are needed; imm[31] == 0 faster as the second access is not done ;
     "GETM": [17, "GETM: getmask" ],
     "ADR": [18, "ADR: set or recover addresses, Wd $\gets$ ADR (for GETADR) or Wd $\gets$ 0 (for SETADR)" ],
@@ -230,12 +233,13 @@ class JarethConst(Module, AutoDoc):
             2: [2, "two", "The number two"],
             #3: [3, "three", "The number three"],
             #4: [4, "four", "The number four"],
-            #5: [5, "five", "The number five"],
+            ###5: [5, "five", "The number five"],
             5: [32, "thirty-two", "The number thirty-two"],
-            #6: [6, "six", "The number six"],
+            ###6: [6, "six", "The number six"],
+            6: [31, "thirty-one", "The number thirty-one"],
             #7: [7, "seven", "The number seven"],
             #8: [8, "eight", "The number eight"],
-            15: [15, "sixteen", "The number fifteen"],
+            15: [15, "fifteen", "The number fifteen"],
             16: [16, "sixteen", "The number sixteen"],
         }
         self.adr = Signal(5)
@@ -293,16 +297,16 @@ class ExecUnit(Module, AutoDoc):
 
 class ExecLogic(ExecUnit):
     def __init__(self, width=256):
-        ExecUnit.__init__(self, width, ["XOR", "NOT", "PSA", "SHL", "AND"])
+        ExecUnit.__init__(self, width, ["XOR", "NOT", "PSA", "SHL", "AND" ])
         self.intro = ModuleDoc(title="Logic ExecUnit Subclass", body=f"""
 This execution unit implements bit-wise logic operations: XOR, NOT, and
 passthrough.
 
-* XOR returns the result of A^sB
+* XOR returns the result of A^B
 * NOT returns the result of !A
 * PSA returns the value of A
 * SHL returns A << 1
-* AND returns the result of A&sB
+* AND returns the result of A&B
 
 """)
 
@@ -329,7 +333,7 @@ passthrough.
 
 class ExecAddSub(ExecUnit, AutoDoc):
     def __init__(self, width=256):
-        ExecUnit.__init__(self, width, ["ADD32V", "SUB32V"])
+        ExecUnit.__init__(self, width, ["ADD32V", "SUB32V", "MIN32V" ])
         self.notes = ModuleDoc(title="Add/Sub ExecUnit Subclass", body=f"""
         """)
 
@@ -342,8 +346,70 @@ class ExecAddSub(ExecUnit, AutoDoc):
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] + self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
             ).Elif(self.instruction.opcode == opcodes["SUB32V"][0],
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] - self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
-            ),
+            ).Elif(self.instruction.opcode == opcodes["MIN32V"][0],
+                   [ If((self.a[x*32:(x+1)*32] <= self.b[x*32:(x+1)*32]), self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32]), self.q.eq(self.b[x*32:(x+1)*32])) for x in range(0, width//32) ],
+            )
         ]
+        
+class ExecRop(ExecUnit, AutoDoc):
+    def __init__(self, width=256):
+        ExecUnit.__init__(self, width, ["ROP32V", "SROP"])
+        self.notes = ModuleDoc(title="Rop ExecUnit Subclass", body=f"""
+        """)
+
+        rop = Array(Signal() for x in range(4))
+        planemask = Signal(32)
+        
+        lanewidth = 128
+        nlane = width // lanewidth
+        assert(nlane == 2) ## fixme
+        rop_in = Array(Signal(2) for x in range(lanewidth))
+        rop_out = Signal(128)
+        rop_buf = Signal(nlane * lanewidth)
+        lanec = Signal(log2_int(nlane, False))
+
+        self.sync.eng_clk += [ rop_out[x].eq((rop[(rop_in[x])] & planemask[x%32]) | (rop_in[x][0] & ~planemask[x%32])) for x in range(lanewidth) ]
+
+        self.sync.eng_clk += [
+            #self.q_valid.eq(self.start),
+            self.instruction_out.eq(self.instruction_in),
+        ]
+        
+        self.submodules.seq = seq = ClockDomainsRenamer("eng_clk")(FSM(reset_state="IDLE"))
+        seq.act("IDLE",
+                If(self.start,
+                   If(self.instruction.opcode == opcodes["ROP32V"][0],
+                      NextValue(lanec, 0),
+                      [ NextValue(rop_in[x][0], self.a[x]) for x in range(0, lanewidth) ],
+                      [ NextValue(rop_in[x][1], self.b[x]) for x in range(0, lanewidth) ],
+                      NextState("NEXT")
+                   ).Elif(self.instruction.opcode == opcodes["SROP"][0],
+                          NextValue(rop_buf, 0),
+                          NextValue(rop[0], self.a[35]),
+                          NextValue(rop[1], self.a[34]),
+                          NextValue(rop[2], self.a[33]),
+                          NextValue(rop[3], self.a[32]),
+                          NextValue(planemask, self.a[0:32]),
+                          NextState("OUT"),
+                   )
+                ))
+        seq.act("NEXT",
+                [ NextValue(rop_in[x][0], self.a[128+x]) for x in range(0, lanewidth) ],
+                [ NextValue(rop_in[x][1], self.b[128+x]) for x in range(0, lanewidth) ],
+                NextState("WRITE"))
+        seq.act("WRITE",
+                Case(lanec, {
+                    0: [ NextValue(rop_buf[0:128], rop_out),
+                         NextValue(lanec, 1),
+                    ],
+                    1: [ NextValue(rop_buf[128:256], rop_out),
+                         NextState("OUT"),
+                    ],
+                }))
+        seq.act("OUT",
+                self.q_valid.eq(1),
+                self.q.eq(rop_buf),
+                NextState("IDLE"));
 
 class ExecLS(ExecUnit, AutoDoc):
     def __init__(self, width=256, interface=None, memoryport=None, r_dat_f=None, r_dat_m=None, granule=0):
@@ -439,6 +505,7 @@ class ExecLS(ExecUnit, AutoDoc):
                      )
                   )
         )
+        # having this extra stage and a registered 'address' help with timings, apparently
         lsseq.act("DOMEM",
                   NextValue(cpar, cpar ^ 1),
                   If(self.instruction.opcode == opcodes["MEM"][0],
@@ -706,7 +773,6 @@ class ExecLS(ExecUnit, AutoDoc):
         self.sync.mul_clk += self.state[28:30].eq((self.state[28:30] & Replicate(~start_pipe, 2)) | self.has_timeout)
         self.sync.mul_clk += self.state[30:32].eq((self.state[30:32] & Replicate(~start_pipe, 2)) | self.has_failure)
 
-        
 class Jareth(Module, AutoCSR, AutoDoc):
     def __init__(self, platform, prefix, memoryport, sim=False, build_prefix=""):
         opdoc = "\n"
@@ -1148,6 +1214,10 @@ Here are the currently implemented opcodes for The Engine:
                 NextState("DO_BRZ32"),
             ).Elif(instruction.opcode == opcodes["BRNZ32"][0],
                 NextState("DO_BRNZ32"),
+            ).Elif(instruction.opcode == opcodes["BRZ4"][0],
+                NextState("DO_BRZ4"),
+            ).Elif(instruction.opcode == opcodes["BRZ5"][0],
+                NextState("DO_BRZ5"),
             ).Elif(instruction.opcode == opcodes["FIN"][0],
                 NextState("IDLE"),
                 NextValue(running, 0),
@@ -1218,6 +1288,50 @@ Here are the currently implemented opcodes for The Engine:
                 )
             ),
         )
+        seq.act("DO_BRZ4",
+            If(ra_dat[0:4] == 0,
+                If( (sext_immediate + mpc + 1 < mpc_stop) & (sext_immediate + mpc + 1 >= self.mpstart.fields.mpstart), # validate new PC is in range
+                    NextState("FETCH"),
+                    NextValue(mpc, sext_immediate + mpc + 1),
+                ).Else(
+                    NextState("IDLE"),
+                    NextValue(running, 0),
+                )
+            ).Else(
+                If(abort,
+                    NextState("IDLE"),
+                    NextValue(running, 0),
+                ).Elif(mpc < mpc_stop,
+                    NextState("FETCH"),
+                    NextValue(mpc, mpc + 1),
+                ).Else(
+                    NextState("IDLE"),
+                    NextValue(running, 0),
+                )
+            ),
+        )
+        seq.act("DO_BRZ5",
+            If(ra_dat[0:5] == 0,
+                If( (sext_immediate + mpc + 1 < mpc_stop) & (sext_immediate + mpc + 1 >= self.mpstart.fields.mpstart), # validate new PC is in range
+                    NextState("FETCH"),
+                    NextValue(mpc, sext_immediate + mpc + 1),
+                ).Else(
+                    NextState("IDLE"),
+                    NextValue(running, 0),
+                )
+            ).Else(
+                If(abort,
+                    NextState("IDLE"),
+                    NextValue(running, 0),
+                ).Elif(mpc < mpc_stop,
+                    NextState("FETCH"),
+                    NextValue(mpc, mpc + 1),
+                ).Else(
+                    NextState("IDLE"),
+                    NextValue(running, 0),
+                )
+            ),
+        )
         seq.act("PAUSED",
             If(~pause_req,
                 NextValue(pause_gnt, 0),
@@ -1232,11 +1346,13 @@ Here are the currently implemented opcodes for The Engine:
         exec_units = {
             "exec_logic"     : ExecLogic(width=rf_width_raw),
             "exec_addsub"    : ExecAddSub(width=rf_width_raw),
+            "exec_rop"       : ExecRop(width=rf_width_raw),
             "exec_ls"        : ExecLS(width=rf_width_raw, interface=self.busls, memoryport=memoryport, r_dat_f=r_dat_f, r_dat_m=r_dat_m, granule=granule),
         }
         exec_units_shift = {
             "exec_logic": True,
             "exec_addsub": False,
+            "exec_rop": True,
             "exec_ls": False,
         }
         exec_unit_shift_num = { }

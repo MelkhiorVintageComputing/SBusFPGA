@@ -50,6 +50,9 @@ struct goblin_softc {
 	bus_space_tag_t	  sc_bustag;
 	bus_addr_t	      sc_reg_fbc_paddr;	  /* phys address for device mmap() */
 	bus_addr_t	      sc_fb_paddr;	  /* phys address for device mmap() */
+	bus_addr_t	      sc_jareth_reg_paddr;	  /* phys address for device mmap() */
+	bus_addr_t	      sc_jareth_microcode_paddr;	  /* phys address for device mmap() */
+	bus_addr_t	      sc_jareth_regfile_paddr;	  /* phys address for device mmap() */
 	uint32_t          sc_size; /* full memory size */
 	int	              sc_opens; /* number of open() to track 8/24 bits */
 	int               sc_has_jareth; /* whether we have a Jareth vector engine available */

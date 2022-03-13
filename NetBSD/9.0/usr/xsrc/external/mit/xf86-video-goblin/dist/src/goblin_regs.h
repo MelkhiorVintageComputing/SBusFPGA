@@ -50,13 +50,36 @@
 #define GOBOFB_INTR_CLEAR_CLEAR     0x0
 
 typedef struct goblin_fbc {
-	uint32_t mode;
-	uint32_t vbl_mask;
-	uint32_t videoctrl;
-	uint32_t intr_clear;
-	uint32_t reset;
-	uint32_t lut_addr;
-	uint32_t lut;
+	volatile uint32_t mode;
+	volatile uint32_t vbl_mask;
+	volatile uint32_t videoctrl;
+	volatile uint32_t intr_clear;
+	volatile uint32_t reset;
+	volatile uint32_t lut_addr;
+	volatile uint32_t lut;
 } GoblinFbc, *GoblinFbcPtr;
+
+typedef struct jareth_reg {
+	volatile uint32_t window;
+	volatile uint32_t mpstart;
+	volatile uint32_t mplen;
+	volatile uint32_t control;
+	volatile uint32_t mpresume;
+	volatile uint32_t power;
+	volatile uint32_t status;
+	volatile uint32_t ev_status;
+	volatile uint32_t ev_prending;
+	volatile uint32_t ev_enable;
+	volatile uint32_t instruction;
+	volatile uint32_t ls_status;
+} JarethReg, *JarethRegPtr;
+
+typedef struct jareth_microcode {
+	volatile uint32_t mc[1024];
+} JarethMicrocode, *JarethMicrocodePtr;
+
+typedef struct jareth_regfile {
+	volatile uint32_t reg[32][8];
+} JarethRegfile, *JarethRegfilePtr;
 
 #endif /* GOBLIN_REGS_H */

@@ -117,9 +117,12 @@ struct scrolltest {
 	int x0;
 	int w;
 	int n;
+	int pm;
+	int rop;
 };
 #define GOBLIN_SCROLL	_IOW('X', 0, struct scrolltest)
 #define GOBLIN_FILL     _IOW('X', 1, struct scrolltest)
+#define GOBLIN_FILLROP  _IOW('X', 2, struct scrolltest)
 
 static int 	goblin_ioctl(void *, void *, u_long, void *, int, struct lwp *);
 static paddr_t	goblin_mmap(void *, void *, off_t, int);
@@ -140,12 +143,30 @@ static int power_on(struct goblin_softc *sc);
 static int power_off(struct goblin_softc *sc);
 static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n);
 static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n);
-static const uint32_t program_scroll128[12] = { 0x407c0012,0x00140080,0x201c0013,0x60fc7013,0x00170146,0xfe000148,0x000e10c6,0x010000c9,0x00004005,0xfb000809,0x0000000a,0x0000000a };
-static const uint32_t program_fill128[12] =   { 0x407c0012,0x00140080,0x607c1013,0x00170146,0xfe800148,0x000e10c6,0x010000c9,0x00004005,0xfb800809,0x0000000a,0x0000000a,0x0000000a };
+static int jareth_fillrop(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n, int pm, int rop);
+static const uint32_t program_scroll128[12] = { 0x407c0012,0x00140080,0x201c0013,0x60fc7013,0x00170146,0xfe000148,0x000e10c6,0x010000c9,
+												0x00004005,0xfb000809,0x0000000a,0x0000000a };
+static const uint32_t program_fill128[11] =   { 0x407c0012,0x00140080,0x607c1013,0x00170146,0xfe800148,0x000e10c6,0x010000c9,0x00004005,
+												0xfb800809,0x0000000a,0x0000000a };
+static const uint32_t program_fill256[14] =   { 0x01bc0014,0x001a6087,0x013c6814,0x403c0012,0x00146086,0xe03c1013,0x00165146,0xfe800148,
+												0x000e10c6,0x010000c9,0x00004005,0xfb800809,0x0000000a,0x0000000a };
 
-static const uint32_t* programs[3] = { program_scroll128, program_fill128, NULL };
-static const uint32_t program_len[3] = { 12, 12, 0 };
-static       uint32_t program_offset[3];
+static const uint32_t program_fill[38] =      { 0x11800089,0x110000c9,0x01bc0014,0x0800000d,0x013c2014,0x001400c0,0x00180000,0x403c0192,
+												0x801c0013,0x001c0060,0xc03c7013,0x00184185,0x00161146,0xfc800148,0x00166007,0x00145946,
+												0x0014214f,0x00005005,0x00085086,0x08000089,0x001a6087,0x013c6814,0x403c0012,0x00146086,
+												0x01800149,0xe03c1013,0x00165146,0xfe800148,0x0180018d,0x801c0013,0x001c0060,0xc03c7013,
+												0x000e10c6,0x010000c9,0x00004005,0xf9000809,0x0000000a,0x0000000a };
+
+static const uint32_t program_fillrop[41] =   { 0x13000089,0x128000c9,0x01bc0014,0x003c014c,0x0800000d,0x013c2014,0x002000c0,0x00180000,
+												0x403c0192,0x801c0013,0x001c11e2,0xc03c7013,0x00184185,0x00221206,0xfc800208,0x00226007,
+												0x00208946,0x0020220f,0x00008005,0x00088086,0x09000089,0x001a6087,0x013c6814,0x403c0012,
+												0x00206086,0x02800209,0x801c0013,0x001c11c2,0xe03c7013,0x00225206,0xfd800208,0x0180018d,
+												0x801c0013,0x001c11e2,0xc03c7013,0x000e10c6,0x010000c9,0x00004005,0xf8000809,0x0000000a,
+												0x0000000a};
+
+static const uint32_t* programs[6] = { program_scroll128, program_fill128, program_fill256, program_fill, program_fillrop, NULL };
+static const uint32_t program_len[6] = { 12, 11, 14, 38, 41, 0 };
+static       uint32_t program_offset[6];
 
 static void goblin_set_depth(struct goblin_softc *, int);
 
@@ -376,6 +397,12 @@ goblinioctl(dev_t dev, u_long cmd, void *data, int flags, struct lwp *l)
 	}
 		break;
 
+	case GOBLIN_FILLROP: {
+		struct scrolltest *st = (struct scrolltest *)data;
+		jareth_fillrop(sc, jareth_verbose, st->y0, st->y1, st->x0, st->w, st->n, st->pm, st->rop);
+	}
+		break;
+
 	default:
 		return (ENOTTY);
 	}
@@ -447,11 +474,17 @@ goblinloadcmap(struct goblin_softc *sc, int start, int ncolors)
  * offset, allowing for the given protection, or return -1 for error.
  * 'inspired' by the cg6 code
  */
-#define	GOBLIN_USER_FBC	0x70000000
-#define	GOBLIN_USER_RAM	0x70016000
+#define	GOBLIN_USER_FBC	      0x70000000
+#define	JARETH_USER_REG	      0x70001000
+#define	JARETH_USER_MICROCODE 0x70002000
+#define	JARETH_USER_REGFILE	  0x70003000
+#define	GOBLIN_USER_RAM	      0x70016000
 typedef enum {
 			  goblin_bank_fbc,
-			  goblin_bank_fb
+			  goblin_bank_fb,
+			  jareth_bank_reg,
+			  jareth_bank_microcode,
+			  jareth_bank_regfile
 } gobo_reg_bank;
 struct mmo {
 	u_long	mo_uaddr;	/* user (virtual) address */
@@ -466,8 +499,11 @@ goblinmmap(dev_t dev, off_t off, int prot)
 	struct mmo *mo;
 	u_int u, sz, flags;
 	static struct mmo mmo[] = {
-		{ GOBLIN_USER_RAM, 0, goblin_bank_fb },
-		{ GOBLIN_USER_FBC, 1, goblin_bank_fbc },
+		{ GOBLIN_USER_RAM,       0, goblin_bank_fb },
+		{ GOBLIN_USER_FBC,       1, goblin_bank_fbc },
+		{ JARETH_USER_REG,       1, jareth_bank_reg },
+		{ JARETH_USER_MICROCODE, 4096, jareth_bank_microcode },
+		{ JARETH_USER_REGFILE,   1024, jareth_bank_regfile },
 	};
 
 	/* device_printf(sc->sc_dev, "requiesting %llx with %d\n", off, prot); */
@@ -505,6 +541,18 @@ goblinmmap(dev_t dev, off_t off, int prot)
 			case goblin_bank_fbc:
 				return (bus_space_mmap(sc->sc_bustag,
 									   sc->sc_reg_fbc_paddr, u,
+									   prot, flags));
+			case jareth_bank_reg:
+				return (bus_space_mmap(sc->sc_bustag,
+									   sc->sc_jareth_reg_paddr, u,
+									   prot, flags));
+			case jareth_bank_microcode:
+				return (bus_space_mmap(sc->sc_bustag,
+									   sc->sc_jareth_microcode_paddr, u,
+									   prot, flags));
+			case jareth_bank_regfile:
+				return (bus_space_mmap(sc->sc_bustag,
+									   sc->sc_jareth_regfile_paddr, u,
 									   prot, flags));
 			}
 		}
@@ -773,7 +821,7 @@ static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose,
 
 static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n) {
 	const uint32_t base = 0;
-	const int pidx = 1;
+	const int pidx = 3; // fill
 	int i;
 
 	power_on(sc);
@@ -789,6 +837,38 @@ static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, i
 	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
 	/* } */
 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
+	jareth_mpstart_write(sc, program_offset[pidx]);
+	jareth_mplen_write(sc, program_len[pidx]);
+	
+	(void)start_job(sc, verbose);
+	delay(1);
+	(void)wait_job(sc, 1, verbose);
+
+	power_off(sc);
+
+	return 0;
+}
+
+static int jareth_fillrop(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n, int pm, int rop) {
+	const uint32_t base = 0;
+	const int pidx = 4; // fillrop
+	int i;
+
+	power_on(sc);
+
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
+	for (i = 0 ; i < 8 ; i++) {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,i), pat);
+	}
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
+	/* for (i = 1 ; i < 8 ; i++) { */
+	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
+	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
+	/* } */
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(5,0), (pm));
+	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(5,1), (rop));
 	jareth_mpstart_write(sc, program_offset[pidx]);
 	jareth_mplen_write(sc, program_len[pidx]);
 	
@@ -886,7 +966,7 @@ static int start_job(struct goblin_softc *sc, enum jareth_verbosity verbose) {
 static int wait_job(struct goblin_softc *sc, uint32_t param, enum jareth_verbosity verbose) {
 	uint32_t status = jareth_status_read(sc);
 	int count = 0;
-	int max_count = 3000;
+	int max_count = 5000;
 	int del = 1;
 	const int max_del = 64;
 	static int max_del_seen = 1;

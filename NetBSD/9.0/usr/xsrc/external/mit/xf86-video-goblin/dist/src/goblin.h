@@ -36,8 +36,11 @@
 #include "exa.h"
 
 /* Various offsets in virtual (ie. mmap()) spaces Linux and Solaris support. */
-#define GOBLIN_FBC_VOFF	0x70000000
-#define GOBLIN_RAM_VOFF	0x70016000
+#define GOBLIN_FBC_VOFF	      0x70000000
+#define	JARETH_REG_VOFF	      0x70001000
+#define	JARETH_MICROCODE_VOFF 0x70002000
+#define	JARETH_REGFILE_VOFF	  0x70003000
+#define GOBLIN_RAM_VOFF	      0x70016000
 
 typedef struct {
 	unsigned int fg, bg;			/* FG/BG colors for stipple */
@@ -54,20 +57,25 @@ typedef struct {
 typedef struct {
 	unsigned char	*fb;
 	GoblinFbcPtr	fbc;
-	int		vclipmax;
+	JarethRegPtr    jreg;
+	JarethMicrocodePtr jmicrocode;
+	JarethRegfilePtr   jregfile;
 	int		width;
 	int		height;
 	int		maxheight;
 	int		vidmem;
-
 	sbusDevicePtr	psdp;
 	Bool		NoAccel;
 	CloseScreenProcPtr CloseScreen;
 	OptionInfoPtr	Options;
+	Bool    has_accel;
 
-        int             clipxa, clipxe;
 	ExaDriverPtr	pExa;
-	int		srcoff, fg;
+	uint32_t	last_mask;
+	uint32_t	last_rop;
+	uint32_t    fg;
+	int		xdir, ydir;
+	uint32_t	srcoff, srcpitch;
 } GoblinRec, *GoblinPtr;
 
 extern int  GoblinScreenPrivateIndex;
