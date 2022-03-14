@@ -213,7 +213,7 @@ fn main() -> std::io::Result<()> {
 	);
 
     let mcode_fill = assemble_jareth!(
-	// x..x / $DST in %0, 128 bits
+	// x..x / $DST in %0
 	// 128-bits pattern in %1 [assumed to be alignement-homogneous]
 	// x..x / X size in %2
 	// x..x / Y size in %3,
@@ -330,8 +330,8 @@ fn main() -> std::io::Result<()> {
 	);
 	
     let mcode_fillrop = assemble_jareth!(
-	// x..x / $DST in %0, 128 bits
-	// 128-bits pattern in %1 [assumed to be alignement-homogneous]
+	// x..x / $DST in %0
+	// 128-bits pattern in %1 [assumed to be alignement-homogeneous]
 	// x..x / X size in %2
 	// x..x / Y size in %3,
 	// x..x / dst_stride in %4 (screen width?)
@@ -453,6 +453,150 @@ fn main() -> std::io::Result<()> {
 				fin
 	);
 
+
+
+    let mcode_copy = assemble_jareth!(
+	// x..x / $SRC / $DST in %0
+	// x..x / $DST / $SRC in %1
+	// x..x / X size in %2
+	// x..x / Y size in %3,
+	// x..x src_stride / dst_stride in %4 (screen width?)
+	// -----
+	// main loop:
+	// live X count in %9
+	// leftover X in %6
+	// // live Y count in %3
+	// data in %7
+	// masked data in %7
+	// 0/scrap in %15
+	// -----
+	// header loop:
+	// live Y count in %9
+	// $SRC / $DST in %6
+	// dst data in %7
+	// src data in %8
+	// 0/scrap in %15
+	
+
+        start:
+				// if number of line or element in line is 0, exit early
+				brz32 done128, %2
+				brz32 done128, %3
+				// reset masks
+				resm %15
+				// if $DST is aligned on 128 bits, jump to aligned loop
+				brz4 start128, %0
+
+				// do the first column to align $DST
+		startX:
+				// set alignement; we shift by the addr offset
+				//and %14, %2, #15
+				setmq %15, %0, #16
+				setma %15, %1, #16
+				getm %14
+				// copy Y
+				psa %9, %3
+				// copy $SRC / $DST
+				psa %6, %0
+		loopX_y:
+				// setadr
+				setadr %15, %6
+				// load src
+				load256 %8, ^1
+				// load old data
+				load128 %7, ^0
+				// insert data
+				psa* %7, %8
+				// rewrite data
+				store128 %15, ^0, %7
+				// increment copied $SRC / $DST by stride
+				add32v %6, %6, %4
+				// decrement copied Y count
+				sub32v %9, %9, #1
+				// if not zero, continue
+				brnz32 loopX_y, %9
+
+		loopX_done:
+				// how much did we do (#15 is 15, #16 is 16)
+				and %9, %0, #15
+				// compute 16-(x&15)
+				sub32v %9, #16, %9
+				// compute the proper value
+				min32v %9, %9, %2
+				// more than one address to increment
+				bcast32 %9, %9
+				// add the count to the addresses, ^0 will now be aligned
+				add32v %0, %0, %9
+				// remove from X, as we have done it
+				sub32v %2, %2, %9
+				// fall through to the aligned loop if not 0
+				brz32 done128, %2
+				// reset q mask (we will be aligned from now on)
+				setmq %15, #0, #16
+				// add the count to the addresses, ^1 will have the proper shift for masking
+				add32v %1, %1, %9
+				// reset a mask to the proper shifting
+				setma %15, %1, #16
+
+		start128:
+				// compute X leftovers (modulo 16 -> #15 is 15)
+				and %6, %2, #15
+				
+		loop128_y:
+				// set source and destination addresses for current Y
+				setadr %15, %0
+				// then the rounded value in X
+				sub32v %9, %2, %6
+				// prefetch data
+				load256inc %8, ^1
+				// already 0, bypass aligned stuff
+				brz32 loop128_x_end, %9
+				
+		loop128_x:
+				// merge data from input
+				psa* %7, %8
+				// store to DST w/ post-increment
+				store128inc %15, ^0, %7
+				// sub 16 (#16 is 16) from live rounded X count
+				sub32v %9, %9, #16
+				// prefetch data
+				loadh128inc %8, ^1, %8
+				// if X count is not 0, keep looping
+				brnz32 loop128_x, %9
+				// check for line leftovers
+		loop128_x_end:
+				brz4 done128_x, %6
+				
+				// set the leftovers mask (offset is 0 as we are aligned)
+				// IMPROVE ME
+				setmq %15, #0, %6
+				// load old data
+				load128 %7, ^0
+				// insert pattern
+				psa* %7, %8
+				// rewrite data
+				store128 %15, ^0, %7
+				// reset the Q mask
+				// IMPROVE ME
+				setmq %15, #0, #16
+				
+		done128_x:
+				// decrement Y count
+				sub32v %3, %3, #1
+				// if 0, finished
+				brz32 done128, %3
+				
+				// add strides to initial addresses
+				add32v %0, %0, %4
+				// loop128 to do next line
+				brz32 loop128_y, #0
+				
+		done128:		
+				fin
+				fin
+	);
+
+
     let mut pos;
 
 	pos = 0;
@@ -517,6 +661,15 @@ fn main() -> std::io::Result<()> {
     }
 	println!("");
 	println!("-> {}", mcode_fillrop.len());
+
+	pos = 0;
+	println!("copy:");
+    while pos < mcode_copy.len() {
+		  print!("0x{:08x},", mcode_copy[pos]);
+		  pos = pos + 1;
+    }
+	println!("");
+	println!("-> {}", mcode_copy.len());
 
 	Ok(())
 }

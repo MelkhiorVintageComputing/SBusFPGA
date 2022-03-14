@@ -28,6 +28,7 @@ opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shif
     "BRZ4" : [13, "If Ra[0:4] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (4-bits)"],
     "BRZ5" : [14, "If Ra[0:5] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (5-bits)"],
     "MIN32V" : [15, "Wd[x..x+32] $\gets$ umin(Ra[x..x+32], Rb[x..x+32]) // vector 32-bit umin"],
+    "BCAST32" : [16, "Wd[x..x+32] $\gets$ Ra[0..32]"],
     # for MEM, bit #31 (imm[8]) indicates both lanes are needed; imm[31] == 0 faster as the second access is not done ;
     "GETM": [17, "GETM: getmask" ],
     "ADR": [18, "ADR: set or recover addresses, Wd $\gets$ ADR (for GETADR) or Wd $\gets$ 0 (for SETADR)" ],
@@ -328,12 +329,12 @@ passthrough.
                 self.q.eq(Cat(0, self.a[:255])),
             ).Elif(self.instruction.opcode == opcodes["AND"][0],
                 self.q.eq(self.a & self.b),
-            ),
+            )
         ]
 
 class ExecAddSub(ExecUnit, AutoDoc):
     def __init__(self, width=256):
-        ExecUnit.__init__(self, width, ["ADD32V", "SUB32V", "MIN32V" ])
+        ExecUnit.__init__(self, width, ["ADD32V", "SUB32V", "MIN32V", "BCAST32" ])
         self.notes = ModuleDoc(title="Add/Sub ExecUnit Subclass", body=f"""
         """)
 
@@ -346,8 +347,12 @@ class ExecAddSub(ExecUnit, AutoDoc):
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] + self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
             ).Elif(self.instruction.opcode == opcodes["SUB32V"][0],
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] - self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
+            ).Elif(self.instruction.opcode == opcodes["BCAST32"][0],
+                   [ self.q[x*32:(x+1)*32].eq(self.a[0:32]) for x in range(0, width//32) ],
             ).Elif(self.instruction.opcode == opcodes["MIN32V"][0],
-                   [ If((self.a[x*32:(x+1)*32] <= self.b[x*32:(x+1)*32]), self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32]), self.q.eq(self.b[x*32:(x+1)*32])) for x in range(0, width//32) ],
+                   [ If((self.a[x*32:(x+1)*32] <= self.b[x*32:(x+1)*32]),
+                        self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32])
+                       ).Else(self.q[x*32:(x+1)*32].eq(self.b[x*32:(x+1)*32])) for x in range(0, width//32) ],
             )
         ]
         
@@ -530,7 +535,6 @@ class ExecLS(ExecUnit, AutoDoc):
                          )
                      ),
                   ).Elif(self.instruction.opcode == opcodes["LOADH"][0],
-                         NextValue(cpar, 0),
                          NextValue(self.has_timeout, 0),
                          NextValue(self.has_failure, 0),
                          NextValue(timeout, 2047),
