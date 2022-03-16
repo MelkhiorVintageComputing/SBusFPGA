@@ -11,31 +11,48 @@ field_latex = "$\mathbf{{F}}_{{{{2^{{255}}}}-19}}$"
 
 opcode_bits = 5  # number of bits used to encode the opcode field
 opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shift a/b/q (star)
-    "UDF" : [-1, "Placeholder for undefined opcodes"],
-    "PSA" : [0, "Wd $\gets$ Ra  // pass A"],
-    "PSB" : [1, "Wd $\gets$ Rb  // pass B"], # for star version mostly
+    "UDF" :    [-1, "Placeholder for undefined opcodes"],
+    "PSA" :    [0, "Wd $\gets$ Ra  // pass A"],
+    "PSB" :    [1, "Wd $\gets$ Rb  // pass B"], # for star version mostly
     "ROP32V" : [2, "Wd $\gets$ ((Rb ROP Ra) & planemask) | (Ra & ~planemask)" ], # replace MSK
-    "XOR" : [3, "Wd $\gets$ Ra ^ Rb  // bitwise XOR"],
-    "NOT" : [4, "Wd $\gets$ ~Ra   // binary invert"],
+    "XOR" :    [3, "Wd $\gets$ Ra ^ Rb  // bitwise XOR"],
+    "NOT" :    [4, "Wd $\gets$ ~Ra   // binary invert"],
     "ADD32V" : [5, "Wd[x..x+32] $\gets$ Ra[x..x+32] + Rb[x..x+32] // vector 32-bit binary add"],
     "SUB32V" : [6, "Wd[x..x+32] $\gets$ Ra[x..x+32] - Rb[x..x+32] // vector 32-bit binary sub"],
-    "AND" : [7, "Wd $\gets$ Ra & Rb  // bitwise AND"], # replace MUL
+    "AND" :    [7, "Wd $\gets$ Ra & Rb  // bitwise AND"], # replace MUL
     "BRNZ32" : [8, "If Ra[0:32] != 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if non-zero (32-bits)"], # replace TRD
-    "BRZ32" : [9, "If Ra[0:32] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (32-bits)"],
-    "FIN" : [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
-    "SHL" : [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
-    "SROP" : [12, "set planemask & rop from Ra[0:32] and Ra[32:36]" ], # was XBT
-    "BRZ4" : [13, "If Ra[0:4] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (4-bits)"],
-    "BRZ5" : [14, "If Ra[0:5] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (5-bits)"],
+    "BRZ32" :  [9, "If Ra[0:32] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (32-bits)"],
+    "FIN" :    [10, "halt execution and assert interrupt to host CPU that microcode execution is done"],
+    "SHL" :    [11, "Wd $\gets$ Ra << 1  // shift Ra left by one and store in Wd"],
+    "SROP" :   [12, "set planemask & rop from Ra[0:32] and Ra[32:36]" ], # was XBT
+    "BRZ4" :   [13, "If Ra[0:4] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (4-bits)"],
+    "BRZ5" :   [14, "If Ra[0:5] == 0 then mpc[9:0] $\gets$ mpc[9:0] + immediate[9:0] + 1, else mpc $\gets$ mpc + 1  // Branch if zero (5-bits)"],
     "MIN32V" : [15, "Wd[x..x+32] $\gets$ umin(Ra[x..x+32], Rb[x..x+32]) // vector 32-bit umin"],
-    "BCAST32" : [16, "Wd[x..x+32] $\gets$ Ra[0..32]"],
+    "MANIP32": [16, "imm[0..1] == 0 BCAST32 = Wd[x..x+32] $\gets$ Ra[0..32], imm[0..1] == 1 SWAP32, imm[0..1] == 2 ROTR32V"],
+    "GETM":    [17, "GETM: getmask" ],
+    "ADR":     [18, "ADR: set or recover addresses, Wd $\gets$ ADR (for GETADR) or Wd $\gets$ 0 (for SETADR)" ],
     # for MEM, bit #31 (imm[8]) indicates both lanes are needed; imm[31] == 0 faster as the second access is not done ;
-    "GETM": [17, "GETM: getmask" ],
-    "ADR": [18, "ADR: set or recover addresses, Wd $\gets$ ADR (for GETADR) or Wd $\gets$ 0 (for SETADR)" ],
-    "MEM" : [19, "MEM: imm[8] == 1 for 256 imm[7] == 0 for LOAD, imm[7] == 1 for STORE (beware, store zeroes the output reg); post-inc in imm[6], address in addr[imm[0...]]" ],
-    "SETM" : [20, "SETMx: Wd $\gets$ 0, masking for x = imm[1:0] set to start Ra[0:4], length Rb[0:5] ; using imm[1:0]==3 reset all (alias resm)" ],
-    "LOADH" : [21, "LOADH: imm[7] == 0 for LOAD, address in addr[imm[0...]], high->low & load a+16 into high" ],
-    "MAX" : [22, "Maximum opcode number (for bounds checking)"],
+    # "MEM" imm:
+    #   imm[8]: 256 bits mode
+    #   imm[7]: L/S
+    #   imm[6]: post-inc
+    #   imm[5]: post-dec
+    #   imm[4]: 
+    #   imm[3]: 
+    #   imm[0..2]: adr reg
+    "MEM" :    [19, "MEM: imm[8] == 1 for 256 imm[7] == 0 for LOAD, imm[7] == 1 for STORE (beware, store zeroes the output reg); post-inc in imm[6], address in addr[imm[0...]]" ],
+    "SETM" :   [20, "SETMx: Wd $\gets$ 0, masking for x = imm[1:0] set to start Ra[0:4], length Rb[0:5] ; using imm[1:0]==3 reset all (alias resm)" ],
+    # "LOADH/L" imm:
+    #   imm[8]: 0
+    #   imm[7]: 0
+    #   imm[6]: post-inc
+    #   imm[5]: post-dec
+    #   imm[4]: 
+    #   imm[3]: 
+    #   imm[0..2]: adr reg
+    "LOADH" :  [21, "LOADH: high->low & load *Adr into high" ],
+    "LOADL" :  [22, "LOADL: low->high & load *Adr into low" ],
+    "MAX" :    [23, "Maximum opcode number (for bounds checking)"],
 }
 
 num_registers = 32
@@ -334,7 +351,7 @@ passthrough.
 
 class ExecAddSub(ExecUnit, AutoDoc):
     def __init__(self, width=256):
-        ExecUnit.__init__(self, width, ["ADD32V", "SUB32V", "MIN32V", "BCAST32" ])
+        ExecUnit.__init__(self, width, ["ADD32V", "SUB32V", "MIN32V", "MANIP32" ])
         self.notes = ModuleDoc(title="Add/Sub ExecUnit Subclass", body=f"""
         """)
 
@@ -347,12 +364,25 @@ class ExecAddSub(ExecUnit, AutoDoc):
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] + self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
             ).Elif(self.instruction.opcode == opcodes["SUB32V"][0],
                    [ self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32] - self.b[x*32:(x+1)*32]) for x in range(0, width//32) ],
-            ).Elif(self.instruction.opcode == opcodes["BCAST32"][0],
-                   [ self.q[x*32:(x+1)*32].eq(self.a[0:32]) for x in range(0, width//32) ],
             ).Elif(self.instruction.opcode == opcodes["MIN32V"][0],
                    [ If((self.a[x*32:(x+1)*32] <= self.b[x*32:(x+1)*32]),
                         self.q[x*32:(x+1)*32].eq(self.a[x*32:(x+1)*32])
-                       ).Else(self.q[x*32:(x+1)*32].eq(self.b[x*32:(x+1)*32])) for x in range(0, width//32) ],
+                       ).Else(
+                           self.q[x*32:(x+1)*32].eq(self.b[x*32:(x+1)*32]))
+                     for x in range(0, width//32) ],
+            ).Elif((self.instruction.opcode == opcodes["MANIP32"][0]) & (self.instruction.immediate[0:2] == 0), # BCAST32
+                   [ self.q[x*32:(x+1)*32].eq(self.a[0:32]) for x in range(0, width//32) ],
+            ).Elif((self.instruction.opcode == opcodes["MANIP32"][0]) & (self.instruction.immediate[0:2] == 1), # SWAP32
+                   [ self.q[x*32:(x+1)*32].eq(self.a[(x^1)*32:((x^1)+1)*32]) for x in range(0, width//32) ], 
+            ).Elif((self.instruction.opcode == opcodes["MANIP32"][0]) & (self.instruction.immediate[0:2] == 2), # ROTR32V
+                   Case(self.b[0:2], {
+                       0: [ self.q[x*32:(x+1)*32].eq(    self.a[x*32   :(x+1)*32])                        for x in range(0, width//32) ],
+                       1: [ self.q[x*32:(x+1)*32].eq(Cat(self.a[x*32+ 8:(x+1)*32], self.a[x*32:x*32+ 8])) for x in range(0, width//32) ],
+                       2: [ self.q[x*32:(x+1)*32].eq(Cat(self.a[x*32+16:(x+1)*32], self.a[x*32:x*32+16])) for x in range(0, width//32) ],
+                       3: [ self.q[x*32:(x+1)*32].eq(Cat(self.a[x*32+24:(x+1)*32], self.a[x*32:x*32+24])) for x in range(0, width//32) ],
+                   }),
+            ).Else(
+                [ self.q[x*32:(x+1)*32].eq(0xDEADBEEF) for x in range(0, width//32) ]
             )
         ]
         
@@ -418,7 +448,7 @@ class ExecRop(ExecUnit, AutoDoc):
 
 class ExecLS(ExecUnit, AutoDoc):
     def __init__(self, width=256, interface=None, memoryport=None, r_dat_f=None, r_dat_m=None, granule=0):
-        ExecUnit.__init__(self, width, ["MEM", "SETM", "ADR", "LOADH", "GETM"])
+        ExecUnit.__init__(self, width, ["MEM", "SETM", "ADR", "LOADH", "LOADL", "GETM"])
         
         self.notes = ModuleDoc(title=f"Load/Store ExecUnit Subclass", body=f"""
         """)
@@ -470,7 +500,7 @@ class ExecLS(ExecUnit, AutoDoc):
 
         lsseq.act("IDLE",
                   If(start_pipe,
-                     If((self.instruction.opcode == opcodes["MEM"][0]) | (self.instruction.opcode == opcodes["LOADH"][0]),
+                     If((self.instruction.opcode == opcodes["MEM"][0]) | (self.instruction.opcode == opcodes["LOADH"][0]) | (self.instruction.opcode == opcodes["LOADL"][0]),
                         NextValue(cpar, 0),
                         NextValue(address, addresses[self.instruction.immediate[0:log2_int(width//32)]]),
                         NextValue(wishbone, ~(addresses[self.instruction.immediate[0:log2_int(width//32)]] == 0x8)),
@@ -554,6 +584,26 @@ class ExecLS(ExecUnit, AutoDoc):
                                 NextState("MEMh")
                              )
                          )
+                  ).Elif(self.instruction.opcode == opcodes["LOADL"][0],
+                         NextValue(self.has_timeout, 0),
+                         NextValue(self.has_failure, 0),
+                         NextValue(timeout, 2047),
+                         NextValue(lbuf[128:256], self.b[0:128]),
+                         If(wishbone,
+                            NextValue(interface.cyc, 1),
+                            NextValue(interface.stb, 1),
+                            NextValue(interface.sel, 2**len(interface.sel)-1),
+                            NextValue(interface.adr, address),
+                            NextValue(interface.we, self.instruction.immediate[7]),
+                            NextState("MEMl")
+                         ).Else(
+                             memoryport.cmd.we.eq(self.instruction.immediate[7]),
+                             memoryport.cmd.addr.eq(address[0:]),
+                             memoryport.cmd.valid.eq(1),
+                             If(memoryport.cmd.ready,
+                                NextState("MEMl")
+                             )
+                         )
                   )
         )
         for X in range(0, granule_num):
@@ -615,6 +665,8 @@ class ExecLS(ExecUnit, AutoDoc):
                   If(wishbone & ~interface.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                     ).Elif(self.instruction.immediate[5], # post-inc
+                        NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                      ),
                      If(self.instruction.immediate[8],
                         NextValue(interface.cyc, 1),
@@ -627,7 +679,9 @@ class ExecLS(ExecUnit, AutoDoc):
                            NextValue(interface.dat_w, self.b[128:256])),
                         NextState("MEMh")
                      ).Else(
-                         NextValue(lbuf[128:256], 0),
+                         If(self.instruction.opcode == opcodes["MEM"][0],
+                            NextValue(lbuf[128:256], 0),
+                         ),
                          If(cpar, ## checkme
                             NextState("MEM_ODD")
                          ).Else(
@@ -643,12 +697,16 @@ class ExecLS(ExecUnit, AutoDoc):
                             If(memoryport.cmd.ready,
                                If(self.instruction.immediate[6], # post-inc
                                   NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                               ).Elif(self.instruction.immediate[5], # post-inc
+                                      NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                                ),
                                NextState("MEMh"),
                             )
                          ).Else( # no high
                              If(self.instruction.immediate[6], # post-inc
                                 NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                             ).Elif(self.instruction.immediate[5], # post-inc
+                                    NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                              ),
                              NextValue(lbuf[128:256], 0),
                              If(cpar, ## checkme
@@ -691,6 +749,8 @@ class ExecLS(ExecUnit, AutoDoc):
                   If(wishbone & ~interface.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                     ).Elif(self.instruction.immediate[5], # post-inc
+                        NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                      ),
                      #NextValue(tries, 0),
                      If(cpar, ## checkme
@@ -701,6 +761,8 @@ class ExecLS(ExecUnit, AutoDoc):
                   ).Elif(~wishbone,
                          If(self.instruction.immediate[6], # post-inc
                             NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                         ).Elif(self.instruction.immediate[5], # post-inc
+                                NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                          ),
                          If(cpar, ## checkme
                             NextState("MEM_ODD")
@@ -733,7 +795,7 @@ class ExecLS(ExecUnit, AutoDoc):
         self.sync.mul_clk += [
             If(lsseq.ongoing("MEM_EVEN1") | lsseq.ongoing("MEM_EVEN2"),
                self.q_valid.eq(1),
-               If((self.instruction.opcode == opcodes["MEM"][0]) | (self.instruction.opcode == opcodes["LOADH"][0]),
+               If((self.instruction.opcode == opcodes["MEM"][0]) | (self.instruction.opcode == opcodes["LOADH"][0]) | (self.instruction.opcode == opcodes["LOADL"][0]),
                   If(~self.instruction.immediate[7],
                      self.q.eq(lbuf),
                   ).Else(
