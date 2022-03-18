@@ -491,14 +491,14 @@ fn main() -> std::io::Result<()> {
 				brz32 done128, %3
 				// reset masks
 				resm %15
+				// set alignement; we shift by the addr offset
+				setmq %15, %0, %2
+				setma %15, %1, #16
 				// if $DST is aligned on 128 bits, jump to aligned loop
 				brz4 start128, %0
 
 				// do the first column to align $DST
 		startX:
-				// set alignement; we shift by the addr offset
-				setmq %15, %0, #16
-				setma %15, %1, #16
 				// copy Y
 				psa %9, %3
 				// copy $SRC / $DST
@@ -614,6 +614,7 @@ fn main() -> std::io::Result<()> {
 	// leftover X in %6
 	// data in %7
 	// masked data in %7
+	// src data in %8
 	// live X count in %9
 	// $SRC / $DST in %10
 	// $DST / $SRC in %11
@@ -636,13 +637,13 @@ fn main() -> std::io::Result<()> {
 				brz32 done128, %3
 				// reset masks
 				resm %15
-				// compute how much the tail loop will handle (first column) (#15 is 15, #16 is 16)
-				and %14, %0, #15
 				// copy addresses
 				psa %10, %0
 				psa %11, %1
 				// set todo X
 				psa %13, %2
+				// compute how much the tail loop will handle (first column) (#15 is 15, #16 is 16), first the offset
+				and %14, %0, #15
 				// if 0, then we don't need a tail loop, so skip extra computation (that would wrongly give 16)
 				brz32 skip, %14
 				
@@ -652,9 +653,9 @@ fn main() -> std::io::Result<()> {
 				min32v %14, %14, %2
 				// more than one address to increment
 				bcast32 %14, %14
-				// add the count to the addresses, SRC will now be aligned
+				// add the count to the addresses, DST will now be aligned
 				add32v %10, %10, %14
-				// add the count to the addresses, DST will have the proper alignment to shift input in the aligned loop
+				// add the count to the addresses, SRC will have the proper alignment to shift input in the aligned loop
 				add32v %11, %11, %14
 				// so, do we do everything there ?
 				sub32v %13, %2, %14
@@ -664,41 +665,50 @@ fn main() -> std::io::Result<()> {
 		skip:
 				// reset q mask (we will be aligned from now on)
 				setmq %15, #0, #16
-				// reset a mask to the proper shifting
+				// set a mask to the proper shifting
 				setma %15, %11, #16
 
 				// now we need to figure out where we start to go backward
-				// currently we have the number of 'tail' (first column) elements in %14 (0 for aligned), number of 'loop' elements in %13,
-				// and $SRC+%14 & $DST+%14 in $10/$11 we $SRC+%14 aligned.
+				// currently we have the number of 'tail' (first column...) elements in %14 (0 for aligned), number of 'loop' elements in %13,
+				// and $SRC+%14 & $DST+%14 in $10/$11 with $SRC+%14 aligned.
 				// compute X leftovers (%13 modulo 16 -> #15 is 15) in %6, we will have to start with those
 				and %6, %13, #15
 				// compute the 'aligned' number of elements
 				sub32v %15, %13, %6
-				// if 0, jump to the main loop as we already have the proper addresses
-				brz32 loop128_y, %15
-				
 				bcast32 %15, %15
+
 				// add the aligned number of element to $SRC+%14 & $DST+%14
 				add32v %10, %10, %15
 				add32v %11, %11, %15
 				
-				// if %6 is 0 (no leftovers), then $DST is pointing after the last element so need to remove 16 from $DST
+				// if %6 is 0 (no leftovers), then $DST is pointing after the last element so need to remove 16 from $DST and $SRC
 				brnz32 skip2, %6
-				sub32v %10, %10, #16
-		skip2:  // if $SRC is not aligned, we also need to add 16 (for prefetch)
-				and %15, %11, #15
-				brz32 skip3, %15
+				psa %15, #16
+				bcast32 %15, %15
+				sub32v %10, %10, %15
+				sub32v %11, %11, %15
+				
+		skip2:  // // if $SRC+%13 is not aligned, we also need to add 16 (for prefetch)
+				// add32v %15, %11, %6
+				// and %15, %15, #15
+				// brz32 skip3, %15
+
 				add32v %11, %11, #16
 				psa %15, #16
 				swap32 %15, %15
 				add32v %10, %10, %15
+				
+				// add32v %15, %6, #16
+				// add32v %11, %11, %15
+				// swap32 %15, %15
+				// add32v %10, %10, %15
 
 		skip3:
 				// copy Y count
 				psa %12, %3
 				
 		loop128_y:
-				// set source and destination addresses for current Y // FIXME : +X, -1?
+				// set source and destination addresses for current Y
 				setadr %15, %10
 				// then the rounded value in X
 				sub32v %9, %13, %6
@@ -755,7 +765,7 @@ fn main() -> std::io::Result<()> {
 				// do the first column if we need to
 				brz32 done128, %14
 				// set alignement; we shift by the addr offset
-				setmq %15, %0, #16
+				setmq %15, %0, %2
 				setma %15, %1, #16
 				// copy Y
 				psa %9, %3
@@ -777,7 +787,7 @@ fn main() -> std::io::Result<()> {
 				// if not zero, continue
 				brnz32 loopX_y, %9
 				
-		done128:		
+		done128:
 				fin
 				fin
 	);

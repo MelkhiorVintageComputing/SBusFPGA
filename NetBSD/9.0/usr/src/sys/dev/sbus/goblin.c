@@ -120,11 +120,23 @@ struct scrolltest {
 	int pm;
 	int rop;
 };
+
+/* debug only, to remove */
 #define GOBLIN_SCROLL	_IOW('X', 0, struct scrolltest)
 #define GOBLIN_FILL     _IOW('X', 1, struct scrolltest)
 #define GOBLIN_FILLROP  _IOW('X', 2, struct scrolltest)
 #define GOBLIN_COPY     _IOW('X', 3, struct scrolltest)
 #define GOBLIN_COPYREV  _IOW('X', 4, struct scrolltest)
+
+#define JARETH_FN_NUM_FILL       0
+#define JARETH_FN_NUM_FILLROP    1
+#define JARETH_FN_NUM_COPY       2
+#define JARETH_FN_NUM_COPYREV    3
+struct jareth_fn {
+	int off;
+	int len;
+};
+#define JARETH_FN   _IOWR('j', 0, struct jareth_fn)
 
 static int 	goblin_ioctl(void *, void *, u_long, void *, int, struct lwp *);
 static paddr_t	goblin_mmap(void *, void *, off_t, int);
@@ -168,14 +180,14 @@ static const uint32_t program_fillrop[42] =   { 0x13800089,0x130000c9,0x01bc0014
 												0x0180018d,0x801c0013,0x001c11e2,0xc03c7013,0x000e10c6,0x010000c9,0x00004005,0xf8000809,
 												0x0000000a,0x0000000a };
 
-static const uint32_t program_copy[48] =      {  0x16800089,0x160000c9,0x01bc0014,0x0b00000d,0x013f0014,0x003f0054,0x002400c0,0x00180000,
-												 0x403c0192,0x80a00013,0x001c0013,0x001c0220,0x403c7013,0x00184185,0x00261246,0xfc000248,
-												 0x0026f007,0x00249c06,0x0024224f,0x00240250,0x00009005,0x00089086,0x0b800089,0x013f0814,
-												 0x00049045,0x003f0054,0x001af087,0x403c0012,0x00246086,0xa0a00013,0x02800249,0x001c0220,
-												 0x603c7013,0x00270246,0x20a08015,0xfd800248,0x0280018d,0x013c6814,0x001c0013,0x001c0220,
-												 0x403c7013,0x013f0814,0x000e10c6,0x010000c9,0x00004005,0xf6800809,0x0000000a,0x0000000a };
+static const uint32_t program_copy[48] =      { 0x16800089,0x160000c9,0x01bc0014,0x013c2014,0x003f0054,0x0a00000d,0x002400c0,0x00180000,
+												0x403c0192,0x80a00013,0x001c0013,0x001c0220,0x403c7013,0x00184185,0x00261246,0xfc000248,
+												0x0026f007,0x00249c06,0x0024224f,0x00240250,0x00009005,0x00089086,0x0b800089,0x013f0814,
+												0x00049045,0x003f0054,0x001af087,0x403c0012,0x00246086,0xa0a00013,0x02800249,0x001c0220,
+												0x603c7013,0x00270246,0x20a08015,0xfd800248,0x0280018d,0x013c6814,0x001c0013,0x001c0220,
+												0x403c7013,0x013f0814,0x000e10c6,0x010000c9,0x00004005,0xf6800809,0x0000000a,0x0000000a  };
 
-static const uint32_t program_copyrev[66] =   {  0x1f800089,0x1f0000c9,0x01bc0014,0x003af007,0x00280000,0x002c0040,0x00340080,0x03800389,0x0038ec06,0x0038238f,0x00380390,0x0028e285,0x002ce2c5,0x0034e086,0x12800349,0x013f0814,0x003f02d4,0x001af347,0x003c6346,0x060003c9,0x003c03d0,0x0028f285,0x002cf2c5,0x00800188,0x002b0286,0x003ef2c7,0x020003c9,0x002f02c5,0x003c0c00,0x00bc03d0,0x0028f285,0x003000c0,0x403c0292,0x00246346,0x10a00013,0x0300018d,0x013c6814,0x10a08016,0x001c0013,0x001c0220,0x503c7013,0x013f0814,0x02800249,0x10a08016,0x001c0220,0x503c7013,0x00270246,0xfd000248,0x00321306,0x01000309,0x00284285,0xf6000809,0x05800389,0x013f0014,0x003f0054,0x002400c0,0x403c0012,0x80a00013,0x001c0013,0x001c0220,0x403c7013,0x00004005,0x00261246,0xfc000248,0x0000000a,0x0000000a };
+static const uint32_t program_copyrev[66] =   {  0x1f800089,0x1f0000c9,0x01bc0014,0x00280000,0x002c0040,0x00340080,0x003af007,0x03800389,0x0038ec06,0x0038238f,0x00380390,0x0028e285,0x002ce2c5,0x0034e086,0x12800349,0x013f0814,0x003f02d4,0x001af347,0x003c6346,0x003c03d0,0x0028f285,0x002cf2c5,0x02000188,0x003c0c00,0x003c03d0,0x0028f286,0x002cf2c6,0x002f02c5,0x003c0c00,0x00bc03d0,0x0028f285,0x003000c0,0x403c0292,0x00246346,0x10a00013,0x0300018d,0x013c6814,0x10a08016,0x001c0013,0x001c0220,0x503c7013,0x013f0814,0x02800249,0x10a08016,0x001c0220,0x503c7013,0x00270246,0xfd000248,0x00321306,0x01000309,0x00284285,0xf6000809,0x05800389,0x013c2014,0x003f0054,0x002400c0,0x403c0012,0x80a00013,0x001c0013,0x001c0220,0x403c7013,0x00004005,0x00261246,0xfc000248,0x0000000a,0x0000000a   };
 
 static const uint32_t* programs[8] = { program_scroll128, program_fill128, program_fill256, program_fill,
 									   program_fillrop,   program_copy,    program_copyrev, NULL };
@@ -427,6 +439,28 @@ goblinioctl(dev_t dev, u_long cmd, void *data, int flags, struct lwp *l)
 	case GOBLIN_COPYREV: {
 		struct scrolltest *st = (struct scrolltest *)data;
 		jareth_copyrev(sc, jareth_verbose, st->y0, st->y1, st->x0, st->w, st->n, /* x1 */ st->pm, st->rop);
+	}
+		break;
+
+	case JARETH_FN: {
+		struct jareth_fn *fn = (struct jareth_fn *)data;
+		int pidx = -1;
+		if (!sc->sc_has_jareth) {
+			return ENXIO;
+		}
+		switch (fn->off) {
+		case JARETH_FN_NUM_FILL:     pidx = 3; break;
+		case JARETH_FN_NUM_FILLROP:  pidx = 4; break;
+		case JARETH_FN_NUM_COPY:     pidx = 5; break;
+		case JARETH_FN_NUM_COPYREV:  pidx = 6; break;
+		}
+		if (pidx != -1) {
+			fn->off = program_offset[pidx];
+			fn->len = program_len[pidx];
+		} else {
+			fn->off = -1;
+			fn->len = -1;
+		}
 	}
 		break;
 
@@ -1143,7 +1177,10 @@ static int wait_job(struct goblin_softc *sc, uint32_t param, enum jareth_verbosi
 	} else {
 		//aprint_normal_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x [%d] ls_status: 0x%08x\n", status, count, jareth_ls_status_read(sc));
 	}
-		
+
+#if 1
+	device_printf(sc->sc_dev, "last run took %d cycle (eng_clk)\n", jareth_cyc_counter_read(sc));
+#endif
 
 	return 0;
 }

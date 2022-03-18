@@ -503,7 +503,7 @@ class ExecLS(ExecUnit, AutoDoc):
                      If((self.instruction.opcode == opcodes["MEM"][0]) | (self.instruction.opcode == opcodes["LOADH"][0]) | (self.instruction.opcode == opcodes["LOADL"][0]),
                         NextValue(cpar, 0),
                         NextValue(address, addresses[self.instruction.immediate[0:log2_int(width//32)]]),
-                        NextValue(wishbone, ~(addresses[self.instruction.immediate[0:log2_int(width//32)]] == 0x8)),
+                        NextValue(wishbone, ~(addresses[self.instruction.immediate[0:log2_int(width//32)]][24:28] == 0x8)),
                         NextState("DOMEM"),
                      ).Elif(self.instruction.opcode == opcodes["SETM"][0],
                             Case(self.instruction.immediate[0:2],
@@ -516,7 +516,8 @@ class ExecLS(ExecUnit, AutoDoc):
                                            NextState("MEM_ODD") ],
                                    0x2 : [ NextValue(r_dat_f[2],  self.a[(granule_bits-3):len(r_dat_f[2])]),
                                            NextValue(offset,      self.a[(granule_bits-3):len(r_dat_f[2])]),
-                                           NextValue(offsetpsize, self.b[0:max_size_bits] + ((self.a[(granule_bits-3):len(r_dat_f[2])]) << (granule_bits-3)) ),
+                                           #NextValue(offsetpsize, self.b[0:max_size_bits] + ((self.a[(granule_bits-3):len(r_dat_f[2])]) << (granule_bits-3)) ),
+                                           NextValue(offsetpsize, self.b[0:max_size_bits]),
                                            NextState("GENMASK_R0"),
                                    ],
                                    0x1 : [ NextValue(r_dat_f[1],        self.a[(granule_bits-3):len(r_dat_f[1])]),
@@ -606,27 +607,37 @@ class ExecLS(ExecUnit, AutoDoc):
                          )
                   )
         )
-        for X in range(0, granule_num):
-            lsseq.act("GENMASK_R" + str(X),
-                      NextValue(cpar, cpar ^ 1),
-                      If((offsetpsize > X) & (X >= offset),
-                         NextValue(r_dat_m[self.instruction.immediate[0:2]][X], 1),
-                      ).Else(
-                         NextValue(r_dat_m[self.instruction.immediate[0:2]][X], 0),
-                      ),
-                      If(X == (granule_num-1),
-                         If(cpar, ## checkme
-                            NextState("MEM_ODD")
-                         ).Else(
-                             NextState("MEM_EVEN1")
-                         )
-                      ).Else(
-                          NextState("GENMASK_R" + str(X+1)),
-                      ),
-            )
-        lsseq.act("GENMASK_R"+str(granule_num), # avoids MiGen complaining, unreachable
+        #for X in range(0, granule_num):
+        #    lsseq.act("GENMASK_R" + str(X),
+        #              NextValue(cpar, cpar ^ 1),
+        #              If((offsetpsize > X) & (X >= offset),
+        #                 NextValue(r_dat_m[self.instruction.immediate[0:2]][X], 1),
+        #              ).Else(
+        #                 NextValue(r_dat_m[self.instruction.immediate[0:2]][X], 0),
+        #              ),
+        #              If(X == (granule_num-1),
+        #                 If(cpar,
+        #                    NextState("MEM_ODD")
+        #                 ).Else(
+        #                     NextState("MEM_EVEN1")
+        #                 )
+        #              ).Else(
+        #                  NextState("GENMASK_R" + str(X+1)),
+        #              ),
+        #    )
+        #lsseq.act("GENMASK_R"+str(granule_num), # avoids MiGen complaining, unreachable
+        #          NextValue(cpar, cpar ^ 1),
+        #          If(cpar,
+        #             NextState("MEM_ODD")
+        #          ).Else(
+        #              NextState("MEM_EVEN1")
+        #          )
+        #)
+        lsseq.act("GENMASK_R0",
                   NextValue(cpar, cpar ^ 1),
-                  If(cpar, ## checkme
+                  NextValue(r_dat_m[self.instruction.immediate[0:2]],
+                            (((Signal(33, reset=1) << offsetpsize) - 1) << (offset))),
+                  If(cpar,
                      NextState("MEM_ODD")
                   ).Else(
                       NextState("MEM_EVEN1")
@@ -665,7 +676,7 @@ class ExecLS(ExecUnit, AutoDoc):
                   If(wishbone & ~interface.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                     ).Elif(self.instruction.immediate[5], # post-inc
+                     ).Elif(self.instruction.immediate[5], # post-dec
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                      ),
                      If(self.instruction.immediate[8],
@@ -682,7 +693,7 @@ class ExecLS(ExecUnit, AutoDoc):
                          If(self.instruction.opcode == opcodes["MEM"][0],
                             NextValue(lbuf[128:256], 0),
                          ),
-                         If(cpar, ## checkme
+                         If(cpar,
                             NextState("MEM_ODD")
                          ).Else(
                              NextState("MEM_EVEN1")
@@ -697,7 +708,7 @@ class ExecLS(ExecUnit, AutoDoc):
                             If(memoryport.cmd.ready,
                                If(self.instruction.immediate[6], # post-inc
                                   NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                               ).Elif(self.instruction.immediate[5], # post-inc
+                               ).Elif(self.instruction.immediate[5], # post-dec
                                       NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                                ),
                                NextState("MEMh"),
@@ -705,11 +716,13 @@ class ExecLS(ExecUnit, AutoDoc):
                          ).Else( # no high
                              If(self.instruction.immediate[6], # post-inc
                                 NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                             ).Elif(self.instruction.immediate[5], # post-inc
+                             ).Elif(self.instruction.immediate[5], # post-dec
                                     NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                              ),
-                             NextValue(lbuf[128:256], 0),
-                             If(cpar, ## checkme
+                             If(self.instruction.opcode == opcodes["MEM"][0],
+                                NextValue(lbuf[128:256], 0),
+                             ),
+                             If(cpar,
                                 NextState("MEM_ODD")
                              ).Else(
                                  NextState("MEM_EVEN1")
@@ -749,11 +762,11 @@ class ExecLS(ExecUnit, AutoDoc):
                   If(wishbone & ~interface.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                     ).Elif(self.instruction.immediate[5], # post-inc
+                     ).Elif(self.instruction.immediate[5], # post-dec
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                      ),
                      #NextValue(tries, 0),
-                     If(cpar, ## checkme
+                     If(cpar,
                         NextState("MEM_ODD")
                      ).Else(
                         NextState("MEM_EVEN1")
@@ -761,10 +774,10 @@ class ExecLS(ExecUnit, AutoDoc):
                   ).Elif(~wishbone,
                          If(self.instruction.immediate[6], # post-inc
                             NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                         ).Elif(self.instruction.immediate[5], # post-inc
+                         ).Elif(self.instruction.immediate[5], # post-dec
                                 NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                          ),
-                         If(cpar, ## checkme
+                         If(cpar,
                             NextState("MEM_ODD")
                          ).Else(
                              NextState("MEM_EVEN1")
@@ -785,7 +798,7 @@ class ExecLS(ExecUnit, AutoDoc):
                   #   NextValue(tries, 1),
                   #   NextState("IDLE")
                   #).Else(NextValue(tries, 0), # no third attempt, give up
-                         If(cpar, ## checkme
+                         If(cpar,
                             NextState("MEM_ODD")
                          ).Else(
                              NextState("MEM_EVEN1")
@@ -802,21 +815,21 @@ class ExecLS(ExecUnit, AutoDoc):
                       self.q.eq(0), #self.a
                   )
                ).Elif(self.instruction.opcode == opcodes["SETM"][0],
-                   self.q.eq(0), #self.a
+                      self.q.eq(0), #self.a
                ).Elif(self.instruction.opcode == opcodes["ADR"][0],
-                      If(~self.instruction.immediate[7],
+                      If(~self.instruction.immediate[7], # getadr
                          [ self.q[x*32:(x+1)*32].eq(Cat(Signal(4, reset = 0), addresses[x])) for x in range(width//32) ],
                       ).Else(
                           self.q.eq(0),
                       )
                ).Elif(self.instruction.opcode == opcodes["GETM"][0],
-                      self.q.eq(Cat(Cat(r_dat_f[0], Signal(28, reset = 0)),
+                      self.q.eq(Cat(Cat(r_dat_f[0], Signal(32-len(r_dat_f[0]), reset = 0)),
                                     r_dat_m[0],
-                                    Cat(r_dat_f[1], Signal(28, reset = 0)),
+                                    Cat(r_dat_f[1], Signal(32-len(r_dat_f[1]), reset = 0)),
                                     r_dat_m[1],
-                                    Cat(r_dat_f[2], Signal(28, reset = 0)),
+                                    Cat(r_dat_f[2], Signal(32-len(r_dat_f[2]), reset = 0)),
                                     r_dat_m[2],
-                                    Cat(r_dat_f[3], Signal(28, reset = 0)),
+                                    Cat(r_dat_f[3], Signal(32-len(r_dat_f[3]), reset = 0)),
                                     r_dat_m[3])),
                ).Else(
                    self.q.eq(0xBADD0000_BADD0000_BADD0000_BADD0000_BADD0000_BADD0000_BADD0000_BADD0000),
@@ -1047,6 +1060,7 @@ Here are the currently implemented opcodes for The Engine:
         ]
 
         self.ls_status = CSRStatus(32, description="Status of the L/S unit")
+        self.cyc_counter = CSRStatus(32, description="Cycle counter for each run")
 
         ### wishbone bus interface: decode the two address spaces and dispatch accordingly
         self.bus = bus = wishbone.Interface()
@@ -1494,6 +1508,17 @@ Here are the currently implemented opcodes for The Engine:
         
         self.sync += abort.eq((abort & ~engine_go) | (self.exec_ls.has_failure[0] | self.exec_ls.has_failure[1] | self.exec_ls.has_timeout[0] | self.exec_ls.has_timeout[1]))
         self.comb += self.ls_status.status.eq(self.exec_ls.state)
+
+        cycctr = Signal(32)
+        engine_go_old = Signal()
+        self.sync.eng_clk += [
+            engine_go_old.eq(engine_go),
+            If(running,
+               cycctr.eq(cycctr + 1)),
+            If(engine_go & ~engine_go_old, # pos edge
+               cycctr.eq(0)),
+        ]
+        self.comb += self.cyc_counter.status.eq(cycctr)
 
         ##### TIMING CONSTRAINTS -- you want these. Trust me.
 

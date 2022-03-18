@@ -35,7 +35,7 @@
 
 /* DGA stuff */
 
-#define DEBUG_GOBLIN 1
+//#define DEBUG_GOBLIN 1
 
 #ifdef DEBUG_GOBLIN
 #define ENTER xf86Msg(X_ERROR, "%s>\n", __func__);
@@ -249,6 +249,8 @@ GoblinWait(GoblinPtr pGoblin)
 
 	if (status & 1) {
 		xf86Msg(X_ERROR, "Jareth wait for idle timed out %08x %08x\n", status);
+	} else {
+		xf86Msg(X_INFO, "Jareth: last operation took %d cycles (eng_clk)\n", pGoblin->jreg->cyc_counter);
 	}
 }
 
@@ -348,12 +350,12 @@ GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 	if ((alu == 0x3) && // GCcopy
 		(planemask == 0xFFFFFFFF)) { // full pattern
 		// fill
-		pGoblin->jreg->mpstart = 37; // FIXME
-		pGoblin->jreg->mplen = 38;
+		pGoblin->jreg->mpstart = pGoblin->fill_off;
+		pGoblin->jreg->mplen = pGoblin->fill_len;
 	} else {
 		// fillrop
-		pGoblin->jreg->mpstart = 75; // FIXME
-		pGoblin->jreg->mplen = 41;
+		pGoblin->jreg->mpstart = pGoblin->fillrop_off;
+		pGoblin->jreg->mplen = pGoblin->fillrop_len;
 	}
 	return TRUE;
 }
@@ -429,18 +431,31 @@ GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
 	pGoblin->last_mask = planemask;
 	pGoblin->last_rop = alu;
 
-	if ((alu == 0x3) && // GCcopy
-		(planemask == 0xFFFFFFFF)) { // full pattern
-		// fill
-		pGoblin->jreg->mpstart = 116; // FIXME
-		pGoblin->jreg->mplen = 49;
+	if (pGoblin->xdir > 0) {
+		if ((alu == 0x3) && // GCcopy
+			(planemask == 0xFFFFFFFF)) { // full pattern
+			// fill
+			pGoblin->jreg->mpstart = pGoblin->copy_off;
+			pGoblin->jreg->mplen = pGoblin->copy_len;
+		} else {
+			// fillrop
+			pGoblin->jreg->mpstart = pGoblin->copy_off; // FIXME
+			pGoblin->jreg->mplen = pGoblin->copy_len;
+		}
 	} else {
-		// fillrop
-		pGoblin->jreg->mpstart = 116; // FIXME FIXME FIXME
-		pGoblin->jreg->mplen = 49;
+		if ((alu == 0x3) && // GCcopy
+			(planemask == 0xFFFFFFFF)) { // full pattern
+			// fill
+			pGoblin->jreg->mpstart = pGoblin->copyrev_off;
+			pGoblin->jreg->mplen = pGoblin->copyrev_len;
+		} else {
+			// fillrop
+			pGoblin->jreg->mpstart = pGoblin->copyrev_off; // FIXME
+			pGoblin->jreg->mplen = pGoblin->copyrev_len;
+		}
 	}
 	
-	DPRINTF(X_ERROR, "PrepareCopy: alu %d, pm 0x%08\n", alu, planemask);
+	DPRINTF(X_ERROR, "PrepareCopy: alu %d, pm 0x%08x, xdir/ydir %d/%d\n", alu, planemask, xdir, ydir);
 	
 	return TRUE;
 }
@@ -470,8 +485,6 @@ GoblinCopy(PixmapPtr pDstPixmap,
 		pGoblin->srcpitch = -pGoblin->srcpitch;
 		dstpitch = -dstpitch;
 	}
-
-	// FIXME: xdir < 0
 
 	// 32 bits
 	w = w*4;

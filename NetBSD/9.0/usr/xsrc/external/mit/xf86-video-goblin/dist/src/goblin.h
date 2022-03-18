@@ -76,6 +76,10 @@ typedef struct {
 	uint32_t    fg;
 	int		xdir, ydir;
 	uint32_t	srcoff, srcpitch;
+	int fill_off, fill_len;
+	int fillrop_off, fillrop_len;
+	int copy_off, copy_len;
+	int copyrev_off, copyrev_len;
 } GoblinRec, *GoblinPtr;
 
 extern int  GoblinScreenPrivateIndex;
@@ -106,8 +110,18 @@ int GOBLINEXAInit(ScreenPtr);
 #include <dev/sun/fbio.h>
 #include <sys/ioccom.h>
 #define GOBLIN_SET_PIXELMODE	_IOW('M', 3, int)
+#define JARETH_FN_NUM_FILL       0
+#define JARETH_FN_NUM_FILLROP    1
+#define JARETH_FN_NUM_COPY       2
+#define JARETH_FN_NUM_COPYREV    3
+struct jareth_fn {
+	int off;
+	int len;
+};
+#define JARETH_FN   _IOWR('j', 0, struct jareth_fn)
 #else
 #define GOBLIN_SET_PIXELMODE	(('M' << 8) | 3)
+#error "toto"
 #endif
 
 #endif /* GOBLIN_H */

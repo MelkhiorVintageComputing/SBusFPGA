@@ -72,6 +72,7 @@ typedef struct jareth_reg {
 	volatile uint32_t ev_enable;
 	volatile uint32_t instruction;
 	volatile uint32_t ls_status;
+	volatile uint32_t cyc_counter;
 } JarethReg, *JarethRegPtr;
 
 typedef struct jareth_microcode {
