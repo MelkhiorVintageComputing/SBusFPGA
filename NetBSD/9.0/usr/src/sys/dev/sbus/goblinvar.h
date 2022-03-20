@@ -34,13 +34,20 @@
  */
 
 struct goblin_fbcontrol {
-	uint32_t mode;
+	uint32_t mode; /* 0 */
 	uint32_t vbl_mask;
 	uint32_t videoctrl;
 	uint32_t intr_clear;
-	uint32_t reset;
+	uint32_t reset; /* 4 */
 	uint32_t lut_addr;
 	uint32_t lut;
+	uint32_t debug;
+	uint32_t cursor_lut; /* 8 */
+	uint32_t cursor_xy;
+	uint32_t padding[6]; /* 0xa..0xf */
+	uint32_t padding2[16]; /* 0x10 .. 0x1f */
+	uint32_t curmask[32]; /* 0x20 .. 0x3f */
+	uint32_t curbits[32]; /* 0x40 .. 0x5f */
 };
 
 /* per-display variables */

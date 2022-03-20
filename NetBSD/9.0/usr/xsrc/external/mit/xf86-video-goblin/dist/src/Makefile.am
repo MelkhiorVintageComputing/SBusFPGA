@@ -31,6 +31,7 @@ goblin_drv_ladir = @moduledir@/drivers
 
 goblin_drv_la_SOURCES = \
          goblin_driver.c \
+         goblin_cursor.c \
          goblin.h \
          goblin_regs.h \
          compat-api.h

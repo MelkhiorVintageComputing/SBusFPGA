@@ -691,6 +691,9 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
     /* Initialise cursor functions */
     miDCInitialize (pScreen, xf86GetPointerScreenFuncs());
 
+	/* hw cursor */
+	GOBLINHWCursorInit(pScreen);
+
     /* Initialise default colourmap */
     if (!miCreateDefColormap(pScreen))
 		return FALSE;

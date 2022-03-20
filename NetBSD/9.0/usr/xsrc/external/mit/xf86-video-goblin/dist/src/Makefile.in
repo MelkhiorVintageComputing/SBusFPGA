@@ -111,7 +111,7 @@ am__uninstall_files_from_dir = { \
 am__installdirs = "$(DESTDIR)$(goblin_drv_ladir)"
 LTLIBRARIES = $(goblin_drv_la_LTLIBRARIES)
 goblin_drv_la_LIBADD =
-am_goblin_drv_la_OBJECTS = goblin_driver.lo
+am_goblin_drv_la_OBJECTS = goblin_driver.lo goblin_cursor.lo
 goblin_drv_la_OBJECTS = $(am_goblin_drv_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -317,6 +317,7 @@ goblin_drv_la_LDFLAGS = -module -avoid-version
 goblin_drv_ladir = @moduledir@/drivers
 goblin_drv_la_SOURCES = \
          goblin_driver.c \
+         goblin_cursor.c \
          goblin.h \
          goblin_regs.h \
          compat-api.h

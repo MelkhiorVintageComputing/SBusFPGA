@@ -50,13 +50,20 @@
 #define GOBOFB_INTR_CLEAR_CLEAR     0x0
 
 typedef struct goblin_fbc {
-	volatile uint32_t mode;
+	volatile uint32_t mode; /* 0 */
 	volatile uint32_t vbl_mask;
 	volatile uint32_t videoctrl;
 	volatile uint32_t intr_clear;
-	volatile uint32_t reset;
+	volatile uint32_t reset; /* 4 */
 	volatile uint32_t lut_addr;
 	volatile uint32_t lut;
+	volatile uint32_t debug;
+	volatile uint32_t cursor_lut; /* 8 */
+	volatile uint32_t cursor_xy;
+	uint32_t padding[6]; /* 0xa..0xf */
+        uint32_t padding2[16]; /* 0x10 .. 0x1f */
+        volatile uint32_t curmask[32]; /* 0x20 .. 0x3f */
+        volatile uint32_t curbits[32]; /* 0x40 .. 0x5f */
 } GoblinFbc, *GoblinFbcPtr;
 
 typedef struct jareth_reg {

@@ -15,7 +15,7 @@
 ;
 
 sbusfpga_regionaddr_goblin_bt constant goblin-off-dac
-h# 20 constant /goblin-off-dac
+h# 200 constant /goblin-off-dac
 
 h# 1000000 constant goblin-off-fb
 h# SBUSFPGA_CG3_BUFSIZE constant /goblin-off-fb

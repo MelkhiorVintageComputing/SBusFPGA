@@ -80,6 +80,11 @@ typedef struct {
 	int fillrop_off, fillrop_len;
 	int copy_off, copy_len;
 	int copyrev_off, copyrev_len;
+
+	xf86CursorInfoPtr CursorInfoRec;
+	unsigned int	CursorXY;
+	int		CursorBg, CursorFg;
+	Bool		CursorEnabled;
 } GoblinRec, *GoblinPtr;
 
 extern int  GoblinScreenPrivateIndex;
@@ -99,6 +104,9 @@ extern int  GoblinWindowPrivateIndex;
                             
 #define GoblinSetWindowPrivate(w,p) 					\
 ((w)->devPrivates[GoblinWindowPrivateIndex].ptr = (pointer) p)
+
+	
+Bool GOBLINHWCursorInit(ScreenPtr pScreen);
 
 extern int goblinRopTable[];
 

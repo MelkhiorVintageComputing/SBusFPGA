@@ -37,9 +37,14 @@
 #define GOBOFB_VBL_MASK       0x4
 #define GOBOFB_VIDEOCTRL      0x8
 #define GOBOFB_INTR_CLEAR     0xc
-#define GOBOFB_RESET          0x10
+#define GOBOFB_RESET          0x10 /* unused */
 #define GOBOFB_LUT_ADDR       0x14
 #define GOBOFB_LUT            0x18
+#define GOBOFB_DEBUG          0x1c /* SW only */
+#define GOBOFB_CURSOR_LUT     0x20
+#define GOBOFB_CURSOR_XY      0x24
+#define GOBOFB_MASK_BASE      0x80
+#define GOBOFB_BITS_BASE      0x100
 
 #define GOBOFB_MODE_1BIT  0x0
 #define GOBOFB_MODE_2BIT  0x1

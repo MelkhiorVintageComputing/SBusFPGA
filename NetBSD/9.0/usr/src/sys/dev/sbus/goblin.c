@@ -308,6 +308,25 @@ goblinattach(struct goblin_softc *sc, const char *name, int isconsole)
 	/* Initialize the default color map. */
 	gobo_setup_palette(sc);
 
+	/* reset the HW cursor */
+	{
+		volatile struct goblin_fbcontrol *sc_fbc = sc->sc_fbc;
+		sc_fbc->cursor_xy = 0xFFE0FFE0;
+		sc_fbc->lut_addr = 0;
+		sc_fbc->cursor_lut = 0;
+		sc_fbc->cursor_lut = 0;
+		sc_fbc->cursor_lut = 0;
+		sc_fbc->cursor_lut = 0xFF; // bg color
+		sc_fbc->cursor_lut = 0xFF;
+		sc_fbc->cursor_lut = 0xFF;
+		sc_fbc->cursor_lut = 0;
+		sc_fbc->cursor_lut = 0;
+		sc_fbc->cursor_lut = 0;
+		sc_fbc->cursor_lut = 0; // fb color
+		sc_fbc->cursor_lut = 0;
+		sc_fbc->cursor_lut = 0;
+	}
+
 	aa.scrdata = &goblin_screenlist;
 	aa.console = isconsole;
 	aa.accessops = &goblin_accessops;
