@@ -160,40 +160,21 @@ static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, i
 static int jareth_fillrop(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n, int pm, int rop);
 static int jareth_copy(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop);
 static int jareth_copyrev(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop);
+
+static const uint32_t program_fill[35] =      { 0x10000089,0x0f8000c9,0x01bc0014,0x0780000d,0x013c2014,0x001400c0,0x00180000,0x403c0192,0xc03c1033,0x00184185,0x00161146,0xfd800148,0x00226007,0x00208946,0x0020220f,0x00008005,0x00088086,0x01048050,0x07000089,0x001a6087,0x013c6814,0x403c0012,0x00146086,0x01800149,0xe03c1013,0x00165146,0xfe800148,0x0080018d,0xc03c1033,0x000e10c6,0x010000c9,0x00004005,0xfa000809,0x0000000a,0x0000000a };
+
+static const uint32_t program_fillrop[42] =   { 0x13800089,0x130000c9,0x01bc0014,0x003c014c,0x0880000d,0x013c2014,0x002000c0,0x00180000,0x403c0192,0x801c0013,0x001c11e2,0xc03c7013,0x00184185,0x00221206,0xfc800208,0x00226007,0x00208946,0x0020220f,0x00008005,0x00088086,0x01048050,0x09000089,0x001a6087,0x013c6814,0x403c0012,0x00206086,0x02800209,0x801c0013,0x001c11c2,0xe03c7013,0x00225206,0xfd800208,0x0180018d,0x801c0013,0x001c11e2,0xc03c7013,0x000e10c6,0x010000c9,0x00004005,0xf8000809,0x0000000a,0x0000000a };
+
+static const uint32_t program_copy[43] =      { 0x14000089,0x138000c9,0x01bc0014,0x013c2014,0x00bf0054,0x0900000d,0x002400c0,0x00180000,0x403c0192,0x80a00013,0x403c8033,0x00184185,0x00261246,0xfd000248,0x0026f007,0x00249c06,0x0024224f,0x00240250,0x00009005,0x00089086,0x0a000089,0x013f0814,0x00049045,0x00bf0054,0x001af087,0x403c0012,0x00246086,0xa0a00013,0x02000249,0x603c8033,0x00270246,0x20a08015,0xfe000248,0x0180018d,0x013c6814,0x403c8033,0x013f0814,0x000e10c6,0x010000c9,0x00004005,0xf8000809,0x0000000a,0x0000000a  };
+
+static const uint32_t program_copyrev[61] =   { 0x1d000089,0x1c8000c9,0x01bc0014,0x00280000,0x002c0040,0x00340080,0x003af007,0x03800389,0x0038ec06,0x0038238f,0x00380390,0x0028e285,0x002ce2c5,0x0034e086,0x11000349,0x013f0814,0x00bf02d4,0x001af347,0x003c6346,0x003c03d0,0x0028f285,0x002cf2c5,0x02000188,0x003c0c00,0x003c03d0,0x0028f286,0x002cf2c6,0x002f02c5,0x003c0c00,0x00bc03d0,0x0028f285,0x003000c0,0x403c0292,0x00246346,0x10a00013,0x0200018d,0x013c6814,0x10a08016,0x503c8033,0x013f0814,0x02000249,0x10a08016,0x503c8033,0x00270246,0xfd800248,0x00321306,0x01000309,0x00284285,0xf7800809,0x04800389,0x013c2014,0x00bf0054,0x002400c0,0x403c0012,0x80a00013,0x403c8033,0x00004005,0x00261246,0xfd000248,0x0000000a,0x0000000a    };
+
 static const uint32_t program_scroll128[12] = { 0x407c0012,0x00140080,0x201c0013,0x60fc7013,0x00170146,0xfe000148,0x000e10c6,0x010000c9,
 												0x00004005,0xfb000809,0x0000000a,0x0000000a };
-static const uint32_t program_fill128[11] =   { 0x407c0012,0x00140080,0x607c1013,0x00170146,0xfe800148,0x000e10c6,0x010000c9,0x00004005,
-												0xfb800809,0x0000000a,0x0000000a };
-static const uint32_t program_fill256[14] =   { 0x01bc0014,0x001a6087,0x013c6814,0x403c0012,0x00146086,0xe03c1013,0x00165146,0xfe800148,
-												0x000e10c6,0x010000c9,0x00004005,0xfb800809,0x0000000a,0x0000000a };
 
-static const uint32_t program_fill[39] =      { 0x12000089,0x118000c9,0x01bc0014,0x0880000d,0x013c2014,0x001400c0,0x00180000,0x403c0192,
-												0x801c0013,0x001c0060,0xc03c7013,0x00184185,0x00161146,0xfc800148,0x00226007,0x00208946,
-												0x0020220f,0x00008005,0x00088086,0x01048050,0x08000089,0x001a6087,0x013c6814,0x403c0012,
-												0x00146086,0x01800149,0xe03c1013,0x00165146,0xfe800148,0x0180018d,0x801c0013,0x001c0060,
-												0xc03c7013,0x000e10c6,0x010000c9,0x00004005,0xf9000809,0x0000000a,0x0000000a };
-
-static const uint32_t program_fillrop[42] =   { 0x13800089,0x130000c9,0x01bc0014,0x003c014c,0x0880000d,0x013c2014,0x002000c0,0x00180000,
-												0x403c0192,0x801c0013,0x001c11e2,0xc03c7013,0x00184185,0x00221206,0xfc800208,0x00226007,
-												0x00208946,0x0020220f,0x00008005,0x00088086,0x01048050,0x09000089,0x001a6087,0x013c6814,
-												0x403c0012,0x00206086,0x02800209,0x801c0013,0x001c11c2,0xe03c7013,0x00225206,0xfd800208,
-												0x0180018d,0x801c0013,0x001c11e2,0xc03c7013,0x000e10c6,0x010000c9,0x00004005,0xf8000809,
-												0x0000000a,0x0000000a };
-
-static const uint32_t program_copy[48] =      { 0x16800089,0x160000c9,0x01bc0014,0x013c2014,0x003f0054,0x0a00000d,0x002400c0,0x00180000,
-												0x403c0192,0x80a00013,0x001c0013,0x001c0220,0x403c7013,0x00184185,0x00261246,0xfc000248,
-												0x0026f007,0x00249c06,0x0024224f,0x00240250,0x00009005,0x00089086,0x0b800089,0x013f0814,
-												0x00049045,0x003f0054,0x001af087,0x403c0012,0x00246086,0xa0a00013,0x02800249,0x001c0220,
-												0x603c7013,0x00270246,0x20a08015,0xfd800248,0x0280018d,0x013c6814,0x001c0013,0x001c0220,
-												0x403c7013,0x013f0814,0x000e10c6,0x010000c9,0x00004005,0xf6800809,0x0000000a,0x0000000a  };
-
-static const uint32_t program_copyrev[66] =   {  0x1f800089,0x1f0000c9,0x01bc0014,0x00280000,0x002c0040,0x00340080,0x003af007,0x03800389,0x0038ec06,0x0038238f,0x00380390,0x0028e285,0x002ce2c5,0x0034e086,0x12800349,0x013f0814,0x003f02d4,0x001af347,0x003c6346,0x003c03d0,0x0028f285,0x002cf2c5,0x02000188,0x003c0c00,0x003c03d0,0x0028f286,0x002cf2c6,0x002f02c5,0x003c0c00,0x00bc03d0,0x0028f285,0x003000c0,0x403c0292,0x00246346,0x10a00013,0x0300018d,0x013c6814,0x10a08016,0x001c0013,0x001c0220,0x503c7013,0x013f0814,0x02800249,0x10a08016,0x001c0220,0x503c7013,0x00270246,0xfd000248,0x00321306,0x01000309,0x00284285,0xf6000809,0x05800389,0x013c2014,0x003f0054,0x002400c0,0x403c0012,0x80a00013,0x001c0013,0x001c0220,0x403c7013,0x00004005,0x00261246,0xfc000248,0x0000000a,0x0000000a   };
-
-static const uint32_t* programs[8] = { program_scroll128, program_fill128, program_fill256, program_fill,
-									   program_fillrop,   program_copy,    program_copyrev, NULL };
-static const uint32_t program_len[8] = { 12, 11, 14, 39,
-										 42, 48, 66,  0 };
-static       uint32_t program_offset[8];
+static const uint32_t* programs[6] = { program_fill, program_fillrop, program_copy, program_copyrev, program_scroll128, NULL };
+static const uint32_t program_len[6] = { 35, 42, 43, 61, 12, 0 };
+static       uint32_t program_offset[6];
 
 static void goblin_set_depth(struct goblin_softc *, int);
 
@@ -468,10 +449,10 @@ goblinioctl(dev_t dev, u_long cmd, void *data, int flags, struct lwp *l)
 			return ENXIO;
 		}
 		switch (fn->off) {
-		case JARETH_FN_NUM_FILL:     pidx = 3; break;
-		case JARETH_FN_NUM_FILLROP:  pidx = 4; break;
-		case JARETH_FN_NUM_COPY:     pidx = 5; break;
-		case JARETH_FN_NUM_COPYREV:  pidx = 6; break;
+		case JARETH_FN_NUM_FILL:     pidx = 0; break;
+		case JARETH_FN_NUM_FILLROP:  pidx = 1; break;
+		case JARETH_FN_NUM_COPY:     pidx = 2; break;
+		case JARETH_FN_NUM_COPYREV:  pidx = 3; break;
 		}
 		if (pidx != -1) {
 			fn->off = program_offset[pidx];
@@ -864,7 +845,7 @@ static int wait_job(struct goblin_softc *sc, uint32_t param, enum jareth_verbosi
 
 static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n) {
 	const uint32_t base = 0;
-	const int pidx = 0;
+	const int pidx = 4;
 	/* int i; */
 
 	power_on(sc);
@@ -901,7 +882,7 @@ static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose,
 
 static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n) {
 	const uint32_t base = 0;
-	const int pidx = 3; // fill
+	const int pidx = 0; // fill
 	int i;
 
 	power_on(sc);
@@ -931,7 +912,7 @@ static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, i
 
 static int jareth_fillrop(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n, int pm, int rop) {
 	const uint32_t base = 0;
-	const int pidx = 4; // fillrop
+	const int pidx = 1; // fillrop
 	int i;
 
 	power_on(sc);
@@ -963,7 +944,7 @@ static int jareth_fillrop(struct goblin_softc *sc, enum jareth_verbosity verbose
 
 static int jareth_copy(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop) {
 	const uint32_t base = 0;
-	const int pidx = 5; // copy
+	const int pidx = 2; // copy
 	/* int i; */
 
 	/* device_printf(sc->sc_dev, "%s : %d %d %d %d %d %d\n", __PRETTY_FUNCTION__, y0, y1, x0, w, n, x1); */
@@ -1010,7 +991,7 @@ static int jareth_copy(struct goblin_softc *sc, enum jareth_verbosity verbose, i
 
 static int jareth_copyrev(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop) {
 	const uint32_t base = 0;
-	const int pidx = 6; // copyrev
+	const int pidx = 3; // copyrev
 	/* int i; */
 
 	/* device_printf(sc->sc_dev, "%s : %d %d %d %d %d %d\n", __PRETTY_FUNCTION__, y0, y1, x0, w, n, x1); */

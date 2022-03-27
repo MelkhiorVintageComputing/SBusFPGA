@@ -255,12 +255,8 @@ fn main() -> std::io::Result<()> {
 		loopX_y:
 				// setadr
 				setadr %15, %6
-				// load old data
-				load256 %7, ^0
-				// insert pattern
-				psa* %7, %1
-				// rewrite data
-				store256 %15, ^0, %7
+				// write partial data
+				store256* %15, ^0, %1
 				// increment copied $DST by stride
 				add32v %6, %6, %4
 				// decrement copied Y count
@@ -308,13 +304,8 @@ fn main() -> std::io::Result<()> {
 				// check for line leftovers
 		loop256_x_end:
 				brz4 done256_x, %6
-
-				// load old data
-				load256 %7, ^0
-				// insert pattern
-				psa* %7, %1
-				// rewrite data
-				store256 %15, ^0, %7
+				// write partial data
+				store256* %15, ^0, %1
 				
 		done256_x:
 				// decrement Y count
@@ -474,13 +465,13 @@ fn main() -> std::io::Result<()> {
 	// leftover X in %6
 	// // live Y count in %3
 	// data in %7
-	// masked data in %7
+	// // masked data in %7
 	// 0/scrap in %15
 	// -----
 	// header loop:
 	// live Y count in %9
 	// $SRC / $DST in %6
-	// dst data in %7
+	// // dst data in %7
 	// src data in %8
 	// 0/scrap in %15
 	
@@ -493,7 +484,8 @@ fn main() -> std::io::Result<()> {
 				resm %15
 				// set alignement; we shift by the addr offset
 				setmq %15, %0, %2
-				setma %15, %1, #16
+				// we use b as that's the data input for Stores
+				setmb %15, %1, #16
 				// if $DST is aligned on 128 bits, jump to aligned loop
 				brz4 start128, %0
 
@@ -508,12 +500,8 @@ fn main() -> std::io::Result<()> {
 				setadr %15, %6
 				// load src
 				load256 %8, ^1
-				// load old data
-				load128 %7, ^0
-				// insert data
-				psa* %7, %8
-				// rewrite data
-				store128 %15, ^0, %7
+				// write partial data
+				store128* %15, ^0, %8
 				// increment copied $SRC / $DST by stride
 				add32v %6, %6, %4
 				// decrement copied Y count
@@ -542,7 +530,7 @@ fn main() -> std::io::Result<()> {
 				// add the count to the addresses, ^1 will have the proper shift for masking
 				add32v %1, %1, %9
 				// reset a mask to the proper shifting
-				setma %15, %1, #16
+				setmb %15, %1, #16
 
 		start128:
 				// compute X leftovers (modulo 16 -> #15 is 15)
@@ -559,10 +547,8 @@ fn main() -> std::io::Result<()> {
 				brz32 loop128_x_end, %9
 				
 		loop128_x:
-				// merge data from input
-				psa* %7, %8
 				// store to DST w/ post-increment
-				store128inc %15, ^0, %7
+				store128inc* %15, ^0, %8
 				// sub 16 (#16 is 16) from live rounded X count
 				sub32v %9, %9, #16
 				// prefetch data
@@ -576,12 +562,8 @@ fn main() -> std::io::Result<()> {
 				// set the leftovers mask (offset is 0 as we are aligned)
 				// IMPROVE ME
 				setmq %15, #0, %6
-				// load old data
-				load128 %7, ^0
-				// insert pattern
-				psa* %7, %8
 				// rewrite data
-				store128 %15, ^0, %7
+				store128* %15, ^0, %8
 				// reset the Q mask
 				// IMPROVE ME
 				setmq %15, #0, #16
@@ -613,7 +595,7 @@ fn main() -> std::io::Result<()> {
 	// main loop:
 	// leftover X in %6
 	// data in %7
-	// masked data in %7
+	// // masked data in %7
 	// src data in %8
 	// live X count in %9
 	// $SRC / $DST in %10
@@ -625,7 +607,7 @@ fn main() -> std::io::Result<()> {
 	// -----
 	// tail loop:
 	// $SRC / $DST in %0
-	// dst data in %7
+	// // dst data in %7
 	// src data in %8
 	// live Y count in %9
 	// 0/scrap in %15
@@ -665,8 +647,8 @@ fn main() -> std::io::Result<()> {
 		skip:
 				// reset q mask (we will be aligned from now on)
 				setmq %15, #0, #16
-				// set a mask to the proper shifting
-				setma %15, %11, #16
+				// set b mask to the proper shifting for Stores
+				setmb %15, %11, #16
 
 				// now we need to figure out where we start to go backward
 				// currently we have the number of 'tail' (first column...) elements in %14 (0 for aligned), number of 'loop' elements in %13,
@@ -726,12 +708,8 @@ fn main() -> std::io::Result<()> {
 				setmq %15, #0, %6
 				// prefetch data
 				loadl128dec %8, ^1, %8
-				// load old data
-				load128 %7, ^0
-				// insert data
-				psa* %7, %8
-				// rewrite data
-				store128dec %15, ^0, %7
+				// write partial data
+				store128dec* %15, ^0, %8
 				// reset the Q mask
 				// IMPROVE ME
 				setmq %15, #0, #16
@@ -741,10 +719,8 @@ fn main() -> std::io::Result<()> {
 				brz32 loop128_x_end, %9
 				// prefetch data
 				loadl128dec %8, ^1, %8
-				// insert data
-				psa* %7, %8
 				// write data
-				store128dec %15, ^0, %7
+				store128dec* %15, ^0, %8
 				// sub 16 (#16 is 16) from live rounded X count
 				sub32v %9, %9, #16
 				// if X count is not 0, keep looping
@@ -766,7 +742,7 @@ fn main() -> std::io::Result<()> {
 				brz32 done128, %14
 				// set alignement; we shift by the addr offset
 				setmq %15, %0, %2
-				setma %15, %1, #16
+				setmb %15, %1, #16
 				// copy Y
 				psa %9, %3
 		loopX_y:
@@ -774,12 +750,8 @@ fn main() -> std::io::Result<()> {
 				setadr %15, %0
 				// load src
 				load256 %8, ^1
-				// load old data
-				load128 %7, ^0
-				// insert data
-				psa* %7, %8
-				// rewrite data
-				store128 %15, ^0, %7
+				// write partial data
+				store128* %15, ^0, %8
 				// increment $SRC / $DST by stride
 				add32v %0, %0, %4
 				// decrement copied Y count

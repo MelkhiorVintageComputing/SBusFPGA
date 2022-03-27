@@ -551,11 +551,17 @@ class ExecLS(ExecUnit, AutoDoc):
                      If(wishbone,
                         NextValue(interface.cyc, 1),
                         NextValue(interface.stb, 1),
-                        NextValue(interface.sel, 2**len(interface.sel)-1),
                         NextValue(interface.adr, address),
                         NextValue(interface.we, self.instruction.immediate[7]),
+                        NextValue(interface.sel, 2**len(interface.sel)-1),
                         If(self.instruction.immediate[7], # do we need those tests or could we always update dat_w/dat_r ?
-                           NextValue(interface.dat_w, self.b[0:128])),
+                           If(self.instruction.shift,
+                              NextValue(interface.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[0:128]),
+                               NextValue(interface.sel, r_dat_m[2][0:16]),
+                           ).Else(
+                               NextValue(interface.dat_w, self.b[0:128]),
+                           ),
+                        ),
                         NextState("MEMl") # MEMl
                      ).Else(
                          memoryport.cmd.we.eq(self.instruction.immediate[7]),
@@ -660,8 +666,13 @@ class ExecLS(ExecUnit, AutoDoc):
                          NextValue(lbuf[0:128], memoryport.rdata.data),
                          NextState("MEMl2"),
                   ).Elif(~wishbone & self.instruction.immediate[7],
-                         memoryport.wdata.data.eq(self.b[0:128]),
                          memoryport.wdata.valid.eq(1),
+                         If(self.instruction.shift,
+                            memoryport.wdata.data.eq((self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[0:128]),
+                            memoryport.wdata.we.eq(r_dat_m[2][0:16]),
+                         ).Else(
+                             memoryport.wdata.data.eq(self.b[0:128]),
+                         ),
                          If(memoryport.wdata.ready,
                             NextState("MEMl2"),
                          ),
@@ -682,12 +693,18 @@ class ExecLS(ExecUnit, AutoDoc):
                      If(self.instruction.immediate[8],
                         NextValue(interface.cyc, 1),
                         NextValue(interface.stb, 1),
-                        NextValue(interface.sel, 2**len(interface.sel)-1),
                         NextValue(interface.adr, address + 1),
                         NextValue(interface.we, self.instruction.immediate[7]),
+                        NextValue(interface.sel, 2**len(interface.sel)-1),
                         NextValue(timeout, 2047),
                         If(self.instruction.immediate[7],
-                           NextValue(interface.dat_w, self.b[128:256])),
+                           If(self.instruction.shift,
+                              NextValue(interface.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[128:256]),
+                              NextValue(interface.sel, r_dat_m[2][16:32]),
+                           ).Else(
+                               NextValue(interface.dat_w, self.b[128:256]),
+                           ),
+                        ),
                         NextState("MEMh")
                      ).Else(
                          If(self.instruction.opcode == opcodes["MEM"][0],
@@ -746,8 +763,13 @@ class ExecLS(ExecUnit, AutoDoc):
                          NextValue(lbuf[128:256], memoryport.rdata.data),
                          NextState("MEMh2"),
                   ).Elif(~wishbone & self.instruction.immediate[7],
-                         memoryport.wdata.data.eq(self.b[128:256]),
                          memoryport.wdata.valid.eq(1),
+                         If(self.instruction.shift,
+                            memoryport.wdata.data.eq((self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[128:256]),
+                            memoryport.wdata.we.eq(r_dat_m[2][16:32]),
+                         ).Else(
+                             memoryport.wdata.data.eq(self.b[128:256]),
+                         ),
                          If(memoryport.wdata.ready,
                             NextState("MEMh2"),
                          ),
@@ -849,6 +871,7 @@ class ExecLS(ExecUnit, AutoDoc):
         self.sync.mul_clk += self.state[6].eq(lsseq.ongoing("MEM_EVEN1"))
         self.sync.mul_clk += self.state[7].eq(lsseq.ongoing("MEM_EVEN2"))
         self.sync.mul_clk += self.state[8].eq(lsseq.ongoing("MEM_ERR"))
+        self.sync.mul_clk += self.state[9].eq(lsseq.ongoing("GENMASK_R0"))
         self.sync.mul_clk += self.state[28:30].eq((self.state[28:30] & Replicate(~start_pipe, 2)) | self.has_timeout)
         self.sync.mul_clk += self.state[30:32].eq((self.state[30:32] & Replicate(~start_pipe, 2)) | self.has_failure)
 
@@ -1433,7 +1456,7 @@ Here are the currently implemented opcodes for The Engine:
             "exec_logic": True,
             "exec_addsub": False,
             "exec_rop": True,
-            "exec_ls": False,
+            "exec_ls": True,
         }
         exec_unit_shift_num = { }
         index = 0
