@@ -303,7 +303,7 @@ fn main() -> std::io::Result<()> {
 				brnz32 loop256_x, %5
 				// check for line leftovers
 		loop256_x_end:
-				brz4 done256_x, %6
+				brz5 done256_x, %6
 				// write partial data
 				store256* %15, ^0, %1
 				
@@ -425,7 +425,7 @@ fn main() -> std::io::Result<()> {
 				brnz32 loop256_x, %8
 				// check for line leftovers
 		loop256_x_end:
-				brz4 done256_x, %6
+				brz5 done256_x, %6
 
 				// load old data
 				load256 %7, ^0
