@@ -102,6 +102,7 @@ def get_header_mapx_stuff(gname, names, sizes, types, doreg=True):
 def get_prom(soc,
              version,
              sys_clk_freq,
+             stat=False,
              trng=False,
              usb=False,
              sdram=True,
@@ -123,13 +124,13 @@ def get_prom(soc,
         r += "\" RDOL,led\" device-name\n"
         r += get_header_map_stuff("leds", "leds", 4)
         r += ": setled! ( pattern -- )\nmap-in-leds\nleds-virt l! ( pattern virt -- )\nmap-out-leds\n;\n"
-        r += "finish-device\nnew-device\n"
+        r += "finish-device\nnew-device\n" # this assumes at least one device is active, which is true for sdram (we always have at least initialization)
 
-    r += "\" RDOL,sbusstat\" device-name\n"
-    r += get_header_map_stuff("sbus_bus_stat", "sbus_bus_stat", 256)
-    
-    if (trng or usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or (jareth and not goblin)):
-        r += "finish-device\nnew-device\n"
+    if (stat):
+        r += "\" RDOL,sbusstat\" device-name\n"
+        r += get_header_map_stuff("sbus_bus_stat", "sbus_bus_stat", 256)
+        if (trng or usb or (sdram or not sdram) or engine or i2c or framebuffer or sdcard or (jareth and not goblin)):
+            r += "finish-device\nnew-device\n"
 
     if (trng):
         r += "\" RDOL,neorv32trng\" device-name\n"
@@ -167,24 +168,25 @@ def get_prom(soc,
         r += "\" RDOL,sdram\" device-name\n"
         r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram", "exchange_with_mem" ], [ 4096, 4096, 4096 ], [ "csr", "csr", "csr" ])
         r += "sbusfpga_irq_sdram encode-int \" interrupts\" property\n"
-        if (sys_clk_freq == 100e6):
-            r += "h# 19 constant m0_delay\n"
-            r += "h# 19 constant m1_delay\n"
-            r += "h# 1 constant m0_bitslip\n"
-            r += "h# 1 constant m1_bitslip\n"
-        elif (sys_clk_freq == 90e6):
-            r += "h# 1c constant m0_delay\n"
-            r += "h# 1c constant m1_delay\n"
-            r += "h# 1 constant m0_bitslip\n"
-            r += "h# 1 constant m1_bitslip\n"
-        else:
-            print("UNCALIBRATED FREQUENCY for SDRAM!")
-            assert(False)
-        r += "fload sdram_init.fth\ninit!\n"
     else:
         r += "\" RDOL,hidden_sdram\" device-name\n"
         r += get_header_mapx_stuff("mregs", [ "ddrphy", "sdram" ], [ 4096, 4096 ], [ "csr", "csr" ])
-        r += "fload sdram_init.fth\ninit!\n"
+        
+    if (sys_clk_freq == 100e6):
+        r += "h# 19 constant m0_delay\n"
+        r += "h# 19 constant m1_delay\n"
+        r += "h# 1 constant m0_bitslip\n"
+        r += "h# 1 constant m1_bitslip\n"
+    elif (sys_clk_freq == 90e6):
+        r += "h# 1c constant m0_delay\n"
+        r += "h# 1c constant m1_delay\n"
+        r += "h# 1 constant m0_bitslip\n"
+        r += "h# 1 constant m1_bitslip\n"
+    else:
+        print("UNCALIBRATED FREQUENCY for SDRAM!")
+        assert(False)
+        
+    r += "fload sdram_init.fth\ninit!\n"
     if (engine or i2c or framebuffer or sdcard or (jareth and not goblin)):
         r += "finish-device\nnew-device\n"
     

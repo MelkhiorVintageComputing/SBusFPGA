@@ -183,7 +183,7 @@ LED_M_READ = 0x20
 LED_M_CACHE = 0x40
         
 class SBusFPGABus(Module):
-    def __init__(self, soc, platform, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8, cg3_fb_size = 0, cg3_base=0x8ff00000 ):
+    def __init__(self, soc, platform, stat, hold_reset, wishbone_slave, wishbone_master, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, version, burst_size = 8, cg3_fb_size = 0, cg3_base=0x8ff00000 ):
         self.platform = platform
         self.hold_reset = hold_reset
 
@@ -441,22 +441,47 @@ class SBusFPGABus(Module):
         #                                                slave_fsm.ongoing("Slave_Ack_Reg_Write_Byte_Wait_For_Wishbone"))
         
         #self.sync += platform.request("user_led", 5).eq(~slave_fsm.ongoing("Idle"))
+            
         
-        stat_slave_start_counter = Signal(32)
-        stat_slave_done_counter = Signal(32)
-        stat_slave_rerun_counter = Signal(32)
-        stat_slave_early_error_counter = Signal(32)
+        sbus_master_last_virtual = Signal(32) # last VDMA address put on the bus in master mode
+
+        if (stat):
+            stat_slave_early_error_counter = Signal(32)
+            increment_stat_slave_early_error_counter = [ NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1) ]
+            stat_slave_start_counter = Signal(32)
+            increment_stat_slave_start_counter = [ NextValue(stat_slave_start_counter, stat_slave_start_counter + 1) ]
+            stat_slave_done_counter = Signal(32)
+            increment_stat_slave_done_counter = [ NextValue(stat_slave_done_counter, stat_slave_done_counter + 1) ]
+            stat_slave_rerun_counter = Signal(32)
+            increment_stat_slave_rerun_counter = [ NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1) ]
+        else:
+            increment_stat_slave_early_error_counter = [ ]
+            increment_stat_slave_start_counter = [ ]
+            increment_stat_slave_done_counter = [ ]
+            increment_stat_slave_rerun_counter = [ ]
+            
         #self.stat_slave_rerun_last_pa = stat_slave_rerun_last_pa = Signal(32)
         #self.stat_slave_rerun_last_state = stat_slave_rerun_last_state = Signal(32)
-        
-        stat_master_start_counter = Signal(32)
-        stat_master_done_counter = Signal(32)
-        stat_master_error_counter = Signal(32)
-        stat_master_rerun_counter = Signal(32)
-
-        sbus_master_last_virtual = Signal(32) # last VDMA address put on the bus in master mode
-        sbus_master_error_virtual = Signal(32)
-
+            
+        if (stat):
+            print("Enabling statistics collection on the SBus FSM")
+            stat_master_start_counter = Signal(32)
+            increment_stat_master_start_counter = [ NextValue(stat_master_start_counter, stat_master_start_counter + 1) ]
+            stat_master_done_counter = Signal(32)
+            increment_stat_master_done_counter = [ NextValue(stat_master_done_counter, stat_master_done_counter + 1) ]
+            stat_master_error_counter = Signal(32)
+            increment_stat_master_error_counter = [ NextValue(stat_master_error_counter, stat_master_error_counter + 1) ]
+            stat_master_rerun_counter = Signal(32)
+            increment_stat_master_rerun_counter = [ NextValue(stat_master_rerun_counter, stat_master_rerun_counter + 1) ]
+            sbus_master_error_virtual = Signal(32)
+            copy_sbus_master_last_virtual_to_error = [ NextValue(sbus_master_error_virtual, sbus_master_last_virtual) ]
+        else:
+            increment_stat_master_start_counter = [ ]
+            increment_stat_master_done_counter = [ ]
+            increment_stat_master_error_counter = [ ]
+            increment_stat_master_rerun_counter = [ ]
+            copy_sbus_master_last_virtual_to_error = [ ]
+            
         slave_fsm.act("Reset",
                       #NextValue(self.led_display.value, 0x0000000000),
                       NextValue(sbus_oe_data, 0),
@@ -499,7 +524,7 @@ class SBusFPGABus(Module):
                             NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             #NextValue(led0123, led0123 | LED_PARITY),
-                            NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                            *increment_stat_slave_early_error_counter,
                             #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                             NextState("Slave_Error")
                          ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
@@ -522,7 +547,7 @@ class SBusFPGABus(Module):
                                 NextValue(sbus_wishbone_le,
                                           (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                           (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
-                                NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                                *increment_stat_slave_start_counter,
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
@@ -559,7 +584,7 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              #NextValue(led0123, led0123 | LED_ADDRESS),
-                             NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                             *increment_stat_slave_early_error_counter,
                              #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                              NextState("Slave_Error")
                          )
@@ -579,7 +604,7 @@ class SBusFPGABus(Module):
                                 NextValue(sbus_wishbone_le,
                                           (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                           (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
-                                NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                                *increment_stat_slave_start_counter,
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
@@ -616,7 +641,7 @@ class SBusFPGABus(Module):
                                  NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                                  NextValue(SBUS_3V3_ERRs_o, 1),
                                  #NextValue(led0123, led0123 | LED_ADDRESS),
-                                 NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                                 *increment_stat_slave_early_error_counter,
                                  #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                                  NextState("Slave_Error")
                              )
@@ -630,7 +655,7 @@ class SBusFPGABus(Module):
                             NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                             NextValue(SBUS_3V3_ERRs_o, 1),
                             #NextValue(led0123, led0123 | LED_PARITY),
-                            NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                            *increment_stat_slave_early_error_counter,
                             #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                             NextState("Slave_Error")
                          ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == ROM_ADDR_PFX) |
@@ -644,7 +669,7 @@ class SBusFPGABus(Module):
                                 NextValue(sbus_wishbone_le,
                                           (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                           (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
-                                NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                                *increment_stat_slave_start_counter,
                                 If(self.wishbone_master.cyc == 0,
                                    NextValue(self.wishbone_master.cyc, 1),
                                    NextValue(self.wishbone_master.stb, 1),
@@ -681,7 +706,7 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              #NextValue(led0123, led0123 | LED_ADDRESS),
-                             NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                             *increment_stat_slave_early_error_counter,
                              #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                              NextState("Slave_Error")
                          )
@@ -703,7 +728,7 @@ class SBusFPGABus(Module):
                                 NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 #NextValue(led0123, led0123 | LED_PARITY),
-                                NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                                *increment_stat_slave_early_error_counter,
                                 #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                                 NextState("Slave_Error")
                              ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
@@ -723,7 +748,7 @@ class SBusFPGABus(Module):
                                     NextValue(sbus_wishbone_le,
                                               (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                               (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
-                                    NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                                    *increment_stat_slave_start_counter,
                                     Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
                                         "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
                                         ],
@@ -749,7 +774,7 @@ class SBusFPGABus(Module):
                                  NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                                  NextValue(SBUS_3V3_ERRs_o, 1),
                                  #NextValue(led0123, led0123 | LED_ADDRESS),
-                                 NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                                 *increment_stat_slave_early_error_counter,
                                  #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                                  NextState("Slave_Error")
                              )
@@ -766,7 +791,7 @@ class SBusFPGABus(Module):
                             NextValue(sbus_wishbone_le,
                                       (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                       (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
-                            NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                            *increment_stat_slave_start_counter,
                             Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
                                 "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
                                 ],
@@ -792,7 +817,7 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              #NextValue(led0123, led0123 | LED_ADDRESS),
-                             NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                             *increment_stat_slave_early_error_counter,
                              #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                              NextState("Slave_Error")
                          )
@@ -806,7 +831,7 @@ class SBusFPGABus(Module):
                                 NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                                 NextValue(SBUS_3V3_ERRs_o, 1),
                                 #NextValue(led0123, led0123 | LED_PARITY),
-                                NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                                *increment_stat_slave_early_error_counter,
                                 #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                                 NextState("Slave_Error")
                              ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
@@ -817,7 +842,7 @@ class SBusFPGABus(Module):
                                     NextValue(sbus_wishbone_le,
                                               (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                               (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
-                                    NextValue(stat_slave_start_counter, stat_slave_start_counter + 1),
+                                    *increment_stat_slave_start_counter,
                                     Case(SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH], {
                                         "default": [ NextValue(sbus_last_pa, Cat(SBUS_3V3_PA_i, Signal(4, reset = 0))),
                                         ],
@@ -843,7 +868,7 @@ class SBusFPGABus(Module):
                                  NextValue(SBUS_3V3_ACKs_o, ACK_ERR),
                                  NextValue(SBUS_3V3_ERRs_o, 1),
                                  #NextValue(led0123, led0123 | LED_ADDRESS),
-                                 NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                                 *increment_stat_slave_early_error_counter,
                                  #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                                  NextState("Slave_Error")
                              )
@@ -874,7 +899,7 @@ class SBusFPGABus(Module):
                              NextValue(burst_counter, 0),
                              NextValue(SBUS_3V3_D_o, sbus_master_last_virtual),
                              NextValue(SBUS_3V3_PPRD_o, 1),
-                             #NextValue(stat_master_start_counter, stat_master_start_counter + 1),
+                             #*increment_stat_master_start_counter,
                              NextState("Master_Translation"),
                       ).Elif(SBUS_3V3_BGs_i &
                              self.wishbone_slave.cyc &
@@ -961,7 +986,7 @@ class SBusFPGABus(Module):
                              NextValue(master_we, 1),
                              #NextValue(self.led_display.value, 0x0000000010 | Cat(Signal(8, reset = 0x00), self.wishbone_slave.adr)),
                              #NextValue(self.led_display.value, Cat(Signal(8, reset = LED_M_WRITE), Signal(2, reset = 0), self.wishbone_slave.adr)),
-                             NextValue(stat_master_start_counter, stat_master_start_counter + 1),
+                             *increment_stat_master_start_counter,
                              NextState("Master_Translation")
                       ).Elif(SBUS_3V3_BGs_i &
                              self.master_read_buffer_start &
@@ -985,7 +1010,7 @@ class SBusFPGABus(Module):
                              NextValue(master_we, 0),
                              #NextValue(self.led_display.value, 0x0000000000 | Cat(Signal(8, reset = 0x00), self.wishbone_slave.adr)),
                              #NextValue(self.led_display.value, Cat(Signal(8, reset = LED_M_READ), Signal(2, reset = 0), self.master_read_buffer_addr)), 
-                             NextValue(stat_master_start_counter, stat_master_start_counter + 1),
+                             *increment_stat_master_start_counter,
                              NextState("Master_Translation")
                       ).Elif(SBUS_3V3_BGs_i &
                              self.tosbus_fifo.readable &
@@ -1019,7 +1044,7 @@ class SBusFPGABus(Module):
                              }),
                              NextValue(SBUS_3V3_PPRD_o, 0),
                              NextValue(master_we, 1),
-                             NextValue(stat_master_start_counter, stat_master_start_counter + 1),
+                             *increment_stat_master_start_counter,
                              NextState("Master_Translation")
                       ).Elif(SBUS_3V3_BGs_i &
                              self.fromsbus_req_fifo.readable &
@@ -1053,7 +1078,7 @@ class SBusFPGABus(Module):
                              }),
                              NextValue(SBUS_3V3_PPRD_o, 1),
                              NextValue(master_we, 0),
-                             NextValue(stat_master_start_counter, stat_master_start_counter + 1),
+                             *increment_stat_master_start_counter,
                              NextState("Master_Translation")
                       ).Elif(((SBUS_3V3_SELs_i == 0) &
                               (SBUS_3V3_ASs_i == 0)),
@@ -1062,7 +1087,7 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ERRs_o, 1),
                              #NextValue(self.led_display.value, 0x000000000F | Cat(Signal(8, reset = 0x00), SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, SBUS_3V3_PPRD_i)),
                              #NextValue(led0123, led0123 | LED_UNKNOWNREQ),
-                             NextValue(stat_slave_early_error_counter, stat_slave_early_error_counter + 1),
+                             *increment_stat_slave_early_error_counter,
                              #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                              NextState("Slave_Error")
                       ).Elif(~SBUS_3V3_BGs_i,
@@ -1080,7 +1105,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
                       If(((SBUS_3V3_ASs_i == 1) | ((SBUS_3V3_ASs_i == 0) & (SBUS_3V3_SELs_i == 1))),
-                         NextValue(stat_slave_done_counter, stat_slave_done_counter + 1),
+                         *increment_stat_slave_done_counter,
                          NextState("Idle")
                       )
         )
@@ -1128,7 +1153,7 @@ class SBusFPGABus(Module):
                              NextValue(wishbone_master_timeout, 0),
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN),
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WORD | LED_RERUN_LATE),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000001),
                              NextState("Slave_Error")
@@ -1149,7 +1174,7 @@ class SBusFPGABus(Module):
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WORD),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000002),
                              NextState("Slave_Error")
@@ -1194,7 +1219,7 @@ class SBusFPGABus(Module):
                              NextValue(wishbone_master_timeout, 0),
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_LATE),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000003),
                              NextState("Slave_Error")
@@ -1215,7 +1240,7 @@ class SBusFPGABus(Module):
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000004),
                              NextState("Slave_Error")
@@ -1258,7 +1283,7 @@ class SBusFPGABus(Module):
                              NextValue(wishbone_master_timeout, 0),
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_LATE),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000005),
                              NextState("Slave_Error")
@@ -1279,7 +1304,7 @@ class SBusFPGABus(Module):
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000006),
                              NextState("Slave_Error")
@@ -1320,7 +1345,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
                       If(((SBUS_3V3_ASs_i == 1) | ((SBUS_3V3_ASs_i == 0) & (SBUS_3V3_SELs_i == 1))),
-                         NextValue(stat_slave_done_counter, stat_slave_done_counter + 1),
+                         *increment_stat_slave_done_counter,
                          NextState("Idle")
                       )
         )
@@ -1334,7 +1359,7 @@ class SBusFPGABus(Module):
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN),
                              #NextValue(self.led_display.value, Cat(Signal(8, reset = LED_RERUN | LED_RERUN_WRITE | LED_RERUN_WORD), sbus_last_pa)),
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WRITE | LED_RERUN_WORD),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000007),
                              NextState("Slave_Error")
@@ -1379,7 +1404,7 @@ class SBusFPGABus(Module):
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WRITE),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000008),
                              NextState("Slave_Error")
@@ -1424,7 +1449,7 @@ class SBusFPGABus(Module):
                       ).Elif(sbus_slave_timeout == 0, ### this is taking too long
                              NextValue(SBUS_3V3_ACKs_o, ACK_RERUN), 
                              #NextValue(led0123, LED_RERUN | LED_RERUN_WRITE),
-                             NextValue(stat_slave_rerun_counter, stat_slave_rerun_counter + 1),
+                             *increment_stat_slave_rerun_counter,
                              #NextValue(stat_slave_rerun_last_pa, sbus_last_pa),
                              #NextValue(stat_slave_rerun_last_state, 0x00000009),
                              NextState("Slave_Error")
@@ -1501,8 +1526,8 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_error_counter, stat_master_error_counter + 1),
-                           NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
+                           *increment_stat_master_error_counter,
+                           *copy_sbus_master_last_virtual_to_error,
                            NextState("Idle")],
                           ACK_RERUN: ### dunno how to handle that yet,
                           [Case(master_src, {
@@ -1518,7 +1543,7 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_rerun_counter, stat_master_rerun_counter + 1),
+                           *increment_stat_master_rerun_counter,
                            NextState("Idle")],
                           ACK_IDLE:
                           [If(master_we,
@@ -1564,7 +1589,7 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_rerun_counter, stat_master_rerun_counter + 1),
+                           *increment_stat_master_rerun_counter,
                            NextState("Idle")
                           ],
                           ACK_ERR: ## ### burst not handled
@@ -1584,8 +1609,8 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_error_counter, stat_master_error_counter + 1),
-                           NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
+                           *increment_stat_master_error_counter,
+                           *copy_sbus_master_last_virtual_to_error,
                            NextState("Idle")
                           ],
                           "default": ## other ### burst not handled
@@ -1602,7 +1627,7 @@ class SBusFPGABus(Module):
                            NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_error_counter, stat_master_error_counter + 1),
+                           *increment_stat_master_error_counter,
                            NextState("Idle")
                           ],
                       })
@@ -1651,22 +1676,22 @@ class SBusFPGABus(Module):
                               [NextValue(sbus_oe_data, 0),
                                NextValue(sbus_oe_slave_in, 0),
                                NextValue(sbus_oe_master_in, 0),
-                               NextValue(stat_master_rerun_counter, stat_master_rerun_counter + 1),
+                               *increment_stat_master_rerun_counter,
                                NextState("Idle")
                               ],
                               ACK_ERR:
                               [NextValue(sbus_oe_data, 0),
                                NextValue(sbus_oe_slave_in, 0),
                                NextValue(sbus_oe_master_in, 0),
-                               NextValue(stat_master_error_counter, stat_master_error_counter + 1),
-                               NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
+                               *increment_stat_master_error_counter,
+                               *copy_sbus_master_last_virtual_to_error,
                                NextState("Idle")
                               ],
                               "default":
                               [NextValue(sbus_oe_data, 0),
                                NextValue(sbus_oe_slave_in, 0),
                                NextValue(sbus_oe_master_in, 0),
-                               NextValue(stat_master_error_counter, stat_master_error_counter + 1),
+                               *increment_stat_master_error_counter,
                                NextState("Idle")
                               ],
                           }),
@@ -1685,7 +1710,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
                       NextValue(sbus_master_throttle, sbus_default_master_throttle),
-                      NextValue(stat_master_done_counter, stat_master_done_counter + 1),
+                      *increment_stat_master_done_counter,
                       NextValue(master_src_retry, 0),
                       NextState("Idle")
         )
@@ -1735,22 +1760,22 @@ class SBusFPGABus(Module):
                           [NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_rerun_counter, stat_master_rerun_counter + 1),
+                           *increment_stat_master_rerun_counter,
                            NextState("Idle")
                           ],
                           ACK_ERR: ## ACK_ERRS or other
                           [NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_error_counter, stat_master_error_counter + 1),
-                           NextValue(sbus_master_error_virtual, sbus_master_last_virtual),
+                           *increment_stat_master_error_counter,
+                           *copy_sbus_master_last_virtual_to_error,
                            NextState("Idle"),
                           ],
                           "default": ##  other
                           [NextValue(sbus_oe_data, 0),
                            NextValue(sbus_oe_slave_in, 0),
                            NextValue(sbus_oe_master_in, 0),
-                           NextValue(stat_master_error_counter, stat_master_error_counter + 1),
+                           *increment_stat_master_error_counter,
                            NextState("Idle"),
                           ],
                       })
@@ -1761,7 +1786,7 @@ class SBusFPGABus(Module):
                       NextValue(sbus_oe_slave_in, 0),
                       NextValue(sbus_oe_master_in, 0),
                       NextValue(sbus_master_throttle, sbus_default_master_throttle),
-                      NextValue(stat_master_done_counter, stat_master_done_counter + 1),
+                      *increment_stat_master_done_counter,
                       NextValue(master_src_retry, 0),
                       NextState("Idle")
         )
@@ -1982,55 +2007,56 @@ class SBusFPGABus(Module):
         #                                       )
         #)
 
-
-        self.stat_cycle_counter = Signal(32)
-        self.buf_stat_cycle_counter = Signal(32)
-        self.buf_stat_slave_start_counter = Signal(32)
-        self.buf_stat_slave_done_counter = Signal(32)
-        self.buf_stat_slave_rerun_counter = Signal(32)
-        self.buf_stat_slave_early_error_counter = Signal(32)
-        self.buf_stat_master_start_counter = Signal(32)
-        self.buf_stat_master_done_counter = Signal(32)
-        self.buf_stat_master_error_counter = Signal(32)
-        self.buf_stat_master_rerun_counter = Signal(32)
-        self.buf_sbus_master_error_virtual = Signal(32)
-        self.stat_update = Signal()
-        stat_update_prev = Signal()
-
-        self.sync += stat_update_prev.eq(self.stat_update)
-        
-        self.sync += self.stat_cycle_counter.eq(self.stat_cycle_counter + 1)
-        self.sync += If(~stat_update_prev & self.stat_update, ## raising edge: copy to buffer and reset active
-                        self.buf_stat_cycle_counter.eq(self.stat_cycle_counter),
-                        self.buf_stat_slave_start_counter.eq(stat_slave_start_counter),
-                        self.buf_stat_slave_done_counter.eq(stat_slave_done_counter),
-                        self.buf_stat_slave_rerun_counter.eq(stat_slave_rerun_counter),
-                        self.buf_stat_slave_early_error_counter.eq(stat_slave_early_error_counter),
-                        self.buf_stat_master_start_counter.eq(stat_master_start_counter),
-                        self.buf_stat_master_done_counter.eq(stat_master_done_counter),
-                        self.buf_stat_master_error_counter.eq(stat_master_error_counter),
-                        self.buf_stat_master_rerun_counter.eq(stat_master_rerun_counter),
-                        self.buf_sbus_master_error_virtual.eq(sbus_master_error_virtual),
-                        self.stat_cycle_counter.eq(0),
-                        stat_slave_start_counter.eq(0),
-                        stat_slave_done_counter.eq(0),
-                        stat_slave_rerun_counter.eq(0),
-                        stat_slave_early_error_counter.eq(0),
-                        stat_master_start_counter.eq(0),
-                        stat_master_done_counter.eq(0),
-                        stat_master_error_counter.eq(0),
-                        stat_master_rerun_counter.eq(0),
-                        sbus_master_error_virtual.eq(0),
-        )
-        self.sync += If(stat_update_prev & ~self.stat_update, ## falling edge: reset buffer
-                        self.buf_stat_cycle_counter.eq(0),
-                        self.buf_stat_slave_start_counter.eq(0),
-                        self.buf_stat_slave_done_counter.eq(0),
-                        self.buf_stat_slave_rerun_counter.eq(0),
-                        self.buf_stat_slave_early_error_counter.eq(0),
-                        self.buf_stat_master_start_counter.eq(0),
-                        self.buf_stat_master_done_counter.eq(0),
-                        self.buf_stat_master_error_counter.eq(0),
-                        self.buf_stat_master_rerun_counter.eq(0),
-                        self.buf_sbus_master_error_virtual.eq(0),
-        )
+        if (stat):
+            self.stat_cycle_counter = Signal(32)
+            self.buf_stat_cycle_counter = Signal(32)
+            self.buf_stat_slave_start_counter = Signal(32)
+            self.buf_stat_slave_done_counter = Signal(32)
+            self.buf_stat_slave_rerun_counter = Signal(32)
+            self.buf_stat_slave_early_error_counter = Signal(32)
+            self.buf_stat_master_start_counter = Signal(32)
+            self.buf_stat_master_done_counter = Signal(32)
+            self.buf_stat_master_error_counter = Signal(32)
+            self.buf_stat_master_rerun_counter = Signal(32)
+            self.buf_sbus_master_error_virtual = Signal(32)
+            self.stat_update = Signal()
+            stat_update_prev = Signal()
+            
+            self.sync += stat_update_prev.eq(self.stat_update)
+            
+            self.sync += self.stat_cycle_counter.eq(self.stat_cycle_counter + 1)
+            self.sync += If(~stat_update_prev & self.stat_update, ## raising edge: copy to buffer and reset active
+                            self.buf_stat_cycle_counter.eq(self.stat_cycle_counter),
+                            self.buf_stat_slave_start_counter.eq(stat_slave_start_counter),
+                            self.buf_stat_slave_done_counter.eq(stat_slave_done_counter),
+                            self.buf_stat_slave_rerun_counter.eq(stat_slave_rerun_counter),
+                            self.buf_stat_slave_early_error_counter.eq(stat_slave_early_error_counter),
+                            self.buf_stat_master_start_counter.eq(stat_master_start_counter),
+                            self.buf_stat_master_done_counter.eq(stat_master_done_counter),
+                            self.buf_stat_master_error_counter.eq(stat_master_error_counter),
+                            self.buf_stat_master_rerun_counter.eq(stat_master_rerun_counter),
+                            self.buf_sbus_master_error_virtual.eq(sbus_master_error_virtual),
+                            self.stat_cycle_counter.eq(0),
+                            stat_slave_start_counter.eq(0),
+                            stat_slave_done_counter.eq(0),
+                            stat_slave_rerun_counter.eq(0),
+                            stat_slave_early_error_counter.eq(0),
+                            stat_master_start_counter.eq(0),
+                            stat_master_done_counter.eq(0),
+                            stat_master_error_counter.eq(0),
+                            stat_master_rerun_counter.eq(0),
+                            sbus_master_error_virtual.eq(0),
+            )
+            self.sync += If(stat_update_prev & ~self.stat_update, ## falling edge: reset buffer
+                            self.buf_stat_cycle_counter.eq(0),
+                            self.buf_stat_slave_start_counter.eq(0),
+                            self.buf_stat_slave_done_counter.eq(0),
+                            self.buf_stat_slave_rerun_counter.eq(0),
+                            self.buf_stat_slave_early_error_counter.eq(0),
+                            self.buf_stat_master_start_counter.eq(0),
+                            self.buf_stat_master_done_counter.eq(0),
+                            self.buf_stat_master_error_counter.eq(0),
+                            self.buf_stat_master_rerun_counter.eq(0),
+                            self.buf_sbus_master_error_virtual.eq(0),
+            )
+            

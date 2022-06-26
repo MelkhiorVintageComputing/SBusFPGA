@@ -210,10 +210,11 @@ class SBusFPGA(SoCCore):
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
-    def __init__(self, variant, version, sys_clk_freq, trng, usb, sdram, engine, i2c, bw2, cg3, cg6, goblin, cg3_res, sdcard, jareth, **kwargs):
+    def __init__(self, variant, version, sys_clk_freq, trng, stat, usb, sdram, engine, i2c, bw2, cg3, cg6, goblin, cg3_res, sdcard, jareth, **kwargs):
         framebuffer = (bw2 or cg3 or cg6 or goblin)
         
         print(f"Building SBusFPGA for board version {version}")
+        print(f"Summary: variant={variant} sys_clk_freq={sys_clk_freq} trng={trng} stat={stat} usb={usb} sdram={sdram} engine={engine} i2c={i2c} bw2={bw2} cg3={cg3} cg6={cg6} goblin={goblin} (framebuffer={framebuffer}) fb_res={cg3_res} sdcard={sdcard} jareth={jareth}")
         
         kwargs["cpu_type"] = "None"
         kwargs["integrated_sram_size"] = 0
@@ -371,7 +372,7 @@ class SBusFPGA(SoCCore):
         )
         avail_sdram = self.bus.regions["main_ram"].size
         ###from sdram_init import DDR3FBInit
-        ###self.submodules.sdram_init = DDR3FBInit(sys_clk_freq=sys_clk_freq, bitslip=1, delay=25)
+        ###self.submodules.sdram_init = DDR3FBInit(sys_clk_freq=sys_clk_freq, bitslip=1, delay=25) # for 100 MHz sysclk
         ###self.bus.add_master(name="DDR3Init", master=self.sdram_init.bus)
 
         base_fb = self.wb_mem_map["main_ram"] + avail_sdram - 1048576 # placeholder
@@ -458,6 +459,7 @@ class SBusFPGA(SoCCore):
         
         _sbus_bus = SBusFPGABus(soc=self,
                                 platform=self.platform,
+                                stat=stat,
                                 hold_reset=hold_reset,
                                 wishbone_slave=wishbone_slave_sbus,
                                 wishbone_master=self.wishbone_master_sbus,
@@ -470,7 +472,9 @@ class SBusFPGA(SoCCore):
                                 cg3_base=base_fb)
         #self.submodules.sbus_bus = _sbus_bus
         self.submodules.sbus_bus = ClockDomainsRenamer("sbus")(_sbus_bus)
-        self.submodules.sbus_bus_stat = SBusFPGABusStat(soc = self, sbus_bus = self.sbus_bus)
+
+        if (stat):
+            self.submodules.sbus_bus_stat = SBusFPGABusStat(soc = self, sbus_bus = self.sbus_bus)
 
         self.bus.add_master(name="SBusBridgeToWishbone", master=wishbone_master_sys)
 
@@ -525,7 +529,7 @@ class SBusFPGA(SoCCore):
                 self.submodules.cg6 = cg6_fb.cg6(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg6 is running in cd_sys
                 self.bus.add_slave("cg6_bt", self.cg6.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
             elif (goblin):
-                self.submodules.goblin = goblin_fb.goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga", irq_line=Signal()) # clock_domain for the VGA side, cg6 is running in cd_sys
+                self.submodules.goblin = goblin_fb.goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga", irq_line=Signal(), endian="big", hwcursor=True, truecolor=True) # clock_domain for the VGA side, goblin is running in cd_sys
                 self.bus.add_slave("goblin_bt", self.goblin.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
                 #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
                 #SBUS_DATA_OE_LED_o = Signal()
@@ -578,18 +582,19 @@ def main():
     parser.add_argument("--build", action="store_true", help="Build bitstream")
     parser.add_argument("--variant", default="ztex2.13a", help="ZTex board variant (default ztex2.13a)")
     parser.add_argument("--version", default="V1.2", help="SBusFPGA board version (default V1.2)")
+    parser.add_argument("--stat", action="store_true", help="device with some SBus FSM statistics for debug [all]")
     parser.add_argument("--sys-clk-freq", default=100e6, help="SBusFPGA system clock (default 100e6 = 100 MHz)")
     parser.add_argument("--trng", action="store_true", help="add true random number generator [all]")
     parser.add_argument("--sdram", action="store_true", help="expose the sdram to the host [all]")
     parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
     parser.add_argument("--engine", action="store_true", help="add a Engine crypto core [all]")
-    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [none, placeholder]")
+    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [V1.2+custom temp. pmod]")
     parser.add_argument("--bw2", action="store_true", help="add a BW2 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--cg3-res", default="1152x900@76Hz", help="Specify the CG3/CG6 resolution")
     parser.add_argument("--cg6", action="store_true", help="add a CG6 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--goblin", action="store_true", help="add a Goblin framebuffer [V1.2+VGA_RGB222 pmod]")
-    parser.add_argument("--sdcard", action="store_true", help="add a sdcard {no SW yet}")
+    parser.add_argument("--sdcard", action="store_true", help="add a sdcard controller [all]")
     parser.add_argument("--jareth", action="store_true", help="add a Jareth vector core [all]")
     builder_args(parser)
     vivado_build_args(parser)
@@ -616,11 +621,14 @@ def main():
     if (fbcount > 1):
         print(" ***** ERROR ***** : can't have more than one of BW2, CG3, CG6 and Goblin\n")
         assert(False)
+    if ((fbcount > 0) and args.i2c):
+        print(" ***** ERROR ***** : Framebuffers and I2C are incompatible in V1.2\n")
     
     soc = SBusFPGA(**soc_core_argdict(args),
                    variant=args.variant,
                    version=args.version,
                    sys_clk_freq=int(float(args.sys_clk_freq)),
+                   stat=args.stat,
                    trng=args.trng,
                    sdram=args.sdram,
                    usb=args.usb,
@@ -671,6 +679,7 @@ def main():
     write_to_file(os.path.join(f"prom_csr_{version_for_filename}.fth"), csr_forth_contents)
 
     prom_content = sbus_to_fpga_prom.get_prom(soc=soc, version=args.version, sys_clk_freq=int(float(args.sys_clk_freq)),
+                                              stat=args.stat,
                                               trng=args.trng,
                                               usb=args.usb,
                                               sdram=args.sdram,

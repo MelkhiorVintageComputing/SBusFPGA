@@ -5,6 +5,9 @@ from litex.soc.interconnect.csr import *
 from litex.soc.integration.doc import AutoDoc, ModuleDoc
 from litex.soc.interconnect import wishbone
 from litex.soc.interconnect.csr_eventmanager import *
+from litedram.frontend.wishbone import LiteDRAMWishbone2Native
+
+from cache import *
 
 prime_string = "$2^{{255}}-19$"  # 2\ :sup:`255`-19
 field_latex = "$\mathbf{{F}}_{{{{2^{{255}}}}-19}}$"
@@ -52,7 +55,8 @@ opcodes = {  # mnemonic : [bit coding, docstring] ; if bit 6 (0x20) is set, shif
     #   imm[0..2]: adr reg
     "LOADH" :  [21, "LOADH: high->low & load *Adr into high" ],
     "LOADL" :  [22, "LOADL: low->high & load *Adr into low" ],
-    "MAX" :    [23, "Maximum opcode number (for bounds checking)"],
+    "PRF0"  :  [23, "PRF0: configure and start prefetch engine 0" ],
+    "MAX" :    [24, "Maximum opcode number (for bounds checking)"],
 }
 
 num_registers = 32
@@ -447,8 +451,8 @@ class ExecRop(ExecUnit, AutoDoc):
                 NextState("IDLE"));
 
 class ExecLS(ExecUnit, AutoDoc):
-    def __init__(self, width=256, interface=None, memoryport=None, r_dat_f=None, r_dat_m=None, granule=0):
-        ExecUnit.__init__(self, width, ["MEM", "SETM", "ADR", "LOADH", "LOADL", "GETM"])
+    def __init__(self, width=256, wish_nocache=None, wish_cache=None, prefetcher=None, r_dat_f=None, r_dat_m=None, granule=0):
+        ExecUnit.__init__(self, width, ["MEM", "SETM", "ADR", "LOADH", "LOADL", "GETM", "PRF0"])
         
         self.notes = ModuleDoc(title=f"Load/Store ExecUnit Subclass", body=f"""
         """)
@@ -458,9 +462,8 @@ class ExecLS(ExecUnit, AutoDoc):
         ]
 
         assert(width == 256) # fixme
-        assert((len(interface.sel) == 16)) # 128 bits Wishbone
-        assert((len(memoryport.rdata.data) == 128)) # 128 bits memory
-        assert((len(memoryport.wdata.data) == 128)) # 128 bits memory
+        assert((len(wish_nocache.sel) == 16)) # 128 bits Wishbone
+        assert((len(wish_cache.sel) == 16)) # 128 bits Wishbone
 
         start_pipe = Signal()
         self.sync.mul_clk += start_pipe.eq(self.start) # break critical path of instruction decode -> SETUP_A state muxes
@@ -485,25 +488,27 @@ class ExecLS(ExecUnit, AutoDoc):
         addresses = Array(Signal(28) for x in range(width//32)) # 128-bits chunk, so 16-bytes chunk, so low 4 bits are ignored
         address = Signal(28)
 
-        wishbone = Signal()
-        #if ((interface != None) and (memoryport != None)):
-        #    self.comb += [ wishbone.eq(addresses[self.instruction.immediate[0:log2_int(width//32)]][24:28] != 0x8), ] # fixme ; 0x8 is SDRAM memory map prefix
-        #else:
-        #    if (interface == None):
-        #        self.comb += [ wishbone.eq(0), ]
-        #    else: # memoryport == None
-        #        self.comb += [ wishbone.eq(1), ]
+        uncacheable = Signal()
 
-        #if (memoryport != None):
-        self.comb += [ memoryport.rdata.ready.eq(1),
-                       memoryport.wdata.we.eq(Replicate(1, len(memoryport.wdata.we))), ]
+        if (prefetcher is not None):
+            handle_prefetch = [
+                Case(self.instruction.immediate[0:2], {
+                    0x0: [ NextValue(prefetcher.start, 0), ],
+                    0x1: [ NextValue(prefetcher.cnt_x, self.a[4:]), NextValue(prefetcher.cnt_y, self.b[0:]), ],
+                    0x2: [ NextValue(prefetcher.inc_x, self.a[0:]), NextValue(prefetcher.inc_y, self.b[4:]), ], # fixme
+                    0x3: [ NextValue(prefetcher.base,  self.a[4:]), NextValue(prefetcher.start, 1),],
+                }),
+            ]
+        else:
+            handle_prefetch = [
+            ]
 
         lsseq.act("IDLE",
                   If(start_pipe,
                      If((self.instruction.opcode == opcodes["MEM"][0]) | (self.instruction.opcode == opcodes["LOADH"][0]) | (self.instruction.opcode == opcodes["LOADL"][0]),
                         NextValue(cpar, 0),
                         NextValue(address, addresses[self.instruction.immediate[0:log2_int(width//32)]]),
-                        NextValue(wishbone, ~(addresses[self.instruction.immediate[0:log2_int(width//32)]][24:28] == 0x8)),
+                        NextValue(uncacheable, ~(addresses[self.instruction.immediate[0:log2_int(width//32)]][24:28] == 0x8)),
                         NextState("DOMEM"),
                      ).Elif(self.instruction.opcode == opcodes["SETM"][0],
                             Case(self.instruction.immediate[0:2],
@@ -538,6 +543,9 @@ class ExecLS(ExecUnit, AutoDoc):
                             NextState("MEM_ODD")
                      ).Elif(self.instruction.opcode == opcodes["GETM"][0],
                             NextState("MEM_ODD")
+                     ).Elif(self.instruction.opcode == opcodes["PRF0"][0],
+                            *handle_prefetch,
+                            NextState("MEM_ODD")
                      )
                   )
         )
@@ -548,68 +556,76 @@ class ExecLS(ExecUnit, AutoDoc):
                      NextValue(self.has_timeout, 0),
                      NextValue(self.has_failure, 0),
                      NextValue(timeout, 2047),
-                     If(wishbone,
-                        NextValue(interface.cyc, 1),
-                        NextValue(interface.stb, 1),
-                        NextValue(interface.adr, address),
-                        NextValue(interface.we, self.instruction.immediate[7]),
-                        NextValue(interface.sel, 2**len(interface.sel)-1),
+                     If(uncacheable,
+                        NextValue(wish_nocache.cyc, 1),
+                        NextValue(wish_nocache.stb, 1),
+                        NextValue(wish_nocache.adr, address),
+                        NextValue(wish_nocache.we, self.instruction.immediate[7]),
+                        NextValue(wish_nocache.sel, 2**len(wish_nocache.sel)-1),
                         If(self.instruction.immediate[7], # do we need those tests or could we always update dat_w/dat_r ?
                            If(self.instruction.shift,
-                              NextValue(interface.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[0:128]),
-                               NextValue(interface.sel, r_dat_m[2][0:16]),
+                              NextValue(wish_nocache.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[0:128]),
+                               NextValue(wish_nocache.sel, r_dat_m[2][0:16]),
                            ).Else(
-                               NextValue(interface.dat_w, self.b[0:128]),
+                               NextValue(wish_nocache.dat_w, self.b[0:128]),
                            ),
                         ),
                         NextState("MEMl") # MEMl
                      ).Else(
-                         memoryport.cmd.we.eq(self.instruction.immediate[7]),
-                         memoryport.cmd.addr.eq(address[0:]),
-                         memoryport.cmd.valid.eq(1),
-                         If(memoryport.cmd.ready,
-                            NextState("MEMl")
-                         )
+                        NextValue(wish_cache.cyc, 1),
+                        NextValue(wish_cache.stb, 1),
+                        NextValue(wish_cache.adr, address),
+                        NextValue(wish_cache.we, self.instruction.immediate[7]),
+                        NextValue(wish_cache.sel, 2**len(wish_cache.sel)-1),
+                        If(self.instruction.immediate[7], # do we need those tests or could we always update dat_w/dat_r ?
+                           If(self.instruction.shift,
+                              NextValue(wish_cache.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[0:128]),
+                               NextValue(wish_cache.sel, r_dat_m[2][0:16]),
+                           ).Else(
+                               NextValue(wish_cache.dat_w, self.b[0:128]),
+                           ),
+                        ),
+                        NextState("MEMl") # MEMl
                      ),
                   ).Elif(self.instruction.opcode == opcodes["LOADH"][0],
                          NextValue(self.has_timeout, 0),
                          NextValue(self.has_failure, 0),
                          NextValue(timeout, 2047),
                          NextValue(lbuf[0:128], self.b[128:256]),
-                         If(wishbone,
-                            NextValue(interface.cyc, 1),
-                            NextValue(interface.stb, 1),
-                            NextValue(interface.sel, 2**len(interface.sel)-1),
-                            NextValue(interface.adr, address),
-                            NextValue(interface.we, self.instruction.immediate[7]),
+                         If(uncacheable,
+                            NextValue(wish_nocache.cyc, 1),
+                            NextValue(wish_nocache.stb, 1),
+                            NextValue(wish_nocache.sel, 2**len(wish_nocache.sel)-1),
+                            NextValue(wish_nocache.adr, address),
+                            NextValue(wish_nocache.we, self.instruction.immediate[7]),
                             NextState("MEMh") # MEMl
                          ).Else(
-                             memoryport.cmd.we.eq(self.instruction.immediate[7]),
-                             memoryport.cmd.addr.eq(address[0:]),
-                             memoryport.cmd.valid.eq(1),
-                             If(memoryport.cmd.ready,
-                                NextState("MEMh")
-                             )
+                            NextValue(wish_cache.cyc, 1),
+                            NextValue(wish_cache.stb, 1),
+                            NextValue(wish_cache.sel, 2**len(wish_cache.sel)-1),
+                            NextValue(wish_cache.adr, address),
+                            NextValue(wish_cache.we, self.instruction.immediate[7]),
+                            NextState("MEMh") # MEMl
                          )
                   ).Elif(self.instruction.opcode == opcodes["LOADL"][0],
                          NextValue(self.has_timeout, 0),
                          NextValue(self.has_failure, 0),
                          NextValue(timeout, 2047),
                          NextValue(lbuf[128:256], self.b[0:128]),
-                         If(wishbone,
-                            NextValue(interface.cyc, 1),
-                            NextValue(interface.stb, 1),
-                            NextValue(interface.sel, 2**len(interface.sel)-1),
-                            NextValue(interface.adr, address),
-                            NextValue(interface.we, self.instruction.immediate[7]),
+                         If(uncacheable,
+                            NextValue(wish_nocache.cyc, 1),
+                            NextValue(wish_nocache.stb, 1),
+                            NextValue(wish_nocache.sel, 2**len(wish_nocache.sel)-1),
+                            NextValue(wish_nocache.adr, address),
+                            NextValue(wish_nocache.we, self.instruction.immediate[7]),
                             NextState("MEMl")
                          ).Else(
-                             memoryport.cmd.we.eq(self.instruction.immediate[7]),
-                             memoryport.cmd.addr.eq(address[0:]),
-                             memoryport.cmd.valid.eq(1),
-                             If(memoryport.cmd.ready,
-                                NextState("MEMl")
-                             )
+                            NextValue(wish_cache.cyc, 1),
+                            NextValue(wish_cache.stb, 1),
+                            NextValue(wish_cache.sel, 2**len(wish_cache.sel)-1),
+                            NextValue(wish_cache.adr, address),
+                            NextValue(wish_cache.we, self.instruction.immediate[7]),
+                            NextState("MEMl")
                          )
                   )
         )
@@ -651,58 +667,60 @@ class ExecLS(ExecUnit, AutoDoc):
         )
         lsseq.act("MEMl",
                   NextValue(cpar, cpar ^ 1),
-                  If(wishbone & interface.ack,
+                  If(uncacheable & wish_nocache.ack,
                      If(~self.instruction.immediate[7],
-                        NextValue(lbuf[0:128], interface.dat_r)),
-                     NextValue(interface.cyc, 0),
-                     NextValue(interface.stb, 0),
+                        NextValue(lbuf[0:128], wish_nocache.dat_r)),
+                     NextValue(wish_nocache.cyc, 0),
+                     NextValue(wish_nocache.stb, 0),
                      NextState("MEMl2")
-                  ).Elif(wishbone & interface.err,
+                  ).Elif(uncacheable & wish_nocache.err,
                          NextValue(self.has_failure[0], 1),
-                         NextValue(interface.cyc, 0),
-                         NextValue(interface.stb, 0),
+                         NextValue(wish_nocache.cyc, 0),
+                         NextValue(wish_nocache.stb, 0),
                          NextState("ERR"),
-                  ).Elif(~wishbone & ~self.instruction.immediate[7] & memoryport.rdata.valid,
-                         NextValue(lbuf[0:128], memoryport.rdata.data),
-                         NextState("MEMl2"),
-                  ).Elif(~wishbone & self.instruction.immediate[7],
-                         memoryport.wdata.valid.eq(1),
-                         If(self.instruction.shift,
-                            memoryport.wdata.data.eq((self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[0:128]),
-                            memoryport.wdata.we.eq(r_dat_m[2][0:16]),
-                         ).Else(
-                             memoryport.wdata.data.eq(self.b[0:128]),
-                         ),
-                         If(memoryport.wdata.ready,
-                            NextState("MEMl2"),
-                         ),
+                  ).Elif(~uncacheable & wish_cache.ack,
+                     If(~self.instruction.immediate[7],
+                        NextValue(lbuf[0:128], wish_cache.dat_r)),
+                     NextValue(wish_cache.cyc, 0),
+                     NextValue(wish_cache.stb, 0),
+                     NextState("MEMl2")
+                  ).Elif(~uncacheable & wish_cache.err,
+                         NextValue(self.has_failure[0], 1),
+                         NextValue(wish_cache.cyc, 0),
+                         NextValue(wish_cache.stb, 0),
+                         NextState("ERR"),
                   ).Elif(timeout == 0,
                          NextValue(self.has_timeout[0], 1),
-                         NextValue(interface.cyc, 0),
-                         NextValue(interface.stb, 0),
+                         If(uncacheable,
+                            NextValue(wish_nocache.cyc, 0),
+                            NextValue(wish_nocache.stb, 0),
+                         ).Else(
+                            NextValue(wish_cache.cyc, 0),
+                            NextValue(wish_cache.stb, 0),
+                         ),
                          NextState("ERR"),
                   ))
         lsseq.act("MEMl2",
                   NextValue(cpar, cpar ^ 1),
-                  If(wishbone & ~interface.ack,
+                  If(uncacheable & ~wish_nocache.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
                      ).Elif(self.instruction.immediate[5], # post-dec
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
                      ),
                      If(self.instruction.immediate[8],
-                        NextValue(interface.cyc, 1),
-                        NextValue(interface.stb, 1),
-                        NextValue(interface.adr, address + 1),
-                        NextValue(interface.we, self.instruction.immediate[7]),
-                        NextValue(interface.sel, 2**len(interface.sel)-1),
+                        NextValue(wish_nocache.cyc, 1),
+                        NextValue(wish_nocache.stb, 1),
+                        NextValue(wish_nocache.adr, address + 1),
+                        NextValue(wish_nocache.we, self.instruction.immediate[7]),
+                        NextValue(wish_nocache.sel, 2**len(wish_nocache.sel)-1),
                         NextValue(timeout, 2047),
                         If(self.instruction.immediate[7],
                            If(self.instruction.shift,
-                              NextValue(interface.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[128:256]),
-                              NextValue(interface.sel, r_dat_m[2][16:32]),
+                              NextValue(wish_nocache.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[128:256]),
+                              NextValue(wish_nocache.sel, r_dat_m[2][16:32]),
                            ).Else(
-                               NextValue(interface.dat_w, self.b[128:256]),
+                               NextValue(wish_nocache.dat_w, self.b[128:256]),
                            ),
                         ),
                         NextState("MEMh")
@@ -716,72 +734,79 @@ class ExecLS(ExecUnit, AutoDoc):
                              NextState("MEM_EVEN1")
                          )
                      )
-                  ).Elif(~wishbone,
-                         If(self.instruction.immediate[8],
-                            memoryport.cmd.we.eq(self.instruction.immediate[7]),
-                            memoryport.cmd.addr.eq(address[0:] + 1),
-                            memoryport.cmd.valid.eq(1),
-                            NextValue(timeout, 2047),
-                            If(memoryport.cmd.ready,
-                               If(self.instruction.immediate[6], # post-inc
-                                  NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                               ).Elif(self.instruction.immediate[5], # post-dec
-                                      NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
-                               ),
-                               NextState("MEMh"),
-                            )
-                         ).Else( # no high
-                             If(self.instruction.immediate[6], # post-inc
-                                NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                             ).Elif(self.instruction.immediate[5], # post-dec
-                                    NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
-                             ),
-                             If(self.instruction.opcode == opcodes["MEM"][0],
-                                NextValue(lbuf[128:256], 0),
-                             ),
-                             If(cpar,
-                                NextState("MEM_ODD")
-                             ).Else(
-                                 NextState("MEM_EVEN1")
-                             )
+                  ),
+                  If(~uncacheable & ~wish_cache.ack,
+                     If(self.instruction.immediate[6], # post-inc
+                        NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                     ).Elif(self.instruction.immediate[5], # post-dec
+                        NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
+                     ),
+                     If(self.instruction.immediate[8],
+                        NextValue(wish_cache.cyc, 1),
+                        NextValue(wish_cache.stb, 1),
+                        NextValue(wish_cache.adr, address + 1),
+                        NextValue(wish_cache.we, self.instruction.immediate[7]),
+                        NextValue(wish_cache.sel, 2**len(wish_cache.sel)-1),
+                        NextValue(timeout, 2047),
+                        If(self.instruction.immediate[7],
+                           If(self.instruction.shift,
+                              NextValue(wish_cache.dat_w, (self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[128:256]),
+                              NextValue(wish_cache.sel, r_dat_m[2][16:32]),
+                           ).Else(
+                               NextValue(wish_cache.dat_w, self.b[128:256]),
+                           ),
+                        ),
+                        NextState("MEMh")
+                     ).Else(
+                         If(self.instruction.opcode == opcodes["MEM"][0],
+                            NextValue(lbuf[128:256], 0),
                          ),
-                  ))
+                         If(cpar,
+                            NextState("MEM_ODD")
+                         ).Else(
+                             NextState("MEM_EVEN1")
+                         )
+                     )
+                  ),
+        )
         lsseq.act("MEMh",
                   NextValue(cpar, cpar ^ 1),
-                  If(wishbone & interface.ack,
+                  If(uncacheable & wish_nocache.ack,
                      If(~self.instruction.immediate[7],
-                        NextValue(lbuf[128:256], interface.dat_r)),
-                     NextValue(interface.cyc, 0),
-                     NextValue(interface.stb, 0),
+                        NextValue(lbuf[128:256], wish_nocache.dat_r)),
+                     NextValue(wish_nocache.cyc, 0),
+                     NextValue(wish_nocache.stb, 0),
                      NextState("MEMh2")
-                  ).Elif(wishbone & interface.err,
+                  ).Elif(uncacheable & wish_nocache.err,
                          NextValue(self.has_failure[1], 1),
-                         NextValue(interface.cyc, 0),
-                         NextValue(interface.stb, 0),
+                         NextValue(wish_nocache.cyc, 0),
+                         NextValue(wish_nocache.stb, 0),
                          NextState("ERR"),
-                  ).Elif(~wishbone & ~self.instruction.immediate[7] & memoryport.rdata.valid,
-                         NextValue(lbuf[128:256], memoryport.rdata.data),
-                         NextState("MEMh2"),
-                  ).Elif(~wishbone & self.instruction.immediate[7],
-                         memoryport.wdata.valid.eq(1),
-                         If(self.instruction.shift,
-                            memoryport.wdata.data.eq((self.b << (Cat(Signal(granule_bits, reset = 0), r_dat_f[2])))[128:256]),
-                            memoryport.wdata.we.eq(r_dat_m[2][16:32]),
-                         ).Else(
-                             memoryport.wdata.data.eq(self.b[128:256]),
-                         ),
-                         If(memoryport.wdata.ready,
-                            NextState("MEMh2"),
-                         ),
+                  ).Elif(~uncacheable & wish_cache.ack,
+                     If(~self.instruction.immediate[7],
+                        NextValue(lbuf[128:256], wish_cache.dat_r)),
+                     NextValue(wish_cache.cyc, 0),
+                     NextValue(wish_cache.stb, 0),
+                     NextState("MEMh2")
+                  ).Elif(~uncacheable & wish_cache.err,
+                         NextValue(self.has_failure[1], 1),
+                         NextValue(wish_cache.cyc, 0),
+                         NextValue(wish_cache.stb, 0),
+                         NextState("ERR"),
                   ).Elif(timeout == 0,
                          NextValue(self.has_timeout[1], 1),
-                         NextValue(interface.cyc, 0),
-                         NextValue(interface.stb, 0),
+                         If(uncacheable,
+                            NextValue(wish_nocache.cyc, 0),
+                            NextValue(wish_nocache.stb, 0),
+                         ).Else(
+                            NextValue(wish_cache.cyc, 0),
+                            NextValue(wish_cache.stb, 0),
+                         ),
                          NextState("ERR"),
                   ))
         lsseq.act("MEMh2",
                   NextValue(cpar, cpar ^ 1),
-                  If(wishbone & ~interface.ack,
+                  If(uncacheable & ~wish_nocache.ack,
                      If(self.instruction.immediate[6], # post-inc
                         NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
                      ).Elif(self.instruction.immediate[5], # post-dec
@@ -793,18 +818,21 @@ class ExecLS(ExecUnit, AutoDoc):
                      ).Else(
                         NextState("MEM_EVEN1")
                      )
-                  ).Elif(~wishbone,
-                         If(self.instruction.immediate[6], # post-inc
-                            NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
-                         ).Elif(self.instruction.immediate[5], # post-dec
-                                NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
-                         ),
-                         If(cpar,
-                            NextState("MEM_ODD")
-                         ).Else(
-                             NextState("MEM_EVEN1")
-                         )
-                  ))
+                  ),
+                  If(~uncacheable & ~wish_cache.ack,
+                     If(self.instruction.immediate[6], # post-inc
+                        NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] + 1),
+                     ).Elif(self.instruction.immediate[5], # post-dec
+                        NextValue(addresses[self.instruction.immediate[0:log2_int(width//32)]], addresses[self.instruction.immediate[0:log2_int(width//32)]] - 1),
+                     ),
+                     #NextValue(tries, 0),
+                     If(cpar,
+                        NextState("MEM_ODD")
+                     ).Else(
+                        NextState("MEM_EVEN1")
+                     )
+                  ),
+        )
         lsseq.act("MEM_ODD", # clock alignement cycle
                   NextState("MEM_EVEN1"))
         lsseq.act("MEM_EVEN1",
@@ -813,7 +841,8 @@ class ExecLS(ExecUnit, AutoDoc):
                   NextValue(cpar, 0),
                   NextValue(self.has_failure, 0),
                   NextValue(self.has_timeout, 0),
-                  NextState("IDLE"))
+                  NextState("IDLE"),
+        )
         lsseq.act("ERR",
                   #If(~tries, # second attempt
                   #   NextValue(cpar, 0),
@@ -1442,15 +1471,25 @@ Here are the currently implemented opcodes for The Engine:
             )
         )
         
-        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        #led = Signal(reset = 1)
-        #self.comb += pad_SBUS_DATA_OE_LED.eq(led)
+        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        led = Signal(reset = 1)
+        self.comb += pad_SBUS_DATA_OE_LED.eq(led)
+        
         self.busls = wishbone.Interface(data_width = 128, adr_width = 28) # FIXME: hardwired (here and elsewhere)
+        self.busls_cached = wishbone.Interface(data_width = 128, adr_width = 28)
+        self.busls_internal = wishbone.Interface(data_width = 128, adr_width = 28)
+        self.submodules.w2n = LiteDRAMWishbone2Native(self.busls_internal, memoryport, base_address=0x80000000) # fixme
+        self.submodules.cache = CacheWithPrefetch(cachesize=(32*1024)//(128//8), memsize=16*(1024**2), ahead=(16*1024)//(128//8), master=self.busls_cached, slave=self.busls_internal)
+        self.comb += led.eq(self.cache.cache.fsm.ongoing("PASSTHROUGH"))
+        #self.comb += led.eq(self.cache.cache.fsm.ongoing("PREFETCH") | self.cache.cache.fsm.ongoing("PREFETCH_FILL")  | self.cache.cache.fsm.ongoing("PREFETCH_EVICT"))
+        #self.comb += led.eq(self.cache.pgen.gen.fifo.readable)
+        
         exec_units = {
             "exec_logic"     : ExecLogic(width=rf_width_raw),
             "exec_addsub"    : ExecAddSub(width=rf_width_raw),
             "exec_rop"       : ExecRop(width=rf_width_raw),
-            "exec_ls"        : ExecLS(width=rf_width_raw, interface=self.busls, memoryport=memoryport, r_dat_f=r_dat_f, r_dat_m=r_dat_m, granule=granule),
+            "exec_ls"        : ExecLS(width=rf_width_raw, wish_nocache=self.busls, wish_cache=self.busls_cached, prefetcher=self.cache, r_dat_f=r_dat_f, r_dat_m=r_dat_m, granule=granule),
+            ##"exec_ls"        : ExecLS(width=rf_width_raw, wish_nocache=self.busls, wish_cache=self.busls_internal, prefetcher=None, r_dat_f=r_dat_f, r_dat_m=r_dat_m, granule=granule),
         }
         exec_units_shift = {
             "exec_logic": True,

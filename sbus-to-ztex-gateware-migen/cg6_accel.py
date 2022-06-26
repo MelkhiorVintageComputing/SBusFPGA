@@ -5,6 +5,9 @@ from litex.soc.interconnect.csr import *
 
 from litex.soc.interconnect import wishbone
 
+from litedram.common import LiteDRAMNativePort
+from litedram.frontend.wishbone import LiteDRAMWishbone2Native
+
 #from cg6_blit import CG6Blit
 
 class CG6Accel(Module): # AutoCSR ?
@@ -348,8 +351,58 @@ class CG6Accel(Module): # AutoCSR ?
         ]
         
         self.ibus = ibus = wishbone.Interface()
-        self.dbus = dbus = wishbone.Interface()
+        #self.dbus = dbus = wishbone.Interface()
         vex_reset = Signal()
+
+        dbus_raw = wishbone.Interface(data_width=128, adr_width=28) # wide interface from the Vex, master
+        dbus_sys = wishbone.Interface(data_width=128, adr_width=28) # wide interface to system wishbone
+        dbus_mem = wishbone.Interface(data_width=128, adr_width=28) # wide interface for direct memory access
+        self.dbus = dbus_sys
+
+        self.comb += [
+            If((dbus_raw.adr[24:28] == 0x8),
+               dbus_sys.cyc.eq(0),
+               dbus_sys.stb.eq(0),
+               dbus_mem.cyc.eq(dbus_raw.cyc),
+               dbus_mem.stb.eq(dbus_raw.stb),
+               
+               dbus_raw.ack.eq(dbus_mem.ack),
+               dbus_raw.err.eq(dbus_mem.err),
+               dbus_raw.dat_r.eq(dbus_mem.dat_r),
+            ).Else(
+               dbus_sys.cyc.eq(dbus_raw.cyc),
+               dbus_sys.stb.eq(dbus_raw.stb),
+               dbus_mem.cyc.eq(0),
+               dbus_mem.stb.eq(0),
+               
+               dbus_raw.ack.eq(dbus_sys.ack),
+               dbus_raw.err.eq(dbus_sys.err),
+               dbus_raw.dat_r.eq(dbus_sys.dat_r),
+            ),
+            dbus_sys.dat_w.eq(dbus_raw.dat_w),
+            dbus_mem.dat_w.eq(dbus_raw.dat_w),
+            dbus_sys.we.eq(dbus_raw.we),
+            dbus_mem.we.eq(dbus_raw.we),
+            dbus_sys.adr.eq(dbus_raw.adr),
+            dbus_mem.adr.eq(dbus_raw.adr),
+            dbus_sys.sel.eq(dbus_raw.sel),
+            dbus_mem.sel.eq(dbus_raw.sel),
+            dbus_sys.cti.eq(dbus_raw.cti),
+            dbus_mem.cti.eq(dbus_raw.cti),
+            dbus_sys.bte.eq(dbus_raw.bte),
+            dbus_mem.bte.eq(dbus_raw.bte),
+        ]
+
+        # now connect the memory
+
+        # memory port
+        port = soc.sdram.crossbar.get_port()
+        assert(port.data_width == 128)
+        self.submodules.wb2native = LiteDRAMWishbone2Native(
+            wishbone     = dbus_mem,
+            port         = port,
+            base_address = soc.bus.regions["main_ram"].origin
+        )
 
         self.comb += vex_reset.eq(ResetSignal("sys") | local_reset)
         self.specials += Instance(self.get_netlist_name(),
@@ -366,17 +419,17 @@ class CG6Accel(Module): # AutoCSR ?
                                   i_iBusWishbone_ERR = ibus.err,
                                   o_iBusWishbone_CTI = ibus.cti,
                                   o_iBusWishbone_BTE = ibus.bte,
-                                  o_dBusWishbone_CYC = dbus.cyc,
-                                  o_dBusWishbone_STB = dbus.stb,
-                                  i_dBusWishbone_ACK = dbus.ack,
-                                  o_dBusWishbone_WE  = dbus.we,
-                                  o_dBusWishbone_ADR = dbus.adr,
-                                  i_dBusWishbone_DAT_MISO = dbus.dat_r,
-                                  o_dBusWishbone_DAT_MOSI = dbus.dat_w,
-                                  o_dBusWishbone_SEL = dbus.sel,
-                                  i_dBusWishbone_ERR = dbus.err,
-                                  o_dBusWishbone_CTI = dbus.cti,
-                                  o_dBusWishbone_BTE = dbus.bte,)
+                                  o_dBusWishbone_CYC = dbus_raw.cyc,
+                                  o_dBusWishbone_STB = dbus_raw.stb,
+                                  i_dBusWishbone_ACK = dbus_raw.ack,
+                                  o_dBusWishbone_WE  = dbus_raw.we,
+                                  o_dBusWishbone_ADR = dbus_raw.adr,
+                                  i_dBusWishbone_DAT_MISO = dbus_raw.dat_r,
+                                  o_dBusWishbone_DAT_MOSI = dbus_raw.dat_w,
+                                  o_dBusWishbone_SEL = dbus_raw.sel,
+                                  i_dBusWishbone_ERR = dbus_raw.err,
+                                  o_dBusWishbone_CTI = dbus_raw.cti,
+                                  o_dBusWishbone_BTE = dbus_raw.bte,)
 
         self.add_sources(platform)
                                      
