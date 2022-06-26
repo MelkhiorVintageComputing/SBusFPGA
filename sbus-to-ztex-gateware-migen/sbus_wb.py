@@ -8,7 +8,7 @@ from migen.genlib.cdc import BusSynchronizer
 
 class WishboneDomainCrossingMaster(Module, wishbone.Interface):
     """Wishbone Clock Domain Crossing [Master]"""
-    def __init__(self, platform, slave, cd_master="sys", cd_slave="sys"):
+    def __init__(self, platform, slave, cd_master="sys", cd_slave="sys", force_delay = 0):
         # Same Clock Domain, direct connection.
         wishbone.Interface.__init__(self, data_width=slave.data_width, adr_width=slave.adr_width)
         if cd_master == cd_slave:
@@ -16,6 +16,24 @@ class WishboneDomainCrossingMaster(Module, wishbone.Interface):
         # Clock Domain Crossing.
         else:
             self.add_sources(platform)
+
+            delay_stb = Signal()
+            if (force_delay == 0):
+                self.comb += [ delay_stb.eq(self.stb), ]
+            else:
+                counter = Signal(max=force_delay+1)
+                last_stb = Signal()
+                master_sync = getattr(self.sync, cd_master)
+                master_sync += [
+                    If(counter != 0,
+                       counter.eq(counter - 1),
+                    ),
+                    last_stb.eq(self.stb),
+                    If(~self.stb & last_stb, # falling edge, force timeout
+                       counter.eq(force_delay),
+                    ),
+                ]
+                self.comb += [ delay_stb.eq(self.stb & (counter == 0)) ]
 
             #fixme: parameters
             self.specials += Instance(self.get_netlist_name(),
@@ -27,7 +45,7 @@ class WishboneDomainCrossingMaster(Module, wishbone.Interface):
                                       o_wbm_dat_o = self.dat_r,
                                       i_wbm_we_i = self.we,
                                       i_wbm_sel_i = self.sel,
-                                      i_wbm_stb_i = self.stb,
+                                      i_wbm_stb_i = delay_stb,
                                       o_wbm_ack_o = self.ack,
                                       o_wbm_err_o = self.err,
                                       o_wbm_rty_o = Signal(),
