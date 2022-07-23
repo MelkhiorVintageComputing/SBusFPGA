@@ -11,7 +11,7 @@ from litex.soc.interconnect import wishbone
 # the blk_addr does the round-trip to accompany the data
 # mem_size in MiB, might be weird if some space is reserved for other use (e.g. FrameBuffer)
 class ExchangeWithMem(Module, AutoCSR):
-    def __init__(self, soc, platform, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_native_r, dram_native_w, mem_size=256, burst_size = 8, do_checksum = False):
+    def __init__(self, soc, platform, tosbus_fifo, fromsbus_fifo, fromsbus_req_fifo, dram_native_r, dram_native_w, mem_size=256, burst_size = 8, do_checksum = False, clock_domain="sbus"):
         #self.wishbone_r_slave = wishbone.Interface(data_width=soc.bus.data_width)
         #self.wishbone_w_slave = wishbone.Interface(data_width=soc.bus.data_width)
         self.tosbus_fifo = tosbus_fifo
@@ -105,7 +105,7 @@ class ExchangeWithMem(Module, AutoCSR):
         self.comb += self.dma_status.fields.has_wr_data.eq(self.fromsbus_fifo.readable) # Some data available to write to memory
         
         # The next two status bits reflect stats in the SBus clock domain
-        self.submodules.fromsbus_req_fifo_readable_sync = BusSynchronizer(width = 1, idomain = "sbus", odomain = "sys")
+        self.submodules.fromsbus_req_fifo_readable_sync = BusSynchronizer(width = 1, idomain = clock_domain, odomain = "sys")
         fromsbus_req_fifo_readable_in_sys = Signal()
         self.comb += self.fromsbus_req_fifo_readable_sync.i.eq(self.fromsbus_req_fifo.readable)
         self.comb += fromsbus_req_fifo_readable_in_sys.eq(self.fromsbus_req_fifo_readable_sync.o)
@@ -124,7 +124,7 @@ class ExchangeWithMem(Module, AutoCSR):
         #self.comb += self.dma_status.fields.has_requests.eq(fromsbus_req_fifo_readable_in_sys) # we still have outstanding requests
         self.comb += self.dma_status.fields.has_requests.eq(fromsbus_req_fifo_readable_in_sys | (fromsbus_req_fifo_readable_in_sys_cnt != 0)) # we still have outstanding requests, or had recently
         
-        self.submodules.tosbus_fifo_readable_sync = BusSynchronizer(width = 1, idomain = "sbus", odomain = "sys")
+        self.submodules.tosbus_fifo_readable_sync = BusSynchronizer(width = 1, idomain = clock_domain, odomain = "sys")
         tosbus_fifo_readable_in_sys = Signal()
         self.comb += self.tosbus_fifo_readable_sync.i.eq(self.tosbus_fifo.readable)
         self.comb += tosbus_fifo_readable_in_sys.eq(self.tosbus_fifo_readable_sync.o)
@@ -201,7 +201,7 @@ class ExchangeWithMem(Module, AutoCSR):
                       )
         )
         req_r_fsm.act("WaitForData",
-                      If(self.dram_native_r.rdata.valid & self.tosbus_fifo.writable,
+                      If(self.dram_native_r.rdata.valid & self.tosbus_fifo.writable, # is that to late to check for writability ?
                          self.tosbus_fifo.we.eq(1),
                          tosbus_fifo_din.address.eq(dma_r_addr),
                          tosbus_fifo_din.data.eq(self.dram_native_r.rdata.data),
