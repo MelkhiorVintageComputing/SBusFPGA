@@ -543,7 +543,7 @@ class SBusFPGA(SoCCore):
                 self.bus.add_slave("cg6_alt", self.cg6.bus3, SoCRegion(origin=self.mem_map.get("cg6_alt", None), size=0x2000, cached=False))
                 self.bus.add_master(name="cg6_accel_r5_i", master=self.cg6_accel.ibus)
                 self.bus.add_master(name="cg6_accel_r5_d", master=self.cg6_accel.dbus)
-                cg6_rom_file = "blit.raw"
+                cg6_rom_file = "blit_cg6.raw"
                 cg6_rom_data = soc_core.get_mem_data(cg6_rom_file, "little")
                 cg6_rom_len = 4*len(cg6_rom_data);
                 rounded_cg6_rom_len = 2**log2_int(cg6_rom_len, False)

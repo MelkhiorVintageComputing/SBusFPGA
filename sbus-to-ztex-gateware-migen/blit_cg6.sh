@@ -23,8 +23,8 @@ ARCH=rv32i_zba_zbb_zbt
 PARAM="-DHRES=${HRES} -DVRES=${VRES} -DBASE_FB=${BASE_FB}"
 
 if test "x$1" != "xASM"; then
-	$GCC $OPT -S -o blit.s $PARAM -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit.c
+	$GCC $OPT -S -o blit_cg6.s $PARAM -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit_cg6.c
 fi
-$GCC     $OPT -c -o blit.o $PARAM -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit.s &&
-$GCCLINK $OPT    -o blit   $PARAM -march=$ARCH -mabi=ilp32 -T blit.lds  -nostartfiles blit.o &&
-$OBJCOPY  -O binary -j .text -j .rodata blit blit.raw
+$GCC     $OPT -c -o blit_cg6.o $PARAM -march=$ARCH -mabi=ilp32 -mstrict-align -fno-builtin-memset -nostdlib -ffreestanding -nostartfiles blit_cg6.s &&
+$GCCLINK $OPT    -o blit_cg6   $PARAM -march=$ARCH -mabi=ilp32 -T blit_cg6.lds  -nostartfiles blit_cg6.o &&
+$OBJCOPY  -O binary -j .text -j .rodata blit_cg6 blit_cg6.raw
