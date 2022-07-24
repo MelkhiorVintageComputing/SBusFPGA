@@ -159,7 +159,7 @@ fload fbc_init.fth
   line-bytes encode-int " linebytes" property
   
   h# b encode-int " chiprev" property \ rev 11
-  /cg6-off-fb h# a >> encode-int " vmsize" property
+  /cg6-off-fb h# 14 >> encode-int " vmsize" property
   0 encode-int " dblbuf" property
 
   h# 39 encode-int 0 encode-int encode+ " intr" property
