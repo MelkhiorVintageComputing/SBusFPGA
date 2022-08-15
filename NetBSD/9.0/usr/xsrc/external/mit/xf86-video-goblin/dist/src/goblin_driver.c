@@ -545,53 +545,12 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
 
 	if (pGoblin->has_accel && !pGoblin->NoAccel) {
 		// map Jareth registers
-	    pGoblin->jreg = xf86MapSbusMem(psdp, JARETH_REG_VOFF, sizeof(JarethReg));
-	    pGoblin->jmicrocode = xf86MapSbusMem(psdp, JARETH_MICROCODE_VOFF, sizeof(JarethReg));
-	    pGoblin->jregfile = xf86MapSbusMem(psdp, JARETH_REGFILE_VOFF, sizeof(JarethMicrocode));
-		if ((pGoblin->jreg == NULL) ||
-			(pGoblin->jmicrocode == NULL) ||
-			(pGoblin->jregfile == NULL)) {
+	    pGoblin->jreg = xf86MapSbusMem(psdp, JARETH_REG_VOFF, sizeof(GoblinAccel));
+		if (pGoblin->jreg == NULL) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "xf86MapSbusMem failed for Jareth\n");
 			pGoblin->has_accel = FALSE;
 		} else {
-			struct jareth_fn jfn;
 			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Jareth successfully mapped\n");
-			// get some functions
-			jfn.off = JARETH_FN_NUM_FILL;
-			if (ioctl (pGoblin->psdp->fd, JARETH_FN, &jfn) || (jfn.off == -1)) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Fill function retrieval failed for Jareth\n");
-				pGoblin->has_accel = FALSE;
-			} else {
-				pGoblin->fill_off = jfn.off;
-				pGoblin->fill_len = jfn.len;
-			}
-			jfn.off = JARETH_FN_NUM_FILLROP;
-			if (ioctl (pGoblin->psdp->fd, JARETH_FN, &jfn) || (jfn.off == -1)) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Fillrop function retrieval failed for Jareth\n");
-				pGoblin->has_accel = FALSE;
-			} else {
-				pGoblin->fillrop_off = jfn.off;
-				pGoblin->fillrop_len = jfn.len;
-			}
-			jfn.off = JARETH_FN_NUM_COPY;
-			if (ioctl (pGoblin->psdp->fd, JARETH_FN, &jfn) || (jfn.off == -1)) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Copy function retrieval failed for Jareth\n");
-				pGoblin->has_accel = FALSE;
-			} else {
-				pGoblin->copy_off = jfn.off;
-				pGoblin->copy_len = jfn.len;
-			}
-			jfn.off = JARETH_FN_NUM_COPYREV;
-			if (ioctl (pGoblin->psdp->fd, JARETH_FN, &jfn) || (jfn.off == -1)) {
-				xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Copyrev function retrieval failed for Jareth\n");
-				pGoblin->has_accel = FALSE;
-			} else {
-				pGoblin->copyrev_off = jfn.off;
-				pGoblin->copyrev_len = jfn.len;
-			}
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Jareth functions: fill %d %d, fillrop %d %d, copy %d %d, copyrev %d %d\n",
-					   pGoblin->fill_off, pGoblin->fill_len, pGoblin->fillrop_off, pGoblin->fillrop_len,
-					   pGoblin->copy_off, pGoblin->copy_len, pGoblin->copyrev_off, pGoblin->copyrev_len);
 		}
 	}
 
@@ -789,6 +748,13 @@ GOBLINCloseScreen(CLOSE_SCREEN_ARGS_DECL)
 
     pScrn->vtSema = FALSE;
 
+	if (pGoblin->jreg) {
+		pGoblin->jreg->reg_src_ptr = 0;
+		pGoblin->jreg->reg_dst_ptr = 0;
+		xf86UnmapSbusMem(psdp, pGoblin->jreg, sizeof(GoblinAccel));
+		pGoblin->jreg = NULL;
+	}
+		
     if (pGoblin->fbc) {
         xf86UnmapSbusMem(psdp, pGoblin->fbc, sizeof(*pGoblin->fbc));
         pGoblin->fbc = NULL;

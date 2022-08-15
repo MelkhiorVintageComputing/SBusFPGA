@@ -497,6 +497,8 @@ goblinmmap(dev_t dev, off_t off, int prot)
 			}
 		}
 	}
+
+	device_printf(sc->sc_dev, "Jareth mmap() (from X11, presumably) failed; 0x%08llx, 0x%08x\n", off, prot);
 	
 	return (-1);
 }
@@ -715,6 +717,11 @@ static void
 goblin_reset(struct goblin_softc *sc)
 {
 	goblin_set_depth(sc, 8);
+	// X11 is supposed to clean up its mess, but just in case...
+	if (sc->sc_has_jareth) {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_PTR, 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_PTR, 0);
+	}
 }
 
 static void

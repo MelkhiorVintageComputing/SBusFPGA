@@ -66,28 +66,23 @@ typedef struct goblin_fbc {
         volatile uint32_t curbits[32]; /* 0x40 .. 0x5f */
 } GoblinFbc, *GoblinFbcPtr;
 
-typedef struct jareth_reg {
-	volatile uint32_t window;
-	volatile uint32_t mpstart;
-	volatile uint32_t mplen;
-	volatile uint32_t control;
-	volatile uint32_t mpresume;
-	volatile uint32_t power;
-	volatile uint32_t status;
-	volatile uint32_t ev_status;
-	volatile uint32_t ev_prending;
-	volatile uint32_t ev_enable;
-	volatile uint32_t instruction;
-	volatile uint32_t ls_status;
-	volatile uint32_t cyc_counter;
-} JarethReg, *JarethRegPtr;
-
-typedef struct jareth_microcode {
-	volatile uint32_t mc[1024];
-} JarethMicrocode, *JarethMicrocodePtr;
-
-typedef struct jareth_regfile {
-	volatile uint32_t reg[32][8];
-} JarethRegfile, *JarethRegfilePtr;
+typedef struct goblin_accel_regs {
+	u_int32_t reg_status; // 0
+	u_int32_t reg_cmd;
+	u_int32_t reg_r5_cmd;
+	u_int32_t resv0;
+	u_int32_t reg_width; // 4
+	u_int32_t reg_height;
+	u_int32_t reg_fgcolor;
+	u_int32_t resv2;
+	u_int32_t reg_bitblt_src_x; // 8
+	u_int32_t reg_bitblt_src_y;
+	u_int32_t reg_bitblt_dst_x;
+	u_int32_t reg_bitblt_dst_y;
+	u_int32_t reg_src_stride; // 12
+	u_int32_t reg_dst_stride;
+	u_int32_t reg_src_ptr; // 14
+	u_int32_t reg_dst_ptr;
+} GoblinAccel, *GoblinAccelPtr;
 
 #endif /* GOBLIN_REGS_H */

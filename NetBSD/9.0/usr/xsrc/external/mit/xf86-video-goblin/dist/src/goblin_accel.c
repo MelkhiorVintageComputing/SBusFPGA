@@ -38,7 +38,8 @@
 //#define DEBUG_GOBLIN 1
 
 #ifdef DEBUG_GOBLIN
-#define ENTER xf86Msg(X_ERROR, "%s>\n", __func__);
+//#define ENTER xf86Msg(X_ERROR, "%s>\n", __func__);
+#define ENTER
 #define DPRINTF xf86Msg
 #else
 #define ENTER
@@ -197,10 +198,10 @@ GOBLINEXAInit(ScreenPtr pScreen)
     pExa->offScreenBase = pGoblin->width * pGoblin->height * 4; // 32-bits
 
     /*
-     * Jareth has 128-bits memory access
+     * Jareth has arbitrary-bits memory access, but is more efficient with 64-bits aligned data
      */
-    pExa->pixmapOffsetAlign = 16;
-    pExa->pixmapPitchAlign = 16;
+    pExa->pixmapOffsetAlign = 8;
+    pExa->pixmapPitchAlign = 8;
 
     pExa->flags = EXA_OFFSCREEN_PIXMAPS;/*  | EXA_MIXED_PIXMAPS; */ /* | EXA_SUPPORTS_OFFSCREEN_OVERLAPS; */
 	
@@ -231,7 +232,7 @@ GOBLINEXAInit(ScreenPtr pScreen)
 static inline void
 GoblinWait(GoblinPtr pGoblin)
 {
-	uint32_t status = pGoblin->jreg->status;
+	uint32_t status = pGoblin->jreg->reg_status;
 	int count = 0;
 	int max_count = 1000;
 	int del = 1;
@@ -240,17 +241,17 @@ GoblinWait(GoblinPtr pGoblin)
 
 	ENTER;
 	
-	while ((status & 1) && (count < max_count)) {
+	while ((status & 1) && (count < max_count)) { // & 1 is WORK_IN_PROGRESS_BIT
 		count ++;
 		usleep(del * param);
 		del = del < max_del ? 2*del : del;
-		status = pGoblin->jreg->status;
+		status = pGoblin->jreg->reg_status;
 	}
 
-	if (status & 1) {
-		xf86Msg(X_ERROR, "Jareth wait for idle timed out %08x %08x\n", status);
+	if (status & 1) { // & 1 is WORK_IN_PROGRESS_BIT
+		xf86Msg(X_ERROR, "Jareth wait for idle timed out %08x\n", status);
 	} else {
-		xf86Msg(X_INFO, "Jareth: last operation took %d cycles (eng_clk)\n", pGoblin->jreg->cyc_counter);
+		//xf86Msg(X_INFO, "Jareth: last operation took %d cycles (eng_clk)\n", pGoblin->jreg->cyc_counter);
 	}
 }
 
@@ -331,31 +332,23 @@ GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 
 	ENTER;
 	DPRINTF(X_ERROR, "PrepareSolid bpp: %d, alu %d, pm 0x%08x, Fg 0x%08x\n", pPixmap->drawable.bitsPerPixel, alu, planemask, fg);
-
-	if ((pGoblin->jreg->power & 1) != 1)
-		pGoblin->jreg->power = 1;
 	
 	GoblinWait(pGoblin);
 
-	pGoblin->fg = fg;
-	for (i = 0 ; i < 8; i++)
-		pGoblin->jregfile->reg[1][i] = fg;
-
-	pGoblin->jregfile->reg[5][0] = planemask;
-	pGoblin->jregfile->reg[5][1] = alu;
+	//goblin->jreg->reg_XXXXX = planemask;
+	pGoblin->jreg->reg_fgcolor = fg;
 	
 	pGoblin->last_mask = planemask;
 	pGoblin->last_rop = alu;
 
-	if ((alu == 0x3) && // GCcopy
+	pGoblin->jreg->reg_dst_ptr = 0;
+
+	if ((alu == 0x3) && // GXcopy
 		(planemask == 0xFFFFFFFF)) { // full pattern
 		// fill
-		pGoblin->jreg->mpstart = pGoblin->fill_off;
-		pGoblin->jreg->mplen = pGoblin->fill_len;
 	} else {
 		// fillrop
-		pGoblin->jreg->mpstart = pGoblin->fillrop_off;
-		pGoblin->jreg->mplen = pGoblin->fillrop_len;
+		return FALSE;
 	}
 	return TRUE;
 }
@@ -380,28 +373,29 @@ GoblinSolid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
 	switch (depth) {
 		case 32:
 			start = dstoff + (y1 * dstpitch) + (x1 << 2);
-			/* we work in bytes not pixels */
-			w = w * 4;
 			break;
 		case 8:
 			start = dstoff + (y1 * dstpitch) + x1;
 			break;
 	}
 
-	ptr = 0x8f000000; // fixme
+	ptr = 0x8f000000; // fixme!
 	ptr += start;
 
 	GoblinWait(pGoblin);
 
-	pGoblin->jregfile->reg[0][0] = ptr;
-	pGoblin->jregfile->reg[2][0] = w;
-	pGoblin->jregfile->reg[3][0] = h;
-	pGoblin->jregfile->reg[4][0] = dstpitch;
+	pGoblin->jreg->reg_width = w;
+	pGoblin->jreg->reg_height = h;
+	pGoblin->jreg->reg_dst_stride = dstpitch;
+	pGoblin->jreg->reg_bitblt_dst_x = x1;
+	pGoblin->jreg->reg_bitblt_dst_y = y1;
 
-	DPRINTF(X_ERROR, "Solid %d %d %d %d [%d %d], %d %d -> %d (%p: %p)\n", x1, y1, x2, y2,
+	DPRINTF(X_INFO, "Solid {%d} %d %d %d %d [%d %d], %d %d -> %d (%p: %p)\n",
+			depth,
+			x1, y1, x2, y2,
 			w, h, dstpitch, dstoff, start, (void*)start, ptr);
 
-	pGoblin->jreg->control = 1; // start
+	pGoblin->jreg->reg_cmd = 2; // 1<<DO_FILL_BIT
 	
 	exaMarkSync(pPixmap->drawable.pScreen);
 }
@@ -425,8 +419,8 @@ GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
 
 	GoblinWait(pGoblin);
 
-	pGoblin->jregfile->reg[5][0] = planemask;
-	pGoblin->jregfile->reg[5][1] = alu;
+	//goblin->jreg->reg_XXXXX = planemask;
+	//goblin->jreg->reg_XXXXX = alu;
 	
 	pGoblin->last_mask = planemask;
 	pGoblin->last_rop = alu;
@@ -435,23 +429,17 @@ GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
 		if ((alu == 0x3) && // GCcopy
 			(planemask == 0xFFFFFFFF)) { // full pattern
 			// fill
-			pGoblin->jreg->mpstart = pGoblin->copy_off;
-			pGoblin->jreg->mplen = pGoblin->copy_len;
 		} else {
 			// fillrop
-			pGoblin->jreg->mpstart = pGoblin->copy_off; // FIXME
-			pGoblin->jreg->mplen = pGoblin->copy_len;
+			return FALSE;
 		}
 	} else {
 		if ((alu == 0x3) && // GCcopy
 			(planemask == 0xFFFFFFFF)) { // full pattern
 			// fill
-			pGoblin->jreg->mpstart = pGoblin->copyrev_off;
-			pGoblin->jreg->mplen = pGoblin->copyrev_len;
 		} else {
 			// fillrop
-			pGoblin->jreg->mpstart = pGoblin->copyrev_off; // FIXME
-			pGoblin->jreg->mplen = pGoblin->copyrev_len;
+			return FALSE;
 		}
 	}
 	
@@ -476,33 +464,42 @@ GoblinCopy(PixmapPtr pDstPixmap,
 	srcstart = (srcX << 2) + (pGoblin->srcpitch * srcY) + pGoblin->srcoff;
 	dststart = (dstX << 2) + (         dstpitch * dstY) +          dstoff;
 #if 1
-	src = (char*)0x8f000000 + srcstart; // fixme
-	dst = (char*)0x8f000000 + dststart;
+	//src = (char*)0x8f000000 + srcstart; // fixme: hw'ired @
+	//dst = (char*)0x8f000000 + dststart; // fixme: hw'ired @
 
-	if (pGoblin->ydir < 0) {
+	/*
+	  if (pGoblin->ydir < 0) {
 		src += pGoblin->srcpitch * (h-1);
 		dst +=          dstpitch * (h-1);
 		pGoblin->srcpitch = -pGoblin->srcpitch;
 		dstpitch = -dstpitch;
 	}
-
-	// 32 bits
-	w = w*4;
+	*/
 
 	GoblinWait(pGoblin);
 
-	pGoblin->jregfile->reg[0][0] = (uint32_t)dst;
-	pGoblin->jregfile->reg[0][1] = (uint32_t)src;
-	pGoblin->jregfile->reg[1][0] = (uint32_t)src;
-	pGoblin->jregfile->reg[1][1] = (uint32_t)dst;
-	pGoblin->jregfile->reg[2][0] = w;
-	pGoblin->jregfile->reg[3][0] = h;
-	pGoblin->jregfile->reg[4][0] = dstpitch;
-	pGoblin->jregfile->reg[4][1] = pGoblin->srcpitch;
+	pGoblin->jreg->reg_width = w;
+	pGoblin->jreg->reg_height = h;
+	pGoblin->jreg->reg_src_stride = pGoblin->srcpitch;
+	pGoblin->jreg->reg_dst_stride = dstpitch;
+	pGoblin->jreg->reg_bitblt_src_x = srcX;
+	pGoblin->jreg->reg_bitblt_src_y = srcY;
+	pGoblin->jreg->reg_bitblt_dst_x = dstX;
+	pGoblin->jreg->reg_bitblt_dst_y = dstY;
 
-	DPRINTF(X_ERROR, "Copy %d %d -> %d %d [%d x %d, %d %d] ; %d -> %d \n", srcX, srcY, dstX, dstY, w, h, pGoblin->xdir, pGoblin->ydir, srcstart, dststart);
+	if (pGoblin->srcoff != 0)
+		pGoblin->jreg->reg_src_ptr = (0x8f000000 + pGoblin->srcoff); // fixme: hw'ired @
+	else
+		pGoblin->jreg->reg_src_ptr = 0;
+	if (dstoff != 0)
+		pGoblin->jreg->reg_dst_ptr = (0x8f000000 + dstoff); // fixme: hw'ired @
+	else
+		pGoblin->jreg->reg_dst_ptr = 0;
 
-	pGoblin->jreg->control = 1; // start
+	//DPRINTF(X_ERROR, "Copy %d %d -> %d %d [%d x %d, %d %d] ; %d -> %d \n", srcX, srcY, dstX, dstY, w, h, pGoblin->xdir, pGoblin->ydir, srcstart, dststart);
+	DPRINTF(X_ERROR, "Copy %d %d -> %d %d [%d x %d, %d %d] ; 0x%08x 0x%08x ; %d %d \n", srcX, srcY, dstX, dstY, w, h, pGoblin->xdir, pGoblin->ydir, pGoblin->srcoff, dstoff, pGoblin->srcpitch, dstpitch);
+
+	pGoblin->jreg->reg_cmd = 1; // 1<<DO_COPY_BIT
 	
 	exaMarkSync(pDstPixmap->drawable.pScreen);
 	

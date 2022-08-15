@@ -38,8 +38,6 @@
 /* Various offsets in virtual (ie. mmap()) spaces Linux and Solaris support. */
 #define GOBLIN_FBC_VOFF	      0x70000000
 #define	JARETH_REG_VOFF	      0x70001000
-#define	JARETH_MICROCODE_VOFF 0x70002000
-#define	JARETH_REGFILE_VOFF	  0x70003000
 #define GOBLIN_RAM_VOFF	      0x70016000
 
 typedef struct {
@@ -57,9 +55,7 @@ typedef struct {
 typedef struct {
 	unsigned char	*fb;
 	GoblinFbcPtr	fbc;
-	JarethRegPtr    jreg;
-	JarethMicrocodePtr jmicrocode;
-	JarethRegfilePtr   jregfile;
+	GoblinAccelPtr  jreg;
 	int		width;
 	int		height;
 	int		maxheight;
@@ -118,18 +114,9 @@ int GOBLINEXAInit(ScreenPtr);
 #include <dev/sun/fbio.h>
 #include <sys/ioccom.h>
 #define GOBLIN_SET_PIXELMODE	_IOW('M', 3, int)
-#define JARETH_FN_NUM_FILL       0
-#define JARETH_FN_NUM_FILLROP    1
-#define JARETH_FN_NUM_COPY       2
-#define JARETH_FN_NUM_COPYREV    3
-struct jareth_fn {
-	int off;
-	int len;
-};
-#define JARETH_FN   _IOWR('j', 0, struct jareth_fn)
 #else
 #define GOBLIN_SET_PIXELMODE	(('M' << 8) | 3)
-#error "toto"
+#error "Error"
 #endif
 
 #endif /* GOBLIN_H */
