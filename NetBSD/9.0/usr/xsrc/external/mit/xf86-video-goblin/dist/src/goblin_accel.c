@@ -35,7 +35,7 @@
 
 /* DGA stuff */
 
-//#define DEBUG_GOBLIN 1
+#define DEBUG_GOBLIN 1
 
 #ifdef DEBUG_GOBLIN
 //#define ENTER xf86Msg(X_ERROR, "%s>\n", __func__);
@@ -198,10 +198,10 @@ GOBLINEXAInit(ScreenPtr pScreen)
     pExa->offScreenBase = pGoblin->width * pGoblin->height * 4; // 32-bits
 
     /*
-     * Jareth has arbitrary-bits memory access, but is more efficient with 64-bits aligned data
+     * mmmm, need to think about this
      */
-    pExa->pixmapOffsetAlign = 8;
-    pExa->pixmapPitchAlign = 8;
+    pExa->pixmapOffsetAlign = 16;
+    pExa->pixmapPitchAlign = 16;
 
     pExa->flags = EXA_OFFSCREEN_PIXMAPS;/*  | EXA_MIXED_PIXMAPS; */ /* | EXA_SUPPORTS_OFFSCREEN_OVERLAPS; */
 	
@@ -280,7 +280,11 @@ GoblinUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src, int 
 	int wBytes = w * cpp;
 
 	ENTER;
-	DPRINTF(X_ERROR, "%s depth %d\n", __func__, bpp);
+	DPRINTF(X_ERROR, "%s depth %d x %d y %d w %d h %d src %d %p dst %d 0x%08x %p cpp %d wBytes %d\n", __func__, bpp,
+			x, y, w, h,
+			src_pitch, src,
+			dst_pitch, exaGetPixmapOffset(pDst), dst,
+			cpp, wBytes);
 	dst += (x * cpp) + (y * dst_pitch);
 
 	GoblinWait(pGoblin);
@@ -290,7 +294,8 @@ GoblinUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src, int 
 		src += src_pitch;
 		dst += dst_pitch;
 	}
-	__asm("stbar;");
+	
+	/* __asm("stbar;"); */
 	return TRUE;
 }
 
@@ -348,6 +353,7 @@ GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 		// fill
 	} else {
 		// fillrop
+		DPRINTF(X_ERROR, "PrepareSolid unsupported: 0x08x, 0x%08x\n", alu, planemask);
 		return FALSE;
 	}
 	return TRUE;
@@ -389,6 +395,11 @@ GoblinSolid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
 	pGoblin->jreg->reg_dst_stride = dstpitch;
 	pGoblin->jreg->reg_bitblt_dst_x = x1;
 	pGoblin->jreg->reg_bitblt_dst_y = y1;
+	
+	if (dstoff != 0)
+		pGoblin->jreg->reg_dst_ptr = (0x8f000000 + dstoff); // fixme: hw'ired @
+	else
+		pGoblin->jreg->reg_dst_ptr = 0;
 
 	DPRINTF(X_INFO, "Solid {%d} %d %d %d %d [%d %d], %d %d -> %d (%p: %p)\n",
 			depth,
@@ -431,6 +442,7 @@ GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
 			// fill
 		} else {
 			// fillrop
+			DPRINTF(X_ERROR, "PrepareCopy unsupported: 0x08x, 0x%08x\n", alu, planemask);
 			return FALSE;
 		}
 	} else {
@@ -439,6 +451,7 @@ GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
 			// fill
 		} else {
 			// fillrop
+			DPRINTF(X_ERROR, "PrepareCopy unsupported: 0x08x, 0x%08x\n", alu, planemask);
 			return FALSE;
 		}
 	}

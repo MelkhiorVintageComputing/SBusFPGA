@@ -521,8 +521,8 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
     }
     
     if (pGoblin->fb != NULL) {
-        xf86DrvMsg(pScrn->scrnIndex, X_INFO, "mapped %d KB video RAM\n", 
-            pGoblin->vidmem >> 10);
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO, "mapped %d KB video RAM @ [%p, %p[\n", 
+				   pGoblin->vidmem >> 10, pGoblin->fb, pGoblin->fb + pGoblin->vidmem);
     }
     
     if (!pGoblin->fbc || !pGoblin->fb) {
@@ -550,7 +550,7 @@ GOBLINScreenInit(SCREEN_INIT_ARGS_DECL)
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "xf86MapSbusMem failed for Jareth\n");
 			pGoblin->has_accel = FALSE;
 		} else {
-			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Jareth successfully mapped\n");
+			xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Jareth successfully mapped @ %p\n", pGoblin->jreg);
 		}
 	}
 
