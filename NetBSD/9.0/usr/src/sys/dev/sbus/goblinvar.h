@@ -58,16 +58,12 @@ struct goblin_softc {
 	bus_addr_t	      sc_reg_fbc_paddr;	  /* phys address for device mmap() */
 	bus_addr_t	      sc_fb_paddr;	  /* phys address for device mmap() */
 	bus_addr_t	      sc_jareth_reg_paddr;	  /* phys address for device mmap() */
-	bus_addr_t	      sc_jareth_microcode_paddr;	  /* phys address for device mmap() */
-	bus_addr_t	      sc_jareth_regfile_paddr;	  /* phys address for device mmap() */
 	uint32_t          sc_size; /* full memory size */
 	int	              sc_opens; /* number of open() to track 8/24 bits */
 	int               sc_has_jareth; /* whether we have a Jareth vector engine available */
 	uint32_t          sc_internal_adr;
 	
 	bus_space_handle_t sc_bhregs_jareth;	/* bus handle */
-	bus_space_handle_t sc_bhregs_microcode;	/* bus handle */
-	bus_space_handle_t sc_bhregs_regfile;	/* bus handle */
 	
 	volatile struct goblin_fbcontrol *sc_fbc;	/* control registers */
 #if NWSDISPLAY > 0	

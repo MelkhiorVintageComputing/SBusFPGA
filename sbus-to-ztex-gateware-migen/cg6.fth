@@ -17,7 +17,7 @@
     h# SBUSFPGA_CG3_WIDTH
 ;
 
-sbusfpga_regionaddr_cg6_bt constant cg6-off-dac
+sfra_cg6_bt constant cg6-off-dac
 h# 20 constant /cg6-off-dac
 
 h# 800000 constant cg6-off-fb

@@ -111,32 +111,6 @@ struct wsscreen_descr goblin_defaultscreen = {
 	NULL	/* modecookie */
 };
 
-struct scrolltest {
-	int y0;
-	int y1;
-	int x0;
-	int w;
-	int n;
-	int pm;
-	int rop;
-};
-
-/* debug only, to remove */
-#define GOBLIN_SCROLL	_IOW('X', 0, struct scrolltest)
-#define GOBLIN_FILL     _IOW('X', 1, struct scrolltest)
-#define GOBLIN_FILLROP  _IOW('X', 2, struct scrolltest)
-#define GOBLIN_COPY     _IOW('X', 3, struct scrolltest)
-#define GOBLIN_COPYREV  _IOW('X', 4, struct scrolltest)
-
-#define JARETH_FN_NUM_FILL       0
-#define JARETH_FN_NUM_FILLROP    1
-#define JARETH_FN_NUM_COPY       2
-#define JARETH_FN_NUM_COPYREV    3
-struct jareth_fn {
-	int off;
-	int len;
-};
-#define JARETH_FN   _IOWR('j', 0, struct jareth_fn)
 
 static int 	goblin_ioctl(void *, void *, u_long, void *, int, struct lwp *);
 static paddr_t	goblin_mmap(void *, void *, off_t, int);
@@ -147,34 +121,13 @@ static int	goblin_getcmap(struct goblin_softc *, struct wsdisplay_cmap *);
 static void goblin_init(struct goblin_softc *);
 static void goblin_reset(struct goblin_softc *);
 
-/* Jareth stuff */
 enum jareth_verbosity {
-					   jareth_silent,
+					   jareth_silent = 0,
 					   jareth_verbose
 };
-static int init_programs(struct goblin_softc *sc);
-static int power_on(struct goblin_softc *sc);
-static int power_off(struct goblin_softc *sc);
+
 static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n);
 static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n);
-static int jareth_fillrop(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n, int pm, int rop);
-static int jareth_copy(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop);
-static int jareth_copyrev(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop);
-
-static const uint32_t program_fill[35] =      { 0x10000089,0x0f8000c9,0x01bc0014,0x0780000d,0x013c2014,0x001400c0,0x00180000,0x403c0192,0xc03c1033,0x00184185,0x00161146,0xfd800148,0x00226007,0x00208946,0x0020220f,0x00008005,0x00088086,0x01048050,0x07000089,0x001a6087,0x013c6814,0x403c0012,0x00146086,0x01800149,0xe03c1013,0x00165146,0xfe800148,0x0080018e,0xc03c1033,0x000e10c6,0x010000c9,0x00004005,0xfa000809,0x0000000a,0x0000000a };
-
-static const uint32_t program_fillrop[42] =   { 0x13800089,0x130000c9,0x01bc0014,0x003c014c,0x0880000d,0x013c2014,0x002000c0,0x00180000,0x403c0192,0x801c0013,0x001c11e2,0xc03c7013,0x00184185,0x00221206,0xfc800208,0x00226007,0x00208946,0x0020220f,0x00008005,0x00088086,0x01048050,0x09000089,0x001a6087,0x013c6814,0x403c0012,0x00206086,0x02800209,0x801c0013,0x001c11c2,0xe03c7013,0x00225206,0xfd800208,0x0180018e,0x801c0013,0x001c11e2,0xc03c7013,0x000e10c6,0x010000c9,0x00004005,0xf8000809,0x0000000a,0x0000000a };
-
-static const uint32_t program_copy[43] =      { 0x14000089,0x138000c9,0x01bc0014,0x013c2014,0x00bf0054,0x0900000d,0x002400c0,0x00180000,0x403c0192,0x80a00013,0x403c8033,0x00184185,0x00261246,0xfd000248,0x0026f007,0x00249c06,0x0024224f,0x00240250,0x00009005,0x00089086,0x0a000089,0x013f0814,0x00049045,0x00bf0054,0x001af087,0x403c0012,0x00246086,0xa0a00013,0x02000249,0x603c8033,0x00270246,0x20a08015,0xfe000248,0x0180018d,0x013c6814,0x403c8033,0x013f0814,0x000e10c6,0x010000c9,0x00004005,0xf8000809,0x0000000a,0x0000000a  };
-
-static const uint32_t program_copyrev[61] =   { 0x1d000089,0x1c8000c9,0x01bc0014,0x00280000,0x002c0040,0x00340080,0x003af007,0x03800389,0x0038ec06,0x0038238f,0x00380390,0x0028e285,0x002ce2c5,0x0034e086,0x11000349,0x013f0814,0x00bf02d4,0x001af347,0x003c6346,0x003c03d0,0x0028f285,0x002cf2c5,0x02000188,0x003c0c00,0x003c03d0,0x0028f286,0x002cf2c6,0x002f02c5,0x003c0c00,0x00bc03d0,0x0028f285,0x003000c0,0x403c0292,0x00246346,0x10a00013,0x0200018d,0x013c6814,0x10a08016,0x503c8033,0x013f0814,0x02000249,0x10a08016,0x503c8033,0x00270246,0xfd800248,0x00321306,0x01000309,0x00284285,0xf7800809,0x04800389,0x013c2014,0x00bf0054,0x002400c0,0x403c0012,0x80a00013,0x403c8033,0x00004005,0x00261246,0xfd000248,0x0000000a,0x0000000a    };
-
-static const uint32_t program_scroll128[12] = { 0x407c0012,0x00140080,0x201c0013,0x60fc7013,0x00170146,0xfe000148,0x000e10c6,0x010000c9,
-												0x00004005,0xfb000809,0x0000000a,0x0000000a };
-
-static const uint32_t* programs[6] = { program_fill, program_fillrop, program_copy, program_copyrev, program_scroll128, NULL };
-static const uint32_t program_len[6] = { 35, 42, 43, 61, 12, 0 };
-static       uint32_t program_offset[6];
 
 static void goblin_set_depth(struct goblin_softc *, int);
 
@@ -212,17 +165,9 @@ goblinattach(struct goblin_softc *sc, const char *name, int isconsole)
 	unsigned long defattr;
 	volatile struct goblin_fbcontrol *fbc = sc->sc_fbc;
 
-	/* boot Jareth if present */
+	/* 'boot' Jareth if present */
 	if (sc->sc_has_jareth) {
-		/* first we need to turn the engine power on ... */
-		power_on(sc);
-		if (init_programs(sc)) {
-			if (init_programs(sc)) {
-				aprint_normal_dev(sc->sc_dev, "INIT - FAILED\n");
-				sc->sc_has_jareth = 0;
-			}
-		}
-		power_off(sc);
+		/* */
 	}
 
 	fb->fb_driver = &goblinfbdriver;
@@ -412,58 +357,6 @@ goblinioctl(dev_t dev, u_long cmd, void *data, int flags, struct lwp *l)
 		}
 		break;
 
-	case GOBLIN_SCROLL: {
-		struct scrolltest *st = (struct scrolltest *)data;
-		jareth_scroll(sc, jareth_verbose, st->y0, st->y1, st->x0, st->w, st->n);
-	}
-		break;
-
-	case GOBLIN_FILL: {
-		struct scrolltest *st = (struct scrolltest *)data;
-		jareth_fill(sc, jareth_verbose, st->y0, st->y1, st->x0, st->w, st->n);
-	}
-		break;
-
-	case GOBLIN_FILLROP: {
-		struct scrolltest *st = (struct scrolltest *)data;
-		jareth_fillrop(sc, jareth_verbose, st->y0, st->y1, st->x0, st->w, st->n, st->pm, st->rop);
-	}
-		break;
-
-	case GOBLIN_COPY: {
-		struct scrolltest *st = (struct scrolltest *)data;
-		jareth_copy(sc, jareth_verbose, st->y0, st->y1, st->x0, st->w, st->n, /* x1 */ st->pm, st->rop);
-	}
-		break;
-
-	case GOBLIN_COPYREV: {
-		struct scrolltest *st = (struct scrolltest *)data;
-		jareth_copyrev(sc, jareth_verbose, st->y0, st->y1, st->x0, st->w, st->n, /* x1 */ st->pm, st->rop);
-	}
-		break;
-
-	case JARETH_FN: {
-		struct jareth_fn *fn = (struct jareth_fn *)data;
-		int pidx = -1;
-		if (!sc->sc_has_jareth) {
-			return ENXIO;
-		}
-		switch (fn->off) {
-		case JARETH_FN_NUM_FILL:     pidx = 0; break;
-		case JARETH_FN_NUM_FILLROP:  pidx = 1; break;
-		case JARETH_FN_NUM_COPY:     pidx = 2; break;
-		case JARETH_FN_NUM_COPYREV:  pidx = 3; break;
-		}
-		if (pidx != -1) {
-			fn->off = program_offset[pidx];
-			fn->len = program_len[pidx];
-		} else {
-			fn->off = -1;
-			fn->len = -1;
-		}
-	}
-		break;
-
 	default:
 		return (ENOTTY);
 	}
@@ -537,15 +430,11 @@ goblinloadcmap(struct goblin_softc *sc, int start, int ncolors)
  */
 #define	GOBLIN_USER_FBC	      0x70000000
 #define	JARETH_USER_REG	      0x70001000
-#define	JARETH_USER_MICROCODE 0x70002000
-#define	JARETH_USER_REGFILE	  0x70003000
 #define	GOBLIN_USER_RAM	      0x70016000
 typedef enum {
 			  goblin_bank_fbc,
 			  goblin_bank_fb,
 			  jareth_bank_reg,
-			  jareth_bank_microcode,
-			  jareth_bank_regfile
 } gobo_reg_bank;
 struct mmo {
 	u_long	mo_uaddr;	/* user (virtual) address */
@@ -563,8 +452,6 @@ goblinmmap(dev_t dev, off_t off, int prot)
 		{ GOBLIN_USER_RAM,       0, goblin_bank_fb },
 		{ GOBLIN_USER_FBC,       1, goblin_bank_fbc },
 		{ JARETH_USER_REG,       1, jareth_bank_reg },
-		{ JARETH_USER_MICROCODE, 4096, jareth_bank_microcode },
-		{ JARETH_USER_REGFILE,   1024, jareth_bank_regfile },
 	};
 
 	/* device_printf(sc->sc_dev, "requiesting %llx with %d\n", off, prot); */
@@ -606,14 +493,6 @@ goblinmmap(dev_t dev, off_t off, int prot)
 			case jareth_bank_reg:
 				return (bus_space_mmap(sc->sc_bustag,
 									   sc->sc_jareth_reg_paddr, u,
-									   prot, flags));
-			case jareth_bank_microcode:
-				return (bus_space_mmap(sc->sc_bustag,
-									   sc->sc_jareth_microcode_paddr, u,
-									   prot, flags));
-			case jareth_bank_regfile:
-				return (bus_space_mmap(sc->sc_bustag,
-									   sc->sc_jareth_regfile_paddr, u,
 									   prot, flags));
 			}
 		}
@@ -791,9 +670,15 @@ goblin_init_screen(void *cookie, struct vcons_screen *scr,
 
 	ri->ri_hw = scr;
 	if (sc->sc_has_jareth) {
+		device_printf(sc->sc_dev, "Jareth present\n");
 		ri->ri_ops.copyrows = jareth_copyrows;
 		ri->ri_ops.eraserows = jareth_eraserows;
-		device_printf(sc->sc_dev, "Jareth enabled\n");
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_PTR, 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_PTR, 0);
+		device_printf(sc->sc_dev, "Jareth console acceleration enabled\n");
+		/* uint32_t status = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_STATUS); */
+		/* uint32_t resv0 = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_RESV0); */
+		/* device_printf(sc->sc_dev, "Jareth sanity check: 0x%08x, 0x%08x\n", status, resv0); */
 	}
 }
 
@@ -830,210 +715,6 @@ static void
 goblin_reset(struct goblin_softc *sc)
 {
 	goblin_set_depth(sc, 8);
-}
-
-#define CONFIG_CSR_DATA_WIDTH 32
-#define sbusfpga_jareth_softc goblin_softc
-#include "dev/sbus/sbusfpga_csr_jareth.h"
-#undef sbusfpga_jareth_softc
-
-#define REG_BASE(reg) (base + (reg * 32))
-#define SUBREG_ADDR(reg, off) (REG_BASE(reg) + (off)*4)
-
-static int start_job(struct goblin_softc *sc, enum jareth_verbosity verbose);
-static int wait_job(struct goblin_softc *sc, uint32_t param, enum jareth_verbosity verbose);
-
-static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n) {
-	const uint32_t base = 0;
-	const int pidx = 4;
-	/* int i; */
-
-	power_on(sc);
-
-	if (y0 > y1) {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (sc->sc_internal_adr + y1 * sc->sc_stride + x0));
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (sc->sc_stride));
-	} else {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0 + (n-1) * sc->sc_stride));
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (sc->sc_internal_adr + y1 * sc->sc_stride + x0 + (n-1) * sc->sc_stride));
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (-sc->sc_stride));
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (-sc->sc_stride));
-	}
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
-	/* for (i = 1 ; i < 8 ; i++) { */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
-	/* } */
-	jareth_mpstart_write(sc, program_offset[pidx]);
-	jareth_mplen_write(sc, program_len[pidx]);
-	
-	(void)start_job(sc, verbose);
-	delay(1);
-	(void)wait_job(sc, 2, verbose);
-
-	power_off(sc);
-
-	return 0;
-}
-
-
-static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n) {
-	const uint32_t base = 0;
-	const int pidx = 0; // fill
-	int i;
-
-	power_on(sc);
-
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
-	for (i = 0 ; i < 8 ; i++) {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,i), pat);
-	}
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
-	/* for (i = 1 ; i < 8 ; i++) { */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
-	/* } */
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
-	jareth_mpstart_write(sc, program_offset[pidx]);
-	jareth_mplen_write(sc, program_len[pidx]);
-	
-	(void)start_job(sc, verbose);
-	delay(1);
-	(void)wait_job(sc, 1, verbose);
-
-	power_off(sc);
-
-	return 0;
-}
-
-static int jareth_fillrop(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n, int pm, int rop) {
-	const uint32_t base = 0;
-	const int pidx = 1; // fillrop
-	int i;
-
-	power_on(sc);
-
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
-	for (i = 0 ; i < 8 ; i++) {
-		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,i), pat);
-	}
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
-	/* for (i = 1 ; i < 8 ; i++) { */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
-	/* } */
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(5,0), (pm));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(5,1), (rop));
-	jareth_mpstart_write(sc, program_offset[pidx]);
-	jareth_mplen_write(sc, program_len[pidx]);
-	
-	(void)start_job(sc, verbose);
-	delay(1);
-	(void)wait_job(sc, 1, verbose);
-
-	power_off(sc);
-
-	return 0;
-}
-
-static int jareth_copy(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop) {
-	const uint32_t base = 0;
-	const int pidx = 2; // copy
-	/* int i; */
-
-	/* device_printf(sc->sc_dev, "%s : %d %d %d %d %d %d\n", __PRETTY_FUNCTION__, y0, y1, x0, w, n, x1); */
-
-	power_on(sc);
-
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y1 * sc->sc_stride + x1));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,1), (sc->sc_internal_adr + y1 * sc->sc_stride + x1));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
-	/* for (i = 1 ; i < 8 ; i++) { */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
-	/* } */
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (sc->sc_stride));
-	jareth_mpstart_write(sc, program_offset[pidx]);
-	jareth_mplen_write(sc, program_len[pidx]);
-
-#if 0
-	{
-			uint32_t data[8];
-			int i, j;
-			char buf[512];
-			for (i = 0 ; i < 16 ; i++) {
-				for (j = 0 ; j < 8 ; j++)
-					data[j] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(i,j));
-				snprintf(buf, 512, "0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x", data[7-0], data[7-1], data[7-2], data[7-3], data[7-4], data[7-5], data[7-6], data[7-7]);
-				aprint_normal("reg%d : %s\n", i, buf);
-			}
-		}
-#endif
-	
-	(void)start_job(sc, verbose);
-	delay(1);
-	(void)wait_job(sc, 1, verbose);
-
-	power_off(sc);
-
-	return 0;
-}
-
-static int jareth_copyrev(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n, int x1, int rop) {
-	const uint32_t base = 0;
-	const int pidx = 3; // copyrev
-	/* int i; */
-
-	/* device_printf(sc->sc_dev, "%s : %d %d %d %d %d %d\n", __PRETTY_FUNCTION__, y0, y1, x0, w, n, x1); */
-
-	power_on(sc);
-
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,0), (sc->sc_internal_adr + y1 * sc->sc_stride + x1));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(0,1), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,0), (sc->sc_internal_adr + y0 * sc->sc_stride + x0));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(1,1), (sc->sc_internal_adr + y1 * sc->sc_stride + x1));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,0), (w));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,0), (n));
-	/* for (i = 1 ; i < 8 ; i++) { */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(2,i), 0); */
-	/* 	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(3,i), 0); */
-	/* } */
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,0), (sc->sc_stride));
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(4,1), (sc->sc_stride));
-	jareth_mpstart_write(sc, program_offset[pidx]);
-	jareth_mplen_write(sc, program_len[pidx]);
-
-#if 0
-	{
-			uint32_t data[8];
-			int i, j;
-			char buf[512];
-			for (i = 0 ; i < 16 ; i++) {
-				for (j = 0 ; j < 8 ; j++)
-					data[j] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(i,j));
-				snprintf(buf, 512, "0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x", data[7-0], data[7-1], data[7-2], data[7-3], data[7-4], data[7-5], data[7-6], data[7-7]);
-				aprint_normal("reg%d : %s\n", i, buf);
-			}
-		}
-#endif
-	
-	(void)start_job(sc, verbose);
-	delay(1);
-	(void)wait_job(sc, 1, verbose);
-
-	power_off(sc);
-
-	return 0;
 }
 
 static void
@@ -1105,158 +786,65 @@ jareth_eraserows(void *cookie, int row, int n, long int attr)
 	}
 }
 
-static int start_job(struct goblin_softc *sc, enum jareth_verbosity verbose) {
-	uint32_t status = jareth_status_read(sc);
-	if (status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) {
-		if (verbose == jareth_verbose)
-			aprint_error_dev(sc->sc_dev, "START - Jareth status: 0x%08x, still running?\n", status);
-		return ENXIO;
+static uint32_t wait_for_jareth(struct goblin_softc *sc) {
+	uint32_t status;
+	int cnt = 0;
+	while ((((status = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_STATUS)) & (1<<WORK_IN_PROGRESS_BIT)) != 0) && (cnt < 500)) {
+		cnt += 2;
+		delay(cnt);
 	}
-	jareth_control_write(sc, 1);
-	//aprint_normal_dev(sc->sc_dev, "START - Jareth status: 0x%08x\n", jareth_status_read(sc));
+	return status;
+}
+
+static int jareth_scroll(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int y1, int x0, int w, int n) {
+	uint32_t status;
+	
+	status = wait_for_jareth(sc);
+
+	if ((status & (1<<WORK_IN_PROGRESS_BIT)) == 0) {
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_STRIDE, sc->sc_stride);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_STRIDE, sc->sc_stride);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_WIDTH, w);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_HEIGHT, n);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_X, x0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_X, x0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_Y, y0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_Y, y1);
+
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_CMD, (1<<DO_BLIT_BIT));
+	   
+		status = wait_for_jareth(sc);
+	}
+	
+	/* if ((status & (1<<WORK_IN_PROGRESS_BIT)) != 0) { */
+	/* 	device_printf(sc->sc_dev, "Jareth seems busy/locked (0x%08x)\n", status); */
+	/* } */
 	
 	return 0;
 }
 
-static int wait_job(struct goblin_softc *sc, uint32_t param, enum jareth_verbosity verbose) {
-	uint32_t status = jareth_status_read(sc);
-	int count = 0;
-	int max_count = 5000;
-	int del = 1;
-	const int max_del = 64;
-	static int max_del_seen = 1;
-	static int max_cnt_seen = 0;
+static int jareth_fill(struct goblin_softc *sc, enum jareth_verbosity verbose, int y0, int pat, int x0, int w, int n) {
+	uint32_t status;
 	
-	while ((status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) && (count < max_count)) {
-		//uint32_t ls_status = jareth_ls_status_read(sc);
-		//aprint_normal_dev(sc->sc_dev, "WAIT - ongoing, Jareth status: 0x%08x [%d] ls_status: 0x%08x\n", status, count, ls_status);
-		count ++;
-		delay(del * param);
-		del = del < max_del ? 2*del : del;
-		status = jareth_status_read(sc);
-	}
-	if (del > max_del_seen) {
-		max_del_seen = del;
-		if (verbose == jareth_verbose)
-			aprint_normal_dev(sc->sc_dev, "WAIT - new max delay %d after %d count (param was %u)\n", max_del_seen, count, param);
-	}
-	if (count > max_cnt_seen) {
-		max_cnt_seen = count;
-		if (verbose == jareth_verbose)
-			aprint_normal_dev(sc->sc_dev, "WAIT - new max count %d with %d delay (param was %u)\n", max_cnt_seen, del, param);
-	}
-
-#if 0
-	{
-		const uint32_t base = 0;
-		uint32_t data[8];
-		int i, j;
-		char buf[512];
-		for (i = 0 ; i < 16 ; i++) {
-			for (j = 0 ; j < 8 ; j++)
-				data[j] = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile,SUBREG_ADDR(i,j));
-			snprintf(buf, 512, "0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x 0x%08x", data[7-0], data[7-1], data[7-2], data[7-3], data[7-4], data[7-5], data[7-6], data[7-7]);
-			aprint_normal("reg%d : %s\n", i, buf);
-		}
-	}
-#endif
+	status = wait_for_jareth(sc);
 	
-	//jareth_control_write(sc, 0);
-	if (status & (1<<CSR_JARETH_STATUS_RUNNING_OFFSET)) {
-		if (verbose == jareth_verbose)
-			aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x (pc 0x%08x), did not finish in time? [inst: 0x%08x ls_status: 0x%08x]\n", status, (status>>1)&0x03ff, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
-		return ENXIO;
-	} else if (status & (1<<CSR_JARETH_STATUS_SIGILL_OFFSET)) {
-		if (verbose == jareth_verbose)
-			aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, sigill [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
-		return ENXIO;
-	} else if (status & (1<<CSR_JARETH_STATUS_ABORT_OFFSET)) {
-		if (verbose == jareth_verbose)
-			aprint_error_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x, aborted [inst: 0x%08x ls_status: 0x%08x]\n", status, jareth_instruction_read(sc),  jareth_ls_status_read(sc));
-		return ENXIO;
-	} else {
-		//aprint_normal_dev(sc->sc_dev, "WAIT - Jareth status: 0x%08x [%d] ls_status: 0x%08x\n", status, count, jareth_ls_status_read(sc));
+	if ((status & (1<<WORK_IN_PROGRESS_BIT)) == 0) {
+		//bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_STRIDE, sc->sc_stride);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_STRIDE, sc->sc_stride);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_WIDTH, w);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_HEIGHT, n);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_X, x0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_Y, y0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_FGCOLOR, pat);
+	   
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_CMD, (1<<DO_FILL_BIT));
+	   
+		status = wait_for_jareth(sc);
 	}
-
-#if 1
-	device_printf(sc->sc_dev, "last run took %d cycle (eng_clk)\n", jareth_cyc_counter_read(sc));
-#endif
-
+	
+	/* if ((status & (1<<WORK_IN_PROGRESS_BIT)) != 0) { */
+	/* 	device_printf(sc->sc_dev, "Jareth seems busy/locked (0x%08x)\n", status); */
+	/* } */
+	   
 	return 0;
-}
-
-static int init_programs(struct goblin_softc *sc) {
-	/* the microcode is a the beginning */
-	int err = 0;
-	uint32_t i, j;
-	uint32_t offset = 0;
-
-	for (j = 0 ; programs[j] != NULL; j ++) {
-		program_offset[j] = offset;
-		for (i = 0 ; i < program_len[j] ; i++) {
-			bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_microcode, ((offset+i)*4), programs[j][i]);
-			if ((i%16)==15)
-				delay(1);
-		}
-		offset += program_len[j];
-	}
-
-	jareth_window_write(sc, 0); /* could use window_window to access fields, but it creates a RMW cycle for nothing */
-	jareth_mpstart_write(sc, 0); /* EC25519 */
-	jareth_mplen_write(sc, program_len[0]); /* EC25519 */
-
-	aprint_normal_dev(sc->sc_dev, "INIT - Jareth status: 0x%08x\n", jareth_status_read(sc));
-
-#if 1
-	/* double check */
-	u_int32_t x;
-	int count = 0;
-	for (i = 0 ; i < program_len[0] && count < 10; i++) {
-		x = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_microcode, (i*4));
-		if (x != programs[0][i]) {
-			aprint_error_dev(sc->sc_dev, "INIT - Jareth program failure: [%d] 0x%08x <> 0x%08x\n", i, x, programs[0][i]);
-			err = 1;
-			count ++;
-		}
-		if ((i%8)==7)
-			delay(1);
-	}
-	if ((x = jareth_window_read(sc)) != 0) {
-			aprint_error_dev(sc->sc_dev, "INIT - Jareth register failure: window = 0x%08x\n", x);
-			err = 1;
-	}
-	if ((x = jareth_mpstart_read(sc)) != 0) {
-			aprint_error_dev(sc->sc_dev, "INIT - Jareth register failure: mpstart = 0x%08x\n", x);
-			err = 1;
-	}
-	if ((x = jareth_mplen_read(sc)) != program_len[0]) {
-			aprint_error_dev(sc->sc_dev, "INIT - Jareth register failure: mplen = 0x%08x\n", x);
-			err = 1;
-	}
-	const int test_reg_num = 73;
-	const uint32_t test_reg_value = 0x0C0FFEE0;
-	bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_regfile, 4*test_reg_num, test_reg_value);
-	delay(1);
-	if ((x = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_regfile, 4*test_reg_num)) != test_reg_value) {
-		aprint_error_dev(sc->sc_dev, "INIT - Jareth register file failure: 0x%08x != 0x%08x\n", x, test_reg_value);
-		err = 1;
-	}
-#endif
-	
-	return err;
-}
-
-static int power_on(struct goblin_softc *sc) {
-	int err = 0;
-	if ((jareth_power_read(sc) & 1) == 0) {
-		jareth_power_write(sc, 1);
-		delay(1);
-	}
-	return err;
-}
-
-static int power_off(struct goblin_softc *sc) {
-	int err = 0;
-	jareth_power_write(sc, 0);
-	return err;
 }

@@ -1,6 +1,6 @@
 
 -1 instance value fbc-virt
-: map-in-fbc ( -- ) my-sbus-address sbusfpga_regionaddr_cg6_fbc + my-sbus-space h# 2000 map-in is fbc-virt ;
+: map-in-fbc ( -- ) my-sbus-address sfra_cg6_fbc + my-sbus-space h# 2000 map-in is fbc-virt ;
 : map-out-fbc ( -- ) fbc-virt h# 2000 map-out ;
 
 : fbc! ( val off -- )

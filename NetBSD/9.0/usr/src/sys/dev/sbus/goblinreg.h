@@ -59,3 +59,30 @@
 #define GOBOFB_VIDEOCTRL_ON  0x1
 
 #define GOBOFB_INTR_CLEAR_CLEAR     0x0
+
+#define GOBOFB_ACCEL_REG_STATUS     0x00
+#define GOBOFB_ACCEL_REG_CMD        0x04
+#define GOBOFB_ACCEL_REG_R5_CMD     0x08
+#define GOBOFB_ACCEL_REG_RESV0      0x0C
+#define GOBOFB_ACCEL_REG_WIDTH      0x10
+#define GOBOFB_ACCEL_REG_HEIGHT     0x14
+#define GOBOFB_ACCEL_REG_FGCOLOR    0x18
+#define GOBOFB_ACCEL_REG_RESV2      0x1C
+#define GOBOFB_ACCEL_REG_SRC_X      0x20
+#define GOBOFB_ACCEL_REG_SRC_Y      0x24
+#define GOBOFB_ACCEL_REG_DST_X      0x28
+#define GOBOFB_ACCEL_REG_DST_Y      0x2C
+#define GOBOFB_ACCEL_REG_SRC_STRIDE 0x30
+#define GOBOFB_ACCEL_REG_DST_STRIDE 0x34
+#define GOBOFB_ACCEL_REG_SRC_PTR    0x38
+#define GOBOFB_ACCEL_REG_DST_PTR    0x3c
+
+// status
+#define WORK_IN_PROGRESS_BIT 0
+
+// cmd
+#define DO_BLIT_BIT            0 // hardwired in goblin_accel.py
+#define DO_FILL_BIT            1 // hardwired in goblin_accel.py
+#define DO_PATT_BIT            2 // hardwired in goblin_accel.py
+#define DO_TEST_BIT            3 // hardwired in goblin_accel.py
+

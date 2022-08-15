@@ -14,7 +14,7 @@
     h# SBUSFPGA_CG3_WIDTH
 ;
 
-sbusfpga_regionaddr_goblin_bt constant goblin-off-dac
+sfra_goblin_bt constant goblin-off-dac
 h# 200 constant /goblin-off-dac
 
 h# 1000000 constant goblin-off-fb
@@ -24,12 +24,10 @@ h# 200000 constant /goblin-mapped-fb
 h# 8f000000 constant goblin-internal-fb
 
 : goblin-reg
-  my-address sbusfpga_regionaddr_goblin_bt + my-space encode-phys /goblin-off-dac encode-int encode+
+  my-address sfra_goblin_bt + my-space encode-phys /goblin-off-dac encode-int encode+
   my-address goblin-off-fb + my-space encode-phys encode+ /goblin-off-fb encode-int encode+
   h# 1 goblin-has-jareth = if
-    my-address sbusfpga_csraddr_jareth + my-space encode-phys encode+ h# 1000 encode-int encode+
-    my-address sbusfpga_regionaddr_jareth-microcode + my-space encode-phys encode+ h# 1000 encode-int encode+
-    my-address sbusfpga_regionaddr_jareth-regfile + my-space encode-phys encode+ h# 1000 encode-int encode+
+    my-address sfra_goblin_accel + my-space encode-phys encode+ h# 1000 encode-int encode+
   then
   " reg" property
 ;

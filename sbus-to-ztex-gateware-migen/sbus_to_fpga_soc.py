@@ -39,6 +39,7 @@ import cg3_fb
 import cg6_fb
 import cg6_accel
 import goblin_fb
+import goblin_accel
 
 # Wishbone stuff
 from sbus_wb import WishboneDomainCrossingMaster
@@ -63,7 +64,7 @@ class _CRG(Module):
 #        self.clock_domains.cd_por       = ClockDomain() # 48 MHz native, reset'ed by SBus, power-on-reset timer
         if (usb):
             self.clock_domains.cd_usb       = ClockDomain() # 48 MHZ PLL, reset'ed by SBus (via pll), for USB controller
-        if (engine): # also used for Jareth
+        if (engine):
             self.clock_domains.cd_clk50     = ClockDomain() # 50 MHz (gated) for curve25519engine  -> eng_clk
             #self.clock_domains.cd_clk100    = ClockDomain() # 100 MHz for curve25519engine -> sys_clk
             self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
@@ -119,7 +120,7 @@ class _CRG(Module):
         #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_sbus.clk)
         #platform.add_false_path_constraints(self.cd_sbus.clk, self.cd_sys.clk)
         ##platform.add_false_path_constraints(self.cd_native.clk, self.cd_sys.clk)
-        if (engine): # also used for Jareth
+        if (engine):
             pll.create_clkout(self.cd_clk50, sys_clk_freq/2, ce=pll.locked & self.curve25519_on)
             platform.add_platform_command("create_generated_clock -name clk50 [get_pins {{{{MMCME2_ADV/CLKOUT{}}}}}]".format(num_clk))
             num_clk = num_clk + 1
@@ -237,7 +238,7 @@ class SBusFPGA(SoCCore):
             elif (cg3 or cg6):
                 cg3_fb_size = cg3_fb.cg3_rounded_size(hres, vres)
             elif (goblin):
-                cg3_fb_size = goblin_fb.goblin_rounded_size(hres, vres)
+                cg3_fb_size = goblin_fb.goblin_rounded_size(hres, vres, "SBus")
             print(f"Reserving {cg3_fb_size} bytes ({cg3_fb_size//1048576} MiB) for the Framebuffer")
         else:
             hres = 0
@@ -277,15 +278,15 @@ class SBusFPGA(SoCCore):
             "usb_host":         0x00080000, # OHCI registers are here, not in CSR
             #"usb_shared_mem":   0x00090000, # unused ATM
             "curve25519engine": 0x000a0000, # includes microcode (4 KiB@0) and registers (16 KiB @ 64 KiB)
-            "jareth":           0x000c0000, # includes microcode (4 KiB@0) and registers (2 KiB @ 64 KiB)
+            "jareth":           0x000c0000, # a.k.a. goblin_accel (now)
             "cg6_bt":           0x00200000, # required for compatibility, bt_regs for cg6 and goblin
             #"cg6_dhc":          0x00240000, # required for compatibility, unused
             "cg6_alt":          0x00280000, # required for compatibility
             "cg6_fhc":          0x00300000, # required for compatibility
             #"cg6_thc":          0x00301000, # required for compatibility
             "cg3_bt":           0x00400000, # required for compatibility, bt_regs for cg3 & bw2
-            "cg6_accel_rom":    0x00410000, # R5 microcode
-            "cg6_accel_ram":    0x00420000, # R5 microcode working space (stack)
+            "cg6_accel_rom":    0x00410000, # R5 microcode # also "jareth"
+            "cg6_accel_ram":    0x00420000, # R5 microcode working space (stack) # also "jareth"
             "cg6_fbc":          0x00700000, # required for compatibility
             #"cg6_tec":          0x00701000, # required for compatibility
             "cg3_pixels":       0x00800000, # required for compatibility, 1/2/4/8 MiB for now (up to 0x00FFFFFF inclusive) (bw2, cg3 and cg6 idem)
@@ -295,7 +296,7 @@ class SBusFPGA(SoCCore):
             "dvma_bridge":      0xfc000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=(engine or jareth), framebuffer=framebuffer, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
+        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=engine, framebuffer=framebuffer, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
             
         
         #self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
@@ -381,6 +382,7 @@ class SBusFPGA(SoCCore):
                 avail_sdram = avail_sdram - cg3_fb_size
                 base_fb = self.wb_mem_map["main_ram"] + avail_sdram
                 self.wb_mem_map["video_framebuffer"] = base_fb
+                print(f"Base FrameBuffer address is {base_fb:x}")
             else:
                 print("***** ERROR ***** Can't have a FrameBuffer without main ram\n")
                 assert(False)
@@ -511,8 +513,7 @@ class SBusFPGA(SoCCore):
                 self.bus.add_master(name="curve25519engineLS", master=self.curve25519engine.busls)
             else:
                 self.comb += self.curve25519engine.busls.connect(self.wishbone_slave_sys)
-            if (not jareth):
-                self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
+            self.comb += self.crg.curve25519_on.eq(self.curve25519engine.power.fields.on)
             
         if (i2c):
             self.submodules.i2c = RTLI2C(platform, pads=platform.request("i2c"))
@@ -552,16 +553,20 @@ class SBusFPGA(SoCCore):
                 self.add_ram("cg6_accel_rom", origin=self.mem_map["cg6_accel_rom"], size=rounded_cg6_rom_len, contents=cg6_rom_data, mode="r")
                 self.add_ram("cg6_accel_ram", origin=self.mem_map["cg6_accel_ram"], size=2**12, mode="rw")
 
-        if (jareth):
-            from jareth import Jareth;
-            self.submodules.jareth = ClockDomainsRenamer({"eng_clk":"clk50", "rf_clk":"clk200", "mul_clk":"clk100_gated"})(Jareth(platform=platform,prefix=self.mem_map.get("jareth", None), memoryport=self.sdram.crossbar.get_port(mode="both", data_width=128))) # , "sys":"clk100"
-            self.bus.add_slave("jareth", self.jareth.bus, SoCRegion(origin=self.mem_map.get("jareth", None), size=0x20000, cached=False))
-            self.bus.add_master(name="jarethLS", master=self.jareth.busls) # Jareth doesn't need the DVMA
-            if (not engine):
-                self.comb += self.crg.curve25519_on.eq(self.jareth.power.fields.on)
-            else:
-                self.comb += self.crg.curve25519_on.eq(self.jareth.power.fields.on | self.curve25519engine.power.fields.on)
-
+            if (jareth):
+                self.submodules.goblin_accel = goblin_accel.GoblinAccelSBus(soc = self)
+                self.bus.add_slave("goblin_accel", self.goblin_accel.bus, SoCRegion(origin=self.mem_map.get("jareth", None), size=0x1000, cached=False))
+                self.bus.add_master(name="goblin_accel_r5_i", master=self.goblin_accel.ibus)
+                self.bus.add_master(name="goblin_accel_r5_d", master=self.goblin_accel.dbus)
+                goblin_rom_file = "blit_goblin.raw"
+                goblin_rom_data = soc_core.get_mem_data(goblin_rom_file, "little")
+                goblin_rom_len = 4*len(goblin_rom_data);
+                rounded_goblin_rom_len = 2**log2_int(goblin_rom_len, False)
+                print(f"GOBLIN ROM is {goblin_rom_len} bytes, using {rounded_goblin_rom_len}")
+                assert(rounded_goblin_rom_len <= 2**16)
+                self.add_ram("goblin_accel_rom", origin=self.mem_map["cg6_accel_rom"], size=rounded_goblin_rom_len, contents=goblin_rom_data, mode="r")
+                self.add_ram("goblin_accel_ram", origin=self.mem_map["cg6_accel_ram"], size=2**12, mode="rw")
+                
         print("IRQ to Device map:\n")
         print(platform.irq_device_map)
         print("Device to IRQ map:\n")
