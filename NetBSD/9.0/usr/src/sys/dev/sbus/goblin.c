@@ -677,6 +677,7 @@ goblin_init_screen(void *cookie, struct vcons_screen *scr,
 		ri->ri_ops.eraserows = jareth_eraserows;
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_PTR, 0);
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_PTR, 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_OP, 0x3); // GXcopy by default
 		device_printf(sc->sc_dev, "Jareth console acceleration enabled\n");
 		/* uint32_t status = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_STATUS); */
 		/* uint32_t resv0 = bus_space_read_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_RESV0); */
@@ -721,6 +722,7 @@ goblin_reset(struct goblin_softc *sc)
 	if (sc->sc_has_jareth) {
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_SRC_PTR, 0);
 		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_DST_PTR, 0);
+		bus_space_write_4(sc->sc_bustag, sc->sc_bhregs_jareth, GOBOFB_ACCEL_REG_OP, 0x3); // GXcopy by default
 	}
 }
 

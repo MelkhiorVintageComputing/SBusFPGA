@@ -118,12 +118,14 @@ _X_EXPORT DriverRec GOBLIN = {
 
 typedef enum {
     OPTION_NOACCEL,
-    OPTION_ACCELMETHOD
+    OPTION_ACCELMETHOD,
+	OPTION_XRENDER
 } GOBLINOpts;
 
 static const OptionInfoRec GOBLINOptions[] = {
     { OPTION_NOACCEL,		"NoAccel",	OPTV_BOOLEAN,	{0}, FALSE },
     { OPTION_ACCELMETHOD,	"AccelMethod",	OPTV_STRING,	{0}, FALSE },
+    { OPTION_XRENDER,	"XRender",  OPTV_BOOLEAN, {0}, FALSE},
     { -1,			NULL,		OPTV_NONE,	{0}, FALSE }
 };
 
@@ -485,6 +487,9 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
 
     /* Set display resolution */
     xf86SetDpi(pScrn, 0, 0);
+
+	/* xrender ?*/
+	pGoblin->has_xrender = xf86ReturnOptValBool(pGoblin->Options, OPTION_XRENDER, FALSE);
 
     return TRUE;
 }

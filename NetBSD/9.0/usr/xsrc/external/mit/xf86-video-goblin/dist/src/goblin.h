@@ -65,6 +65,7 @@ typedef struct {
 	CloseScreenProcPtr CloseScreen;
 	OptionInfoPtr	Options;
 	Bool    has_accel;
+	Bool has_xrender;
 
 	ExaDriverPtr	pExa;
 	uint32_t	last_mask;
@@ -76,6 +77,12 @@ typedef struct {
 	int fillrop_off, fillrop_len;
 	int copy_off, copy_len;
 	int copyrev_off, copyrev_len;
+
+	Bool		source_is_solid, no_source_pixmap;
+	uint32_t	mskoff, mskpitch;
+	uint32_t	srcformat, dstformat, mskformat;
+	uint32_t	fillcolour;
+	int         op;
 
 	xf86CursorInfoPtr CursorInfoRec;
 	unsigned int	CursorXY;

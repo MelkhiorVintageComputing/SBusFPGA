@@ -70,11 +70,11 @@ typedef struct goblin_accel_regs {
 	u_int32_t reg_status; // 0
 	u_int32_t reg_cmd;
 	u_int32_t reg_r5_cmd;
-	u_int32_t resv0;
+	u_int32_t reg_op;
 	u_int32_t reg_width; // 4
 	u_int32_t reg_height;
 	u_int32_t reg_fgcolor;
-	u_int32_t resv2;
+	u_int32_t reg_depth;
 	u_int32_t reg_bitblt_src_x; // 8
 	u_int32_t reg_bitblt_src_y;
 	u_int32_t reg_bitblt_dst_x;
@@ -83,6 +83,11 @@ typedef struct goblin_accel_regs {
 	u_int32_t reg_dst_stride;
 	u_int32_t reg_src_ptr; // 14
 	u_int32_t reg_dst_ptr;
+	
+	u_int32_t reg_bitblt_msk_x; // 16
+	u_int32_t reg_bitblt_msk_y;
+	u_int32_t reg_msk_stride; // 18
+	u_int32_t reg_msk_ptr; // 19
 } GoblinAccel, *GoblinAccelPtr;
 
 #endif /* GOBLIN_REGS_H */
