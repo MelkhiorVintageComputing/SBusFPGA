@@ -45,7 +45,7 @@
 #else
 #define ENTER
 #define DPRINTF while (0) xf86Msg
-#define RPRINTF xf86Msg
+#define RPRINTF while (0) xf86Msg
 #endif
 
 #define arraysize(ary)        (sizeof(ary) / sizeof(ary[0]))
@@ -296,7 +296,7 @@ GoblinUploadToScreen(PixmapPtr pDst, int x, int y, int w, int h, char *src, int 
 	int wBytes = w * cpp;
 
 	ENTER;
-	DPRINTF(X_INFO, "%s depth %d x %d y %d w %d h %d src %d %p dst %d 0x%08x %p cpp %d wBytes %d\n", __func__, bpp,
+	DPRINTF(X_INFO, "%s: %d: depth %d x %d y %d w %d h %d src %d %p dst %d 0x%08x %p cpp %d wBytes %d\n", __func__, __LINE__, bpp,
 			x, y, w, h,
 			src_pitch, src,
 			dst_pitch, exaGetPixmapOffset(pDst), dst,
@@ -352,7 +352,7 @@ GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 	int i;
 
 	ENTER;
-	DPRINTF(X_INFO, "%s bpp: %d, alu %d, pm 0x%08x, Fg 0x%08x\n", __func__, pPixmap->drawable.bitsPerPixel, alu, planemask, fg);
+	DPRINTF(X_INFO, "%s: %d: bpp: %d, alu %d, pm 0x%08x, Fg 0x%08x\n", __func__, __LINE__, pPixmap->drawable.bitsPerPixel, alu, planemask, fg);
 	
 	GoblinWait(pGoblin);
 
@@ -371,7 +371,7 @@ GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 		pGoblin->jreg->reg_depth = 0; // reset to native
 	} else {
 		// fillrop
-		DPRINTF(X_ERROR, "%s unsupported: 0x08x, 0x%08x\n", __func__, alu, planemask);
+		DPRINTF(X_ERROR, "%s: %d: unsupported: 0x08x, 0x%08x\n", __func__, __LINE__, alu, planemask);
 		return FALSE;
 	}
 	return TRUE;
@@ -419,7 +419,7 @@ GoblinSolid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
 	else
 		pGoblin->jreg->reg_dst_ptr = 0;
 
-	DPRINTF(X_INFO, "%s {%d} %d %d %d %d [%d %d], %d %d -> %d (%p: %p)\n", __func__,
+	DPRINTF(X_INFO, "%s: %d: {%d} %d %d %d %d [%d %d], %d %d -> %d (%p: %p)\n", __func__, __LINE__,
 			depth,
 			x1, y1, x2, y2,
 			w, h, dstpitch, dstoff, start, (void*)start, ptr);
@@ -461,7 +461,7 @@ GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
 			pGoblin->jreg->reg_depth = 0; // reset to native
 		} else {
 			// fillrop
-			DPRINTF(X_ERROR, "%s unsupported: 0x08x, 0x%08x\n", __func__, alu, planemask);
+			DPRINTF(X_ERROR, "%s: %d: unsupported: 0x08x, 0x%08x\n", __func__, __LINE__, alu, planemask);
 			return FALSE;
 		}
 	} else {
@@ -472,12 +472,12 @@ GoblinPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap,
 			pGoblin->jreg->reg_depth = 0; // reset to native
 		} else {
 			// fillrop
-			DPRINTF(X_ERROR, "%s unsupported: 0x08x, 0x%08x\n", __func__, alu, planemask);
+			DPRINTF(X_ERROR, "%s: %d: unsupported: 0x08x, 0x%08x\n", __func__, __LINE__, alu, planemask);
 			return FALSE;
 		}
 	}
 	
-	DPRINTF(X_INFO, "%s: alu %d, pm 0x%08x, xdir/ydir %d/%d\n", __func__, alu, planemask, xdir, ydir);
+	DPRINTF(X_INFO, "%s: %d: alu %d, pm 0x%08x, xdir/ydir %d/%d\n", __func__, __LINE__, alu, planemask, xdir, ydir);
 	
 	return TRUE;
 }
@@ -530,7 +530,7 @@ GoblinCopy(PixmapPtr pDstPixmap,
 	else
 		pGoblin->jreg->reg_dst_ptr = 0;
 
-	DPRINTF(X_INFO, "%s %d %d -> %d %d [%d x %d, %d %d] ; 0x%08x 0x%08x ; %d %d \n", __func__, srcX, srcY, dstX, dstY, w, h, pGoblin->xdir, pGoblin->ydir, pGoblin->srcoff, dstoff, pGoblin->srcpitch, dstpitch);
+	DPRINTF(X_INFO, "%s: %d: %d %d -> %d %d [%d x %d, %d %d] ; 0x%08x 0x%08x ; %d %d \n", __func__, __LINE__, srcX, srcY, dstX, dstY, w, h, pGoblin->xdir, pGoblin->ydir, pGoblin->srcoff, dstoff, pGoblin->srcpitch, dstpitch);
 
 	pGoblin->jreg->reg_cmd = 1; // 1<<DO_COPY_BIT
 	
@@ -608,10 +608,10 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 		/* (op != PictOpSrc) && */
 		/* (op != PictOpOutReverse) && */
 		1) {
-		RPRINTF(X_ERROR, "%s: rejecting %s (%d)\n", __func__, op2name(op), op);
+		RPRINTF(X_ERROR, "%s: %d: rejecting %s (%d)\n", __func__, __LINE__, op2name(op), op);
 		return FALSE;
 	} else {
-		RPRINTF(X_INFO, "%s: accepting %s (%d)\n", __func__, op2name(op), op);
+		RPRINTF(X_INFO, "%s: %d: accepting %s (%d)\n", __func__, __LINE__, op2name(op), op);
 	}
 
 	if (pSrcPicture != NULL) {
@@ -622,8 +622,8 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 		}
 
 		if (!ok) {
-			RPRINTF(X_ERROR, "%s: unsupported src format %s (%x)\n",
-					__func__, fmt2name(pSrcPicture->format), pSrcPicture->format);
+			RPRINTF(X_ERROR, "%s: %d: unsupported src format %s (%x)\n",
+					__func__, __LINE__, fmt2name(pSrcPicture->format), pSrcPicture->format);
 			return FALSE;
 		}
 
@@ -631,7 +631,7 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 			return FALSE;
 		}
 		
-		RPRINTF(X_INFO, "%s: src is %s (%x), %s (%d)\n", __func__, fmt2name(pSrcPicture->format), pSrcPicture->format, op2name(op), op);
+		RPRINTF(X_INFO, "%s: %d: src is %s (%x), %s (%d)\n", __func__, __LINE__, fmt2name(pSrcPicture->format), pSrcPicture->format, op2name(op), op);
 		//				pSrcPicture->pDrawable->width, 	pSrcPicture->pDrawable->height);
 	}
 
@@ -644,12 +644,12 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 		}
 
 		if (!ok) {
-			RPRINTF(X_ERROR, "%s: unsupported dst format %x\n",
-			    __func__, pDstPicture->format);
+			RPRINTF(X_ERROR, "%s: %d: unsupported dst format %x\n",
+			    __func__, __LINE__, pDstPicture->format);
 			return FALSE;
 		}
 
-		RPRINTF(X_INFO, "%s: dst is %s (%x), %s (%d)\n", __func__, fmt2name(pDstPicture->format), pDstPicture->format, op2name(op), op);
+		RPRINTF(X_INFO, "%s: %d: dst is %s (%x), %s (%d)\n", __func__, __LINE__, fmt2name(pDstPicture->format), pDstPicture->format, op2name(op), op);
 		//				pDstPicture->pDrawable->width, pDstPicture->pDrawable->height);
 	}
 
@@ -658,7 +658,7 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 			return FALSE;
 		}
 		
-		RPRINTF(X_INFO, "%s: mask is %s (%x), %d x %d\n", __func__, fmt2name(pMaskPicture->format), pMaskPicture->format,
+		RPRINTF(X_INFO, "%s: %d: mask is %s (%x), %d x %d\n", __func__, __LINE__, fmt2name(pMaskPicture->format), pMaskPicture->format,
 		    pMaskPicture->pDrawable->width,
 		    pMaskPicture->pDrawable->height);
 	}
@@ -674,7 +674,7 @@ static Bool GoblinCheckPicture(PicturePtr pict) {
 		h = pict->pDrawable->height;
 	} else {
 		if (pict->pSourcePict->type != SourcePictTypeSolidFill) {
-			RPRINTF(X_ERROR, "%s: Gradient pictures not supported\n", __func__);
+			RPRINTF(X_ERROR, "%s: %d: Gradient pictures not supported\n", __func__, __LINE__);
 			return FALSE;
 		}
 		w = 1;
@@ -682,23 +682,23 @@ static Bool GoblinCheckPicture(PicturePtr pict) {
 	}
 
 	if (w >= 4096 || h >= 4096) {
-		RPRINTF(X_ERROR, "%s: Picture too large, %d x %d\n", __func__, w, h);
+		RPRINTF(X_ERROR, "%s: %d: Picture too large, %d x %d\n", __func__, __LINE__, w, h);
 		return FALSE;
 	}
 
 	if ((pict->repeat != RepeatNone) &&
 		((w != 1) || (h != 1))) {
-		RPRINTF(X_ERROR, "%s: Picture is repeating non-trivial\n", __func__);
+		RPRINTF(X_ERROR, "%s: %d: Picture is repeating non-trivial\n", __func__, __LINE__);
 		return FALSE;
 	}
 
 	if (pict->filter) {
-		RPRINTF(X_ERROR, "%s: Picture has filter\n", __func__);
+		RPRINTF(X_ERROR, "%s: %d: Picture has filter\n", __func__, __LINE__);
 		return FALSE;
 	}
 
 	if (pict->transform) {
-		RPRINTF(X_ERROR, "%s: Picture has transform\n", __func__);
+		RPRINTF(X_ERROR, "%s: %d: Picture has transform\n", __func__, __LINE__);
 		return FALSE;
 	}
 
@@ -725,7 +725,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		if (pSrcPicture->pSourcePict->type == SourcePictTypeSolidFill) {
 			pGoblin->fillcolour =
 			    pSrcPicture->pSourcePict->solidFill.color;
-			RPRINTF(X_INFO, "%s: solid src %08x\n", __func__, pGoblin->fillcolour);
+			RPRINTF(X_INFO, "%s: %d: solid src %08x\n", __func__, __LINE__, pGoblin->fillcolour);
 			pGoblin->no_source_pixmap = TRUE;
 			pGoblin->source_is_solid = TRUE;
 		}
@@ -735,7 +735,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		    SourcePictTypeSolidFill) {
 			pGoblin->fillcolour = 
 			   pMaskPicture->pSourcePict->solidFill.color;
-			xf86Msg(X_ERROR, "%s: solid mask %08x\n", __func__, pGoblin->fillcolour);
+			xf86Msg(X_ERROR, "%s: %d: solid mask %08x\n", __func__, __LINE__, pGoblin->fillcolour);
 		}
 	}
 	if (pMaskPicture != NULL) {
@@ -748,8 +748,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		pGoblin->mskformat = 0;
 	}
 	if (pSrc != NULL) {
-		//pGoblin->source_is_solid = ((pSrc->drawable.width == 1) && (pSrc->drawable.height == 1));
-		pGoblin->source_is_solid = 0;
+		pGoblin->source_is_solid = ((pSrc->drawable.width == 1) && (pSrc->drawable.height == 1));
 		pGoblin->srcoff = exaGetPixmapOffset(pSrc);
 		pGoblin->srcpitch = exaGetPixmapPitch(pSrc);
 		if (pGoblin->source_is_solid) {
@@ -773,7 +772,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		(pGoblin->source_is_solid) &&
 		(pGoblin->mskformat == PICT_a8) &&
 		1) {
-		RPRINTF(X_INFO, "%s: A %s (%d) %s _ %s [%d %d _] %s\n", __func__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
+		RPRINTF(X_INFO, "%s: %d: A %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
 				pGoblin->srcpitch, pGoblin->mskpitch, pGoblin->source_is_solid ? "Solid" : "");
 		return TRUE;
 	}
@@ -783,7 +782,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		((pGoblin->srcformat == PICT_x8r8g8b8) || (pGoblin->srcformat == PICT_x8b8g8r8)) &&
 		(pGoblin->mskformat == PICT_a8r8g8b8) &&
 		1) {
-		RPRINTF(X_INFO, "%s: B %s (%d) %s _ %s [%d %d _] %s\n", __func__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
+		RPRINTF(X_INFO, "%s: %d: B %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
 				pGoblin->srcpitch, pGoblin->mskpitch, pGoblin->source_is_solid ? "Solid" : "");
 		return TRUE;
 	}
@@ -793,12 +792,12 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		(pGoblin->dstformat == PICT_a8) &&
 		(pGoblin->mskformat == 0) &&
 		1) {
-		RPRINTF(X_INFO, "%s: C %s (%d) %s _ %s [%d %d _] %s\n", __func__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
+		RPRINTF(X_INFO, "%s: %d: C %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
 				pGoblin->srcpitch, pGoblin->mskpitch, pGoblin->source_is_solid ? "Solid" : "");
 		return TRUE;
 	}
 		
-	RPRINTF(X_ERROR, "%s: NOT %s (%d) %s _ %s [%d %d _] %s\n", __func__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
+	RPRINTF(X_ERROR, "%s: %d: NOT %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
 			pGoblin->srcpitch, pGoblin->mskpitch, pGoblin->source_is_solid ? "Solid" : "");
 	
 	return FALSE;
@@ -821,7 +820,7 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 	switch (pGoblin->op) {
 	case PictOpOver: {
 		GoblinWait(pGoblin);
-		pGoblin->jreg->reg_op = (0x80 | PictOpOver | ((flip && ~pGoblin->source_is_solid) ? 0x40 : 0)); // xrender operation
+		pGoblin->jreg->reg_op = (0x80 | PictOpOver | ((flip && !pGoblin->source_is_solid) ? 0x40 : 0)); // xrender operation
 		pGoblin->jreg->reg_depth = 0; // or 32 ?
 		pGoblin->jreg->reg_width = width;
 		pGoblin->jreg->reg_height = height;
@@ -843,19 +842,95 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 			pGoblin->jreg->reg_msk_ptr = 0;
 		
 		if (pGoblin->source_is_solid) {
-			pGoblin->jreg->reg_fgcolor = flip ? __builtin_bswap32(pGoblin->fillcolour) : pGoblin->fillcolour;
+			pGoblin->jreg->reg_fgcolor = flip ? __builtin_bswap32(pGoblin->fillcolour) : pGoblin->fillcolour; // CHECKME
 			switch (pGoblin->mskformat) {
 			case PICT_a8:
-				RPRINTF(X_INFO, "%s: Starting PictOpOver: %d x %d, flip %d, %d x %d (+0x%08x)-> %d x %d (+0x%08x), fg 0x%08x\n", __func__,
+				RPRINTF(X_INFO, "%s: %d: Starting PictOpOver: %d x %d, flip %d, %d x %d (+0x%08x)-> %d x %d (+0x%08x), fg 0x%08x\n", __func__, __LINE__,
 						width, height, flip,
 						maskX, maskY, pGoblin->mskoff,
 						dstX, dstY, dstoff,
 						pGoblin->fillcolour
 						);
+				
+						/* RPRINTF(X_INFO, "%s: %d: before:\n", __func__, __LINE__); */
+						/* for (int j = 0 ; j < 8 && j < height ; j++) { */
+						/* 	for (int i = 0 ; i < 8 && i < width ; i++) { */
+						/* 		RPRINTF(X_INFO, "\t[0x%02hhx 0x%08x]", */
+						/* 				*(volatile unsigned char*)(pGoblin->fb + pGoblin->mskoff + (maskX+i) + (maskY+j)*pGoblin->mskpitch), */
+						/* 				*(volatile unsigned int*)(pGoblin->fb + dstoff + 4*(dstX+i) + (dstY+j)*dstpitch)); */
+						/* 	} */
+						/* 	RPRINTF(X_INFO, "\n"); */
+						/* } */
+						
 				pGoblin->jreg->reg_cmd = 8; // 1<<DO_RSMSK8DST32_BIT
+				
+	/* 					RPRINTF(X_INFO, "%s: %d: after:\n", __func__, __LINE__); */
+	/* GoblinWait(pGoblin); */
+	/* 					for (int j = 0 ; j < 8 && j < height ; j++) { */
+	/* 						for (int i = 0 ; i < 8 && i < width ; i++) { */
+	/* 							RPRINTF(X_INFO, "\t[0x%02hhx 0x%08x]", */
+	/* 									*(volatile unsigned char*)(pGoblin->fb + pGoblin->mskoff + (maskX+i) + (maskY+j)*pGoblin->mskpitch), */
+	/* 									*(volatile unsigned int*)(pGoblin->fb + dstoff + 4*(dstX+i) + (dstY+j)*dstpitch)); */
+	/* 						} */
+	/* 						RPRINTF(X_INFO, "\n"); */
+	/* 					} */
+				break;
+			case PICT_a8r8g8b8:
+			case PICT_a8b8g8r8:
+				// not quite supported yet
+				if ((width == 1) && (height == 1)) {
+					pGoblin->jreg->reg_src_stride = pGoblin->srcpitch;
+					pGoblin->jreg->reg_bitblt_src_x = srcX;
+					pGoblin->jreg->reg_bitblt_src_y = srcY;
+					if (pGoblin->srcoff != 0)
+						pGoblin->jreg->reg_src_ptr = (0x8f000000 + pGoblin->srcoff); // fixme: hw'ired @
+					else
+						pGoblin->jreg->reg_src_ptr = 0;
+					RPRINTF(X_INFO, "%s: %d: Starting PictOpOver: %d x %d, flip %d, %d x %d (+0x%08x) & %d x %d (+0x%08x) -> %d x %d (+0x%08x)\n", __func__, __LINE__,
+						width, height, flip,
+						srcX, srcY, pGoblin->srcoff,
+						maskX, maskY, pGoblin->mskoff,
+						dstX, dstY, dstoff
+						);
+					
+						/* RPRINTF(X_INFO, "%s: %d: before:\n", __func__, __LINE__); */
+						/* for (int j = 0 ; j < 8 && j < height ; j++) { */
+						/* 	for (int i = 0 ; i < 8 && i < width ; i++) { */
+						/* 		RPRINTF(X_INFO, "\t[0x%08x 0x%08x 0x%08x]", */
+						/* 				*(volatile unsigned int*)(pGoblin->fb + pGoblin->srcoff + 4*(srcX+i) + (srcY+j)*pGoblin->srcpitch), */
+						/* 				*(volatile unsigned int*)(pGoblin->fb + pGoblin->mskoff + 4*(maskX+i) + (maskY+j)*pGoblin->mskpitch), */
+						/* 				*(volatile unsigned int*)(pGoblin->fb + dstoff + 4*(dstX+i) + (dstY+j)*dstpitch)); */
+						/* 	} */
+						/* 	RPRINTF(X_INFO, "\n"); */
+						/* } */
+					
+				if ((pGoblin->srcoff != pGoblin->mskoff) ||
+					(srcX != maskX) ||
+					(srcY != maskY) ||
+					(pGoblin->srcpitch != pGoblin->mskpitch)) {
+					pGoblin->jreg->reg_cmd = 0x10; // 1<<DO_RSRC32MSK32DST32_BIT
+				} else {
+					// mask is just src
+					pGoblin->jreg->reg_cmd = 0x20; // 1<<DO_RSRC32DST32_BIT
+				}
+				
+	/* 					RPRINTF(X_INFO, "%s: %d: after:\n", __func__, __LINE__); */
+	/* GoblinWait(pGoblin); */
+	/* 					for (int j = 0 ; j < 8 && j < height ; j++) { */
+	/* 						for (int i = 0 ; i < 8 && i < width ; i++) { */
+	/* 							RPRINTF(X_INFO, "\t[0x%08x 0x%08x 0x%08x]", */
+	/* 									*(volatile unsigned int*)(pGoblin->fb + pGoblin->srcoff + 4*(srcX+i) + (srcY+j)*pGoblin->srcpitch), */
+	/* 									*(volatile unsigned int*)(pGoblin->fb + pGoblin->mskoff + 4*(maskX+i) + (maskY+j)*pGoblin->mskpitch), */
+	/* 									*(volatile unsigned int*)(pGoblin->fb + dstoff + 4*(dstX+i) + (dstY+j)*dstpitch)); */
+	/* 						} */
+	/* 						RPRINTF(X_INFO, "\n"); */
+	/* 					} */
+			} else {
+					RPRINTF(X_ERROR, "%s: %d: A Unsupported mask format %s (%d) for PictOpOver (%d x %d)\n", __func__, __LINE__, fmt2name(pGoblin->mskformat), pGoblin->mskformat, width, height);
+				}
 				break;
 			default:
-				RPRINTF(X_ERROR, "%s: A Unsupported mask format %s (%d) for PictOpOver (%d x %d)\n", __func__, fmt2name(pGoblin->mskformat), pGoblin->mskformat, width, height);
+				RPRINTF(X_ERROR, "%s: %d: A Unsupported mask format %s (%d) for PictOpOver (%d x %d)\n", __func__, __LINE__, fmt2name(pGoblin->mskformat), pGoblin->mskformat, width, height);
 				break;
 			}
 		} else {
@@ -869,36 +944,51 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 			switch (pGoblin->mskformat) {
 			case PICT_a8r8g8b8:
 			case PICT_a8b8g8r8:
-				RPRINTF(X_INFO, "%s: Starting PictOpOver: %d x %d, flip %d, %d x %d (+0x%08x) & %d x %d (+0x%08x) -> %d x %d (+0x%08x)\n", __func__,
+				RPRINTF(X_INFO, "%s: %d: Starting PictOpOver: %d x %d, flip %d, %d x %d (+0x%08x) & %d x %d (+0x%08x) -> %d x %d (+0x%08x)\n", __func__, __LINE__,
 						width, height, flip,
 						srcX, srcY, pGoblin->srcoff,
 						maskX, maskY, pGoblin->mskoff,
 						dstX, dstY, dstoff
 						);
-if ((width == 1) && (height == 1)) {
-	RPRINTF(X_INFO, "%s: before ... 0x%08x 0x%08x 0x%08x\n", __func__,
-			*(unsigned int*)(pGoblin->fb + pGoblin->srcoff),
-			*(unsigned int*)(pGoblin->fb + pGoblin->mskoff),
-			*(unsigned int*)(pGoblin->fb + dstoff));
- }
+				
+						/* RPRINTF(X_INFO, "%s: %d: before:\n", __func__, __LINE__); */
+						/* for (int j = 0 ; j < 8 && j < height ; j++) { */
+						/* 	for (int i = 0 ; i < 8 && i < width ; i++) { */
+						/* 		RPRINTF(X_INFO, "\t[0x%08x 0x%08x 0x%08x]", */
+						/* 				*(volatile unsigned int*)(pGoblin->fb + pGoblin->srcoff + 4*(srcX+i) + (srcY+j)*pGoblin->srcpitch), */
+						/* 				*(volatile unsigned int*)(pGoblin->fb + pGoblin->mskoff + 4*(maskX+i) + (maskY+j)*pGoblin->mskpitch), */
+						/* 				*(volatile unsigned int*)(pGoblin->fb + dstoff + 4*(dstX+i) + (dstY+j)*dstpitch)); */
+						/* 	} */
+						/* 	RPRINTF(X_INFO, "\n"); */
+						/* } */
+						
 				if ((pGoblin->srcoff != pGoblin->mskoff) ||
 					(srcX != maskX) ||
-					(srcY != maskY)) {
+					(srcY != maskY) ||
+					(pGoblin->srcpitch != pGoblin->mskpitch)) {
+					RPRINTF(X_INFO, "%s: %d: DO_RSRC32MSK32DST32\n", __func__, __LINE__);
 					pGoblin->jreg->reg_cmd = 0x10; // 1<<DO_RSRC32MSK32DST32_BIT
 				} else {
 					// mask is just src
+					RPRINTF(X_INFO, "%s: %d: DO_RSRC32DST32_BIT\n", __func__, __LINE__);
 					pGoblin->jreg->reg_cmd = 0x20; // 1<<DO_RSRC32DST32_BIT
 				}
-if ((width == 1) && (height == 1)) {
-	GoblinWait(pGoblin);
-	RPRINTF(X_INFO, "%s: after ... 0x%08x 0x%08x 0x%08x\n", __func__,
-			*(unsigned int*)(pGoblin->fb + pGoblin->srcoff),
-			*(unsigned int*)(pGoblin->fb + pGoblin->mskoff),
-			*(unsigned int*)(pGoblin->fb + dstoff));
- }
+				
+	/* 					RPRINTF(X_INFO, "%s: %d: after:\n", __func__, __LINE__); */
+	/* GoblinWait(pGoblin); */
+	/* 					for (int j = 0 ; j < 8 && j < height ; j++) { */
+	/* 						for (int i = 0 ; i < 8 && i < width ; i++) { */
+	/* 							RPRINTF(X_INFO, "\t[0x%08x 0x%08x 0x%08x]", */
+	/* 									*(volatile unsigned int*)(pGoblin->fb + pGoblin->srcoff + 4*(srcX+i) + (srcY+j)*pGoblin->srcpitch), */
+	/* 									*(volatile unsigned int*)(pGoblin->fb + pGoblin->mskoff + 4*(maskX+i) + (maskY+j)*pGoblin->mskpitch), */
+	/* 									*(volatile unsigned int*)(pGoblin->fb + dstoff + 4*(dstX+i) + (dstY+j)*dstpitch)); */
+	/* 						} */
+	/* 						RPRINTF(X_INFO, "\n"); */
+	/* 					} */
+						
 				break;
 			default:
-				RPRINTF(X_ERROR, "%s: B Unsupported mask format %s (%d) for PictOpOver (%d x %d)\n", __func__, fmt2name(pGoblin->mskformat), pGoblin->mskformat, width, height);
+				RPRINTF(X_ERROR, "%s: %d: B Unsupported mask format %s (%d) for PictOpOver (%d x %d)\n", __func__, __LINE__, fmt2name(pGoblin->mskformat), pGoblin->mskformat, width, height);
 				break;
 			}
 		}
@@ -929,19 +1019,41 @@ if ((width == 1) && (height == 1)) {
 			(pGoblin->dstformat == PICT_a8) &&
 			(pGoblin->mskformat == 0) &&
 			1) {
-				RPRINTF(X_INFO, "%s: Starting PictOpAdd: %d x %d, flip %d, %d x %d (+0x%08x)-> %d x %d (+0x%08x)\n", __func__,
+				RPRINTF(X_INFO, "%s: %d: Starting PictOpAdd: %d x %d, flip %d, %d x %d (+0x%08x)-> %d x %d (+0x%08x)\n", __func__, __LINE__,
 						width, height, flip,
 						srcX, srcY, pGoblin->srcoff,
 						dstX, dstY, dstoff
 						);
+				
+						/* RPRINTF(X_INFO, "%s: %d: before:\n", __func__, __LINE__); */
+						/* for (int j = 0 ; j < 8 && j < height ; j++) { */
+						/* 	for (int i = 0 ; i < 8 && i < width ; i++) { */
+						/* 		RPRINTF(X_INFO, "\t[0x%02hhx 0x%02hhx]", */
+						/* 				*(volatile unsigned char*)(pGoblin->fb + pGoblin->srcoff + (srcX+i) + (srcY+j)*pGoblin->srcpitch), */
+						/* 				*(volatile unsigned char*)(pGoblin->fb + dstoff + (dstX+i) + (dstY+j)*dstpitch)); */
+						/* 	} */
+						/* 	RPRINTF(X_INFO, "\n"); */
+						/* } */
+						
 			pGoblin->jreg->reg_depth = 8; // force 8 bits mode in the blitter
 			pGoblin->jreg->reg_cmd = 1; // 1<<DO_COPY_BIT
+			
+						/* RPRINTF(X_INFO, "%s: %d: after:\n", __func__, __LINE__); */
+						/* GoblinWait(pGoblin); */
+						/* for (int j = 0 ; j < 8 && j < height ; j++) { */
+						/* 	for (int i = 0 ; i < 8 && i < width ; i++) { */
+						/* 		RPRINTF(X_INFO, "\t[0x%02hhx 0x%02hhx]", */
+						/* 				*(volatile unsigned char*)(pGoblin->fb + pGoblin->srcoff + (srcX+i) + (srcY+j)*pGoblin->srcpitch), */
+						/* 				*(volatile unsigned char*)(pGoblin->fb + dstoff + (dstX+i) + (dstY+j)*dstpitch)); */
+						/* 	} */
+						/* 	RPRINTF(X_INFO, "\n"); */
+						/* } */
 		} else {
-			RPRINTF(X_ERROR, "%s: Unsupported fmts %s (%d), %s (%d), %s (%d)\n", __func__, pGoblin->srcformat, pGoblin->srcformat, pGoblin->dstformat, pGoblin->dstformat, pGoblin->mskformat, pGoblin->mskformat);
+			RPRINTF(X_ERROR, "%s: %d: Unsupported fmts %s (%d), %s (%d), %s (%d)\n", __func__, __LINE__, pGoblin->srcformat, pGoblin->srcformat, pGoblin->dstformat, pGoblin->dstformat, pGoblin->mskformat, pGoblin->mskformat);
 		}
 	} break;
 	default:
-		RPRINTF(X_ERROR, "%s: Unsupported %s (%d)\n", __func__, op2name(pGoblin->op), pGoblin->op);
+		RPRINTF(X_ERROR, "%s: %d: Unsupported %s (%d)\n", __func__, __LINE__, op2name(pGoblin->op), pGoblin->op);
 		break;
 	}
 	
