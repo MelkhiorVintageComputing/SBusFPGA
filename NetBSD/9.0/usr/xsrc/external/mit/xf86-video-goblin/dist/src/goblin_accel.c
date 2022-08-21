@@ -820,7 +820,7 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 	switch (pGoblin->op) {
 	case PictOpOver: {
 		GoblinWait(pGoblin);
-		pGoblin->jreg->reg_op = (0x80 | PictOpOver | ((flip && !pGoblin->source_is_solid) ? 0x40 : 0)); // xrender operation
+		//pGoblin->jreg->reg_op = (0x80 | PictOpOver | ((flip && !pGoblin->source_is_solid) ? 0x40 : 0)); // xrender operation
 		pGoblin->jreg->reg_depth = 0; // or 32 ?
 		pGoblin->jreg->reg_width = width;
 		pGoblin->jreg->reg_height = height;
@@ -862,6 +862,7 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 						/* 	RPRINTF(X_INFO, "\n"); */
 						/* } */
 						
+				pGoblin->jreg->reg_op = (0x80 | PictOpOver);
 				pGoblin->jreg->reg_cmd = 8; // 1<<DO_RSMSK8DST32_BIT
 				
 	/* 					RPRINTF(X_INFO, "%s: %d: after:\n", __func__, __LINE__); */
@@ -904,15 +905,16 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 						/* 	RPRINTF(X_INFO, "\n"); */
 						/* } */
 					
-				if ((pGoblin->srcoff != pGoblin->mskoff) ||
-					(srcX != maskX) ||
-					(srcY != maskY) ||
-					(pGoblin->srcpitch != pGoblin->mskpitch)) {
-					pGoblin->jreg->reg_cmd = 0x10; // 1<<DO_RSRC32MSK32DST32_BIT
-				} else {
-					// mask is just src
-					pGoblin->jreg->reg_cmd = 0x20; // 1<<DO_RSRC32DST32_BIT
-				}
+					pGoblin->jreg->reg_op = (0x80 | PictOpOver | (flip ? 0x40 : 0));
+					if ((pGoblin->srcoff != pGoblin->mskoff) ||
+						(srcX != maskX) ||
+						(srcY != maskY) ||
+						(pGoblin->srcpitch != pGoblin->mskpitch)) {
+						pGoblin->jreg->reg_cmd = 0x10; // 1<<DO_RSRC32MSK32DST32_BIT
+					} else {
+						// mask is just src
+						pGoblin->jreg->reg_cmd = 0x20; // 1<<DO_RSRC32DST32_BIT
+					}
 				
 	/* 					RPRINTF(X_INFO, "%s: %d: after:\n", __func__, __LINE__); */
 	/* GoblinWait(pGoblin); */
@@ -962,6 +964,7 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 						/* 	RPRINTF(X_INFO, "\n"); */
 						/* } */
 						
+				pGoblin->jreg->reg_op = (0x80 | PictOpOver | (flip ? 0x40 : 0));
 				if ((pGoblin->srcoff != pGoblin->mskoff) ||
 					(srcX != maskX) ||
 					(srcY != maskY) ||
