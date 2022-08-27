@@ -357,7 +357,8 @@ GoblinPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 	GoblinWait(pGoblin);
 
 	//goblin->jreg->reg_XXXXX = planemask;
-	pGoblin->jreg->reg_fgcolor = __builtin_bswap32(fg); // ???
+	// format rgbx
+	pGoblin->jreg->reg_fgcolor = __builtin_bswap32(fg);
 	
 	pGoblin->last_mask = planemask;
 	pGoblin->last_rop = alu;
@@ -419,10 +420,10 @@ GoblinSolid(PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
 	else
 		pGoblin->jreg->reg_dst_ptr = 0;
 
-	DPRINTF(X_INFO, "%s: %d: {%d} %d %d %d %d [%d %d], %d %d -> %d (%p: %p)\n", __func__, __LINE__,
+	DPRINTF(X_INFO, "%s: %d: {%d} %d %d %d %d [%d %d], %d %d -> %d (%p: %p) fg: 0x%08x\n", __func__, __LINE__,
 			depth,
 			x1, y1, x2, y2,
-			w, h, dstpitch, dstoff, start, (void*)start, ptr);
+			w, h, dstpitch, dstoff, start, (void*)start, ptr, pGoblin->jreg->reg_fgcolor);
 
 	pGoblin->jreg->reg_cmd = 2; // 1<<DO_FILL_BIT
 	
@@ -611,7 +612,7 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 		RPRINTF(X_ERROR, "%s: %d: rejecting %s (%d)\n", __func__, __LINE__, op2name(op), op);
 		return FALSE;
 	} else {
-		RPRINTF(X_INFO, "%s: %d: accepting %s (%d)\n", __func__, __LINE__, op2name(op), op);
+		DPRINTF(X_INFO, "%s: %d: accepting %s (%d)\n", __func__, __LINE__, op2name(op), op);
 	}
 
 	if (pSrcPicture != NULL) {
@@ -631,7 +632,7 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 			return FALSE;
 		}
 		
-		RPRINTF(X_INFO, "%s: %d: src is %s (%x), %s (%d)\n", __func__, __LINE__, fmt2name(pSrcPicture->format), pSrcPicture->format, op2name(op), op);
+		DPRINTF(X_INFO, "%s: %d: src is %s (%x), %s (%d)\n", __func__, __LINE__, fmt2name(pSrcPicture->format), pSrcPicture->format, op2name(op), op);
 		//				pSrcPicture->pDrawable->width, 	pSrcPicture->pDrawable->height);
 	}
 
@@ -649,7 +650,7 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 			return FALSE;
 		}
 
-		RPRINTF(X_INFO, "%s: %d: dst is %s (%x), %s (%d)\n", __func__, __LINE__, fmt2name(pDstPicture->format), pDstPicture->format, op2name(op), op);
+		DPRINTF(X_INFO, "%s: %d: dst is %s (%x), %s (%d)\n", __func__, __LINE__, fmt2name(pDstPicture->format), pDstPicture->format, op2name(op), op);
 		//				pDstPicture->pDrawable->width, pDstPicture->pDrawable->height);
 	}
 
@@ -658,7 +659,7 @@ static Bool GoblinCheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMas
 			return FALSE;
 		}
 		
-		RPRINTF(X_INFO, "%s: %d: mask is %s (%x), %d x %d\n", __func__, __LINE__, fmt2name(pMaskPicture->format), pMaskPicture->format,
+		DPRINTF(X_INFO, "%s: %d: mask is %s (%x), %d x %d\n", __func__, __LINE__, fmt2name(pMaskPicture->format), pMaskPicture->format,
 		    pMaskPicture->pDrawable->width,
 		    pMaskPicture->pDrawable->height);
 	}
@@ -725,7 +726,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		if (pSrcPicture->pSourcePict->type == SourcePictTypeSolidFill) {
 			pGoblin->fillcolour =
 			    pSrcPicture->pSourcePict->solidFill.color;
-			RPRINTF(X_INFO, "%s: %d: solid src %08x\n", __func__, __LINE__, pGoblin->fillcolour);
+			DPRINTF(X_INFO, "%s: %d: solid src %08x\n", __func__, __LINE__, pGoblin->fillcolour);
 			pGoblin->no_source_pixmap = TRUE;
 			pGoblin->source_is_solid = TRUE;
 		}
@@ -762,17 +763,12 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		// init for solid ?
 	}
 	pGoblin->op = op;
-	
-	/* if (op == PictOpSrc) { */
-	/* 	CG14PrepareCopy(pSrc, pDst, 1, 1, GXcopy, 0xffffffff); */
-	/* } */
-
 
 	if ((pGoblin->op == PictOpOver) &&
 		(pGoblin->source_is_solid) &&
 		(pGoblin->mskformat == PICT_a8) &&
 		1) {
-		RPRINTF(X_INFO, "%s: %d: A %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
+		DPRINTF(X_INFO, "%s: %d: A %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
 				pGoblin->srcpitch, pGoblin->mskpitch, pGoblin->source_is_solid ? "Solid" : "");
 		return TRUE;
 	}
@@ -782,7 +778,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		((pGoblin->srcformat == PICT_x8r8g8b8) || (pGoblin->srcformat == PICT_x8b8g8r8)) &&
 		(pGoblin->mskformat == PICT_a8r8g8b8) &&
 		1) {
-		RPRINTF(X_INFO, "%s: %d: B %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
+		DPRINTF(X_INFO, "%s: %d: B %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
 				pGoblin->srcpitch, pGoblin->mskpitch, pGoblin->source_is_solid ? "Solid" : "");
 		return TRUE;
 	}
@@ -792,7 +788,7 @@ static Bool GoblinPrepareComposite(int op, PicturePtr pSrcPicture, PicturePtr pM
 		(pGoblin->dstformat == PICT_a8) &&
 		(pGoblin->mskformat == 0) &&
 		1) {
-		RPRINTF(X_INFO, "%s: %d: C %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
+		DPRINTF(X_INFO, "%s: %d: C %s (%d) %s _ %s [%d %d _] %s\n", __func__, __LINE__, op2name(op), op, fmt2name(pGoblin->srcformat), fmt2name(pGoblin->dstformat),
 				pGoblin->srcpitch, pGoblin->mskpitch, pGoblin->source_is_solid ? "Solid" : "");
 		return TRUE;
 	}
@@ -969,11 +965,9 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 					(srcX != maskX) ||
 					(srcY != maskY) ||
 					(pGoblin->srcpitch != pGoblin->mskpitch)) {
-					RPRINTF(X_INFO, "%s: %d: DO_RSRC32MSK32DST32\n", __func__, __LINE__);
 					pGoblin->jreg->reg_cmd = 0x10; // 1<<DO_RSRC32MSK32DST32_BIT
 				} else {
 					// mask is just src
-					RPRINTF(X_INFO, "%s: %d: DO_RSRC32DST32_BIT\n", __func__, __LINE__);
 					pGoblin->jreg->reg_cmd = 0x20; // 1<<DO_RSRC32DST32_BIT
 				}
 				
