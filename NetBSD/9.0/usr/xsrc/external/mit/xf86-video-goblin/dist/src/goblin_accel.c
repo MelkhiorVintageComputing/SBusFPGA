@@ -45,7 +45,7 @@
 #else
 #define ENTER
 #define DPRINTF while (0) xf86Msg
-#define RPRINTF while (0) xf86Msg
+#define RPRINTF xf86Msg
 #endif
 
 #define arraysize(ary)        (sizeof(ary) / sizeof(ary[0]))
@@ -838,7 +838,7 @@ static void GoblinComposite(PixmapPtr pDst, int srcX, int srcY, int maskX, int m
 			pGoblin->jreg->reg_msk_ptr = 0;
 		
 		if (pGoblin->source_is_solid) {
-			pGoblin->jreg->reg_fgcolor = flip ? __builtin_bswap32(pGoblin->fillcolour) : pGoblin->fillcolour; // CHECKME
+			pGoblin->jreg->reg_fgcolor = __builtin_bswap32(pGoblin->fillcolour);
 			switch (pGoblin->mskformat) {
 			case PICT_a8:
 				RPRINTF(X_INFO, "%s: %d: Starting PictOpOver: %d x %d, flip %d, %d x %d (+0x%08x)-> %d x %d (+0x%08x), fg 0x%08x\n", __func__, __LINE__,

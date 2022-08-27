@@ -423,8 +423,9 @@ GOBLINPreInit(ScrnInfoPtr pScrn, int flags)
      */
     if (pScrn->depth > 8) {
 	rgb weight = {0, 0, 0};
-	rgb mask = {0xff, 0xff00, 0xff0000};
-                                       
+	//rgb mask = {0xff, 0xff00, 0xff0000};
+	rgb mask = {0xff0000, 0xff00, 0xff};
+	
 	if (!xf86SetWeight(pScrn, weight, mask)) {
 	    return FALSE;
 	}
