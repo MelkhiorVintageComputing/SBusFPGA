@@ -272,6 +272,8 @@ class SBusFPGA(SoCCore):
         # The position of the 'dvma_bridge' is so it overlaps
         # the virtual address space used by NetBSD DMA allocators
         # (themselves constrained by the SBus MMU capabilities)
+        # ... on the SS20. It seems NetBSD 9.0 on the SS IPX behave
+        # differently.
         self.wb_mem_map = wb_mem_map = {
             "prom":             0x00000000, # 256 Kib ought to be enough for anybody (we're using < 8 Kib now...)
             "csr" :             0x00040000,
@@ -293,7 +295,7 @@ class SBusFPGA(SoCCore):
             "goblin_pixels":    0x01000000, # base address for 16 MiB Goblin Framebuffer
             "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible),
             "video_framebuffer":0x80000000 + 0x10000000 - cg3_fb_size, # Updated later
-            "dvma_bridge":      0xfc000000, # required to match DVMA virtual addresses
+            "dvma_bridge":      0xf0000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
         self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=engine, framebuffer=framebuffer, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
@@ -412,6 +414,7 @@ class SBusFPGA(SoCCore):
         data_width = burst_size * 4
         data_width_bits = burst_size * 32
         blk_addr_width = 32 - log2_int(data_width)
+        print(f"Burst configuration for DMA: burst_size = {burst_size} data_width = {data_width} data_width_bits = {data_width_bits} blk_addr_width = {blk_addr_width}\n");
 
         self.tosbus_layout = [
             ("address", 32),
@@ -497,7 +500,7 @@ class SBusFPGA(SoCCore):
 
         if (usb or engine or sdcard or jareth): # jareth only for testing
             if (not single_dvma_master):
-                self.bus.add_slave(name="dvma_bridge", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("dvma_bridge", None), size=0x03ffffff, cached=False))
+                self.bus.add_slave(name="dvma_bridge", slave=self.wishbone_slave_sys, region=SoCRegion(origin=self.mem_map.get("dvma_bridge", None), size=0x0fffffff, cached=False))
 
         if (trng):
             self.submodules.trng = NeoRV32TrngWrapper(platform=platform)
