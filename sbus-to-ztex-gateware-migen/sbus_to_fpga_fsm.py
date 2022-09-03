@@ -1636,7 +1636,7 @@ class SBusFPGABus(Module):
                       #NextValue(self.led_display.value, Cat(Signal(8, reset = 0x0b), self.led_display.value[8:40])),
                       Case(master_src, {
                           MASTER_SRC_BLKDMAFIFO:
-                          [Case(burst_counter, {
+                          [Case(burst_counter, { ## FIXME !!!! burst_size
                               0: NextValue(fifo_buffer[0:32], SBUS_3V3_D_i),
                               1: NextValue(fifo_buffer[32:64], SBUS_3V3_D_i),
                               2: NextValue(fifo_buffer[64:96], SBUS_3V3_D_i),
@@ -1726,6 +1726,7 @@ class SBusFPGABus(Module):
                               Case(master_src, {
                                   MASTER_SRC_BLKDMAFIFO:
                                   [Case(burst_counter, { #0:32 just ack'd, 32:64 is on the bus now, burst_counter will only increment for the next cycle, so we're two steps ahead
+                                       ## FIXME !!!! burst_size
                                       0: NextValue(master_data, fifo_buffer[64:96]),
                                       1: NextValue(master_data, fifo_buffer[96:128]),
                                       2: NextValue(master_data, fifo_buffer[128:160]),
