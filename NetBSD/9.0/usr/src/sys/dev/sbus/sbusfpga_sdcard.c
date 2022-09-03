@@ -102,10 +102,18 @@ static void	sbusfpga_sd_set_geometry(struct sbusfpga_sd_softc *sc);
 static void sbusfpga_sd_minphys(struct buf *);
 static int sbusfpga_sd_diskstart(device_t self, struct buf *bp);
 
-struct dkdriver sbusfpga_sd_dkdriver = {
+struct dkdriver sbusfpga_sd_dkdriver = {					
 	.d_strategy = sbusfpga_sd_strategy,
 	.d_minphys = sbusfpga_sd_minphys,
+	.d_open = sbusfpga_sd_open,
+	.d_close = sbusfpga_sd_close,
 	.d_diskstart = sbusfpga_sd_diskstart
+	/* d_iosize */
+	/* d_dumpblocks */
+	/* d_lastclose */
+	/* d_discard */
+	/* d_firstopen */
+    /* d_label */
 };
 
 static int sdcard_init(struct sbusfpga_sd_softc *sc);
@@ -356,7 +364,7 @@ sbusfpga_sd_open(dev_t dev, int flag, int fmt, struct lwp *l)
 		device_printf(sd->dk.sc_dev, "%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
 	} else {
-		aprint_normal("%s:%d: open device %d, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKUNIT(dev), DISKPART(dev));
+		device_printf(sd->dk.sc_dev, "%s:%d: open device %d, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKUNIT(dev), DISKPART(dev));
 	}
 	dksc = &sd->dk;
 
@@ -384,6 +392,8 @@ sbusfpga_sd_close(dev_t dev, int flag, int fmt, struct lwp *l)
 	if (sd == NULL) {
 		device_printf(sd->dk.sc_dev, "%s:%d: sd == NULL! giving up\n", __PRETTY_FUNCTION__, __LINE__);
 		return (ENXIO);
+	} else {
+		device_printf(sd->dk.sc_dev, "%s:%d: close device %d, part is %d\n", __PRETTY_FUNCTION__, __LINE__, DISKUNIT(dev), DISKPART(dev));
 	}
 
 	dksc = &sd->dk;
