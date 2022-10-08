@@ -91,8 +91,12 @@ class ExchangeWithMem(Module, AutoCSR):
                                               CSRField("has_wr_data", 1, description = "Data available to write to SDRAM"),
                                               CSRField("has_requests", 1, description = "There's outstanding requests to the SBus"),
                                               CSRField("has_rd_data", 1, description = "Data available to write to SBus"),
+                                              CSRField("reserved", 27, description = "Reserved")
         ])
         self.wr_tosdram = CSRStatus(32, description = "Last address written to SDRAM")
+        self.irqstatus = CSRStatus(fields = [ CSRField("irq", 1, description = "There's a pending interrupt"),
+                                              CSRField("reserved", 31, description = "Reserved")
+        ])
         
         #if (do_checksum):
         self.checksum = CSRStorage(data_width_bits, write_from_dev=True, description = "checksum (XOR)");
@@ -132,8 +136,8 @@ class ExchangeWithMem(Module, AutoCSR):
 
         ongoing_m1 = Signal()
         ongoing = Signal()
-        temp_irq = Signal()
-        self.irq = Signal()
+        temp_irq = Signal() # active high
+        self.irq = Signal() # active low
 
         self.sync += ongoing_m1.eq(ongoing)
         self.sync += ongoing.eq(self.dma_status.fields.rd_fsm_busy  |
@@ -146,7 +150,8 @@ class ExchangeWithMem(Module, AutoCSR):
         self.sync += temp_irq.eq((ongoing_m1 & ~ongoing) | # irq on falling edge of ongoing
                                  (temp_irq & ~self.irqctrl.fields.irq_clear & ~(~ongoing_m1 & ongoing))) # keep irq until cleared or rising edge of ongoing
         
-        self.comb += self.irq.eq(temp_irq & self.irqctrl.fields.irq_enable)
+        self.comb += self.irq.eq(~(temp_irq & self.irqctrl.fields.irq_enable))
+        self.comb += self.irqstatus.fields.irq.eq(~self.irq)
         
         self.sync += If(self.irqctrl.fields.irq_clear, ## auto-reset irq_clear
                         self.irqctrl.we.eq(1),
@@ -194,14 +199,16 @@ class ExchangeWithMem(Module, AutoCSR):
                     )
         )
         req_r_fsm.act("ReqFromMemory",
-                      self.dram_native_r.cmd.addr.eq(local_r_addr),
-                      self.dram_native_r.cmd.valid.eq(1),
-                      If(self.dram_native_r.cmd.ready,
-                         NextState("WaitForData")
+                      If(self.tosbus_fifo.writable,
+                         self.dram_native_r.cmd.addr.eq(local_r_addr),
+                         self.dram_native_r.cmd.valid.eq(1), # self.tosbus_fifo.writable ?
+                         If(self.dram_native_r.cmd.ready,
+                            NextState("WaitForData")
+                         )
                       )
         )
         req_r_fsm.act("WaitForData",
-                      If(self.dram_native_r.rdata.valid & self.tosbus_fifo.writable, # is that to late to check for writability ?
+                      If(self.dram_native_r.rdata.valid,# & self.tosbus_fifo.writable, # is that to late to check for writability ?
                          self.tosbus_fifo.we.eq(1),
                          tosbus_fifo_din.address.eq(dma_r_addr),
                          tosbus_fifo_din.data.eq(self.dram_native_r.rdata.data),
