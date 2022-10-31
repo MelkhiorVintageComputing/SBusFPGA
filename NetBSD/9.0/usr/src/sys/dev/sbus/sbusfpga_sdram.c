@@ -446,7 +446,7 @@ sbusfpga_sdram_iosize(device_t dev, int *count)
 #define DMA_STATUS_CHECK_BITS (0x01F)
 
 #ifdef USE_INTR
-/* asynchronous version, completin in interrupt
+/* asynchronous version, completing in interrupt
  * doesn't work
  */
 static int
@@ -467,6 +467,7 @@ sbusfpga_sdram_diskstart(device_t self, struct buf *bp)
 	if (sc->bp != NULL) {
 			err = EAGAIN;
 			mutex_exit(&sc->sc_lock);
+			device_printf(sc->dk.sc_dev, "%s: I'm busy\n", __PRETTY_FUNCTION__);
 			return err;
 	}
 	
