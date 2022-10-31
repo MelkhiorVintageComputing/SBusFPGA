@@ -9,7 +9,7 @@ from migen import *
 import bw2_fb
 import cg3_fb
 import cg6_fb
-import goblin_fb
+from VintageBusFPGA_Common.goblin_fb import *
 
 
 def get_header_map_stuff(gname, name, size, type="csr", reg=True):
@@ -256,7 +256,7 @@ def get_prom(soc,
         elif (cg3 or cg6):
             buf_size=cg3_fb.cg3_rounded_size(hres, vres)
         elif (goblin):
-            buf_size=goblin_fb.goblin_rounded_size(hres, vres, "SBus")
+            buf_size=goblin_rounded_size(hres, vres, "SBus")
         for line in cg3_lines:
             r += line.replace("SBUSFPGA_CG3_WIDTH", hres_h).replace("SBUSFPGA_CG3_HEIGHT", vres_h).replace("SBUSFPGA_CG3_BUFSIZE", f"{buf_size:x}")
         #r += "\" LITEX,fb\" device-name\n"

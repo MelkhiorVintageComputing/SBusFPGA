@@ -38,8 +38,8 @@ import bw2_fb
 import cg3_fb
 import cg6_fb
 import cg6_accel
-import goblin_fb
-import goblin_accel
+from VintageBusFPGA_Common.goblin_fb import *
+from VintageBusFPGA_Common.goblin_accel import *
 
 # Wishbone stuff
 from VintageBusFPGA_Common.cdc_wb import WishboneDomainCrossingMaster
@@ -238,7 +238,7 @@ class SBusFPGA(SoCCore):
             elif (cg3 or cg6):
                 cg3_fb_size = cg3_fb.cg3_rounded_size(hres, vres)
             elif (goblin):
-                cg3_fb_size = goblin_fb.goblin_rounded_size(hres, vres, "SBus")
+                cg3_fb_size = goblin_rounded_size(hres, vres, "SBus")
             print(f"Reserving {cg3_fb_size} bytes ({cg3_fb_size//1048576} MiB) for the Framebuffer")
         else:
             hres = 0
@@ -531,7 +531,7 @@ class SBusFPGA(SoCCore):
                 self.submodules.cg6 = cg6_fb.cg6(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg6 is running in cd_sys
                 self.bus.add_slave("cg6_bt", self.cg6.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
             elif (goblin):
-                self.submodules.goblin = goblin_fb.goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga", irq_line=Signal(), endian="big", hwcursor=True, truecolor=True) # clock_domain for the VGA side, goblin is running in cd_sys
+                self.submodules.goblin = Goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga", irq_line=Signal(), endian="big", hwcursor=True, truecolor=True) # clock_domain for the VGA side, goblin is running in cd_sys
                 self.bus.add_slave("goblin_bt", self.goblin.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
                 #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
                 #SBUS_DATA_OE_LED_o = Signal()
@@ -555,7 +555,7 @@ class SBusFPGA(SoCCore):
                 self.add_ram("cg6_accel_ram", origin=self.mem_map["cg6_accel_ram"], size=2**12, mode="rw")
 
             if (jareth):
-                self.submodules.goblin_accel = goblin_accel.GoblinAccelSBus(soc = self)
+                self.submodules.goblin_accel = GoblinAccelSBus(soc = self)
                 self.bus.add_slave("goblin_accel", self.goblin_accel.bus, SoCRegion(origin=self.mem_map.get("jareth", None), size=0x1000, cached=False))
                 self.bus.add_master(name="goblin_accel_r5_i", master=self.goblin_accel.ibus)
                 self.bus.add_master(name="goblin_accel_r5_d", master=self.goblin_accel.dbus)
