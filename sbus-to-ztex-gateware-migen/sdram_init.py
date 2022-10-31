@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from migen import *
 
-from wb_master import *
-from wb_master import _WRITE_CMD, _WAIT_CMD, _DONE_CMD
+from VintageBusFPGA_Common.wb_master import *
+from VintageBusFPGA_Common.wb_master import _WRITE_CMD, _WAIT_CMD, _DONE_CMD
 
 
 dfii_control_sel     = 0x01
