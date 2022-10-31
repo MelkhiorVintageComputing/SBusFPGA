@@ -332,10 +332,10 @@ class SBusFPGA(SoCCore):
             if (pad_usb_interrupt is None):
                 print(" ***** ERROR ***** USB requires an interrupt")
                 assert(False)
-            sig_usb_interrupt = Signal(reset=1)
+            sig_usb_interrupt = Signal(reset=1) # active low
             # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
-            self.comb += pad_usb_interrupt.eq(sig_usb_interrupt)
-            self.comb += sig_usb_interrupt.eq(~self.usb_host.interrupt) ##
+            self.comb += pad_usb_interrupt.eq(sig_usb_interrupt) # active low
+            self.comb += sig_usb_interrupt.eq(~self.usb_host.interrupt) # USB host interrupt is active high
             
         
         #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
@@ -457,10 +457,8 @@ class SBusFPGA(SoCCore):
             if (pad_sdram_interrupt is None):
                 print(" ***** ERROR ***** sdram requires an interrupt")
                 assert(False)
-            sig_sdram_interrupt = Signal(reset=1)
             # the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
-            self.comb += pad_sdram_interrupt.eq(sig_sdram_interrupt)
-            self.comb += sig_sdram_interrupt.eq(~self.exchange_with_mem.irq) ##
+            self.comb += pad_sdram_interrupt.eq(self.exchange_with_mem.irq) # SDRAM interrupt is already active low
         
         _sbus_bus = SBusFPGABus(soc=self,
                                 platform=self.platform,
@@ -493,10 +491,10 @@ class SBusFPGA(SoCCore):
             #if (pad_sdcard_interrupt is None):
             #    print(" ***** ERROR ***** sdcard requires an interrupt")
             #    assert(False)
-            #sig_sdcard_interrupt = Signal(reset=1)
+            #sig_sdcard_interrupt = Signal(reset=1) # active low
             ## the 74LVC2G07 takes care of the Z state: 1 -> Z on the bus, 0 -> 0 on the bus (asserted interrupt)
-            #self.comb += pad_sdcard_interrupt.eq(sig_sdcard_interrupt)
-            #self.comb += sig_sdcard_interrupt.eq(~self.sdirq.irq) ##
+            #self.comb += pad_sdcard_interrupt.eq(sig_sdcard_interrupt) # active low
+            #self.comb += sig_sdcard_interrupt.eq(~self.sdirq.irq) # SD-card interrupt is active high
 
         if (usb or engine or sdcard or jareth): # jareth only for testing
             if (not single_dvma_master):
