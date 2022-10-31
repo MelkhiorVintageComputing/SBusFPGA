@@ -86,8 +86,9 @@
 #define WORK_IN_PROGRESS_BIT 0
 
 // cmd
-#define DO_BLIT_BIT            0 // hardwired in goblin_accel.py
-#define DO_FILL_BIT            1 // hardwired in goblin_accel.py
-#define DO_PATT_BIT            2 // hardwired in goblin_accel.py
-#define DO_TEST_BIT            3 // hardwired in goblin_accel.py
-
+#define DO_BLIT_BIT             0 // all hardwired in goblin_accel.py
+#define DO_FILL_BIT             1
+#define DO_PATT_BIT             2
+#define DO_RSMSK8DST32_BIT      3
+#define DO_RSRC32MSK32DST32_BIT 4
+#define DO_RSRC32DST32_BIT      5
