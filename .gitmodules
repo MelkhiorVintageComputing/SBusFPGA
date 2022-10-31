@@ -1,0 +1,3 @@
+[submodule "sbus-to-ztex-gateware-migen/VintageBusFPGA_Common"]
+	path = sbus-to-ztex-gateware-migen/VintageBusFPGA_Common
+	url = git@github.com:rdolbeau/VintageBusFPGA_Common.git

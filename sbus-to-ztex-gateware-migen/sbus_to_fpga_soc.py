@@ -42,7 +42,7 @@ import goblin_fb
 import goblin_accel
 
 # Wishbone stuff
-from sbus_wb import WishboneDomainCrossingMaster
+from VintageBusFPGA_Common.cdc_wb import WishboneDomainCrossingMaster
 
 # CRG ----------------------------------------------------------------------------------------------
 
