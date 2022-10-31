@@ -560,7 +560,7 @@ class SBusFPGA(SoCCore):
                 self.bus.add_slave("goblin_accel", self.goblin_accel.bus, SoCRegion(origin=self.mem_map.get("jareth", None), size=0x1000, cached=False))
                 self.bus.add_master(name="goblin_accel_r5_i", master=self.goblin_accel.ibus)
                 self.bus.add_master(name="goblin_accel_r5_d", master=self.goblin_accel.dbus)
-                goblin_rom_file = "blit_goblin.raw"
+                goblin_rom_file = "VintageBusFPGA_Common/blit_goblin_sbus.raw"
                 goblin_rom_data = soc_core.get_mem_data(filename_or_regions=goblin_rom_file, endianness="little")
                 goblin_rom_len = 4*len(goblin_rom_data);
                 rounded_goblin_rom_len = 2**log2_int(goblin_rom_len, False)
