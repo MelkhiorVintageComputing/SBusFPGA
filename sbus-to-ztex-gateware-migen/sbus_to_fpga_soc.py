@@ -262,6 +262,7 @@ class SBusFPGA(SoCCore):
                          sys_clk_freq=sys_clk_freq,
                          clk_freq=sys_clk_freq,
                          csr_paging=0x1000, #  default is 0x800
+                         bus_interconnect = "crossbar",
                          **kwargs)
 
         # *** This mem-map is also exposed in the FSM (matched prefixes) ***
