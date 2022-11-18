@@ -12,14 +12,13 @@ To save on PCB cost, the board is smaller than a 'true' SBus board; the hardware
 
 ## Current status
 
-2022-02-26: Added an I2C bus option, works with a LM75-like device to report internal temperature
-2022-01-08: The V1.2 design with the Migen gateware is ongoing, with several peripherals to combine (limited by the FPGA size). It is now reasonably stable.
+2022-11-18: V1.2 seems stable, with various subsets of the peripherals described below. It only lacks a proper video output, such as the one available in the [NuBusFPGA](https://github.com/rdolbeau/NuBusFPGA). Unfortunately the FPGA board used in V1.0/V1.2 (ZTex 2.13) doesn't have enough available I/O to add it in addition to the already existing I/Os.
 
 ## The hardware
 
 Directory 'sbus-to-ztex'
 
-The custom board is a SBus-compliant (I hope...) board, designed to receive a [ZTex USB-FPGA Module 2.13](https://www.ztex.de/usb-fpga-2/usb-fpga-2.13.e.html) as a daughterboard. The ZTex module contains the actual FPGA (Artix-7), some RAM, programming hardware, etc. The SBus board contains level-shifters ICs to interface between the SBus signals and the FPGA, a serial header, a Led, a JTAG header, a micro-sd card slot, a USB micro-B connector, and a (Pmod)[https://digilent.com/shop/boards-and-components/system-board-expansion-modules/pmods/] connector. It supports every SBus feature except the optional parity (i.e. it can do both slave and master modes) and interrupt level 1 to 6 are connected.
+The V1.2 custom board is a SBus-compliant (I hope...) board, designed to receive a [ZTex USB-FPGA Module 2.13](https://www.ztex.de/usb-fpga-2/usb-fpga-2.13.e.html) as a daughterboard. The ZTex module contains the actual FPGA (Artix-7), some RAM, programming hardware, etc. The SBus board contains level-shifters ICs to interface between the SBus signals and the FPGA, a serial header, a Led, a JTAG header, a micro-sd card slot, a USB micro-B connector, and a (Pmod)[https://digilent.com/shop/boards-and-components/system-board-expansion-modules/pmods/] connector. It supports every SBus feature except the optional parity (i.e. it can do both slave and master modes) and interrupt level 1 to 6 are connected.
 
 The PCB was designed with Kicad 5.0
 
@@ -32,7 +31,7 @@ Directory 'sbus-to-ztex-gateware-migen'
 The gateware is written in the Migen language, choosen because that's what [Litex](https://github.com/enjoy-digital/litex/) uses.
 It implements a simple CPU-less Litex SoC built around a Wishbone bus, with a custom bridge between the SBus and the Wishbone.
 
-A ROM, a SDRAM controller ([litedram](https://github.com/enjoy-digital/litedram) to the on-board DDR3), a TRNG (using the [NeoRV32](https://github.com/stnolting/neorv32) TRNG), an USB OHCI (host controller, using the Litex wrapper around the [SpinalHDL](https://github.com/SpinalHDL/SpinalHDL) implementation), a Curve25519 Crypto Engine (taken from the [Betrusted.IO](https://betrusted.io/) project and expanded to add AES and GCM support) and a Litex micro-sd controller can be connected to that bus. As a test feature for the Pmod connector, a bw2/cg3/cg6-compatible framebuffer can be implemented using a custom RGA222 VGA Pmod (with serious color quality restrictions). Alternatively on the Pmod en I2C bus (the Betrusted.IO wrapper around an OpenCore controller) can be implemented for e.g. temperature control.
+A ROM, a SDRAM controller ([litedram](https://github.com/enjoy-digital/litedram) to the on-board DDR3), a TRNG (using the [NeoRV32](https://github.com/stnolting/neorv32) TRNG), an USB OHCI (host controller, using the Litex wrapper around the [SpinalHDL](https://github.com/SpinalHDL/SpinalHDL) implementation), a Curve25519 Crypto Engine (taken from the [Betrusted.IO](https://betrusted.io/) project and expanded to add AES and GCM support) and a Litex micro-sd controller can be connected to that bus. As a test feature for the Pmod connector, a bw2/cg3/cg6-compatible framebuffer can be implemented using a custom RGA222 VGA Pmod (with serious color quality restrictions). The 'Goblin' framebuffer (a multi-depth gramebuffer) can also be used with the VGA Pmod, using 8-bits depth in the console or accelerated 24-bits in X11. Alternatively on the Pmod en I2C bus (the Betrusted.IO wrapper around an OpenCore controller) can be implemented for e.g. temperature control.
 
 ### Details
 
@@ -53,6 +52,8 @@ The Curve25519 Engine currently exposes an IOCTL to do the computation, which ha
 The I2C bus currently uses a custom Pmod to plug an AT30TS74 temperature sensor (LM75-compatible, usable with 'envstat' in NetBSD), but should support most/all I2C devices supported by NetBSD.
 
 The bw2/cg3/cg6 emulation requires the custom Pmod, and colors are vert limited at 2 bits per channel, so it's for testing mostly. bw2/cg3 can work as a PROM console, a NetBSD console, and with X11, all as an non-accelerated framebuffer. Resolution can be arbitrary but is fixed in the bitstream at synthesis time, the current design can go up to 1920x1080@60Hz. cg6 emulation is similar but uses a micro-coded VexRiscv core to emulate some of the cg6 hardware acceleration, enough to accelerate the PROM console, the NetBSD console and X11 EXA acceleration in NetBSD 9.0. The cg3/cg6 emulation was also tested with the original PROM code for cg3 (501-1415) and TGX+ (501-2253), but this requires hardware-based initialization (instead of PROM-based) and prevent exposing other devices in the PROM code.
+
+The 'Goblin' framebuffer works similarly to the cg6 emulation (from which it has grown for the NuBusFPGA), but is using 24-bits in X11 (switching in a way similar to the cg14) and has some Xrender acceleration. Using the same 2-bits-per-channel VGA Pmod, it also suffers from color limitations.
 
 ### Special Notes
 
