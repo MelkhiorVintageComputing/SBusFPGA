@@ -165,7 +165,7 @@ class _CRG(Module):
         if (usb):
             self.submodules.usb_pll = usb_pll = S7MMCM(speedgrade=platform.speedgrade)
             #usb_pll.register_clkin(clk48, 48e6)
-            usb_pll.register_clkin(self.clk48_bufg, 48e6)
+            usb_pll.register_clkin(self.clk48_bufg, usb_clk_freq)
             usb_pll.create_clkout(self.cd_usb, usb_clk_freq, margin = 0)
             platform.add_platform_command("create_generated_clock -name usbclk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
             num_clk = num_clk + 1
@@ -203,7 +203,7 @@ class SBusFPGA(SoCCore):
     # Add USB Host
     def add_usb_host_custom(self, name="usb_host", pads=None, usb_clk_freq=48e6, single_dvma_master=False):
         from litex.soc.cores.usb_ohci import USBOHCI
-        self.submodules.usb_host = USBOHCI(platform=self.platform, pads=pads, usb_clk_freq=usb_clk_freq, dma_data_width=32)
+        self.submodules.usb_host = USBOHCI(platform=self.platform, pads=pads, usb_clk_freq=int(usb_clk_freq), dma_data_width=32)
         usb_host_region_size = 0x10000
         usb_host_region = SoCRegion(origin=self.mem_map.get(name, None), size=usb_host_region_size, cached=False)
         self.bus.add_slave("usb_host_ctrl", self.usb_host.wb_ctrl, region=usb_host_region)

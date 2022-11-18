@@ -28,7 +28,7 @@ sdram_dfii_pi0_baddress =      sdram_dfii_base + 0x010
 # /!\ keep up to date with csr /!\
 ddrphy_base = 0x00041000
 ddrphy_rst                 = ddrphy_base + 0x000
-ddrphy_dly_sel             = ddrphy_base + 0x010
+ddrphy_dly_sel             = ddrphy_base + 0x004
 ddrphy_rdly_dq_rst         = ddrphy_base + 0x014
 ddrphy_rdly_dq_inc         = ddrphy_base + 0x018
 ddrphy_rdly_dq_bitslip_rst = ddrphy_base + 0x01c
