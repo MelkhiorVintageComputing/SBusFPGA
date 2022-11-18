@@ -1,3 +1,6 @@
 [submodule "sbus-to-ztex-gateware-migen/VintageBusFPGA_Common"]
 	path = sbus-to-ztex-gateware-migen/VintageBusFPGA_Common
 	url = git@github.com:rdolbeau/VintageBusFPGA_Common.git
+[submodule "sbus-to-ztex-gateware-migen/deps/gateware"]
+	path = sbus-to-ztex-gateware-migen/deps/gateware
+	url = https://github.com/betrusted-io/gateware
