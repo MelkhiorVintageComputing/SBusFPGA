@@ -24,6 +24,8 @@ for V in "V1_2"; do
 		#echo "rom = ["
 		#cat /tmp/${PFX}.txt_hexa
 		#echo "]"
+
+		hexdump -v -e '1/4 "%08x"' -e '"\n"' ${PFX}.fc | xxd -r -p > ${PFX}_flash_little.fc
 	fi
 
 done

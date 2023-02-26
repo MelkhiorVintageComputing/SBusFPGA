@@ -212,7 +212,7 @@ class SBusFPGA(SoCCore):
         #if self.irq.enabled:
             #self.irq.add(name, use_loc_if_exists=True)
             
-    def __init__(self, variant, version, sys_clk_freq, trng, stat, usb, sdram, engine, i2c, bw2, cg3, cg6, goblin, cg3_res, sdcard, jareth, **kwargs):
+    def __init__(self, variant, version, sys_clk_freq, trng, stat, usb, sdram, engine, i2c, bw2, cg3, cg6, goblin, cg3_res, sdcard, jareth, flash, **kwargs):
         framebuffer = (bw2 or cg3 or cg6 or goblin)
         
         print(f"Building SBusFPGA for board version {version}")
@@ -229,6 +229,14 @@ class SBusFPGA(SoCCore):
 
         if (framebuffer and (version == "V1.2")):
             platform.add_extension(ztex213_sbus._vga_pmod_io_v1_2)
+            
+        if (i2c and (version == "V1.0")):
+            platform.add_extension(ztex213_sbus._tempi2c_pmod_io_v1_0)
+        if (i2c and (version == "V1.2")):
+            platform.add_extension(ztex213_sbus._tempi2c_pmod_io_v1_2)
+            
+        if (flash and (version == "V1.2")):
+            platform.add_extension(ztex213_sbus._flashtemp_pmod_io_v1_2)
 
         if (framebuffer):
             hres = int(cg3_res.split("@")[0].split("x")[0])
@@ -265,6 +273,8 @@ class SBusFPGA(SoCCore):
                          bus_interconnect = "crossbar",
                          **kwargs)
 
+        ###### self.cpu.endianness = "big" # some devices use that, such as Flash & SD # should try to figure out eveything that breaks when I do that...
+
         # *** This mem-map is also exposed in the FSM (matched prefixes) ***
         # and in the PROM (to tell NetBSD where everything is)
         # Currently it is a straight mapping between the two:
@@ -278,6 +288,7 @@ class SBusFPGA(SoCCore):
         # differently.
         self.wb_mem_map = wb_mem_map = {
             "prom":             0x00000000, # 256 Kib ought to be enough for anybody (we're using < 8 Kib now...)
+            "spiflash":         0x00000000, # FIXME currently the flash is in 0 as well, limited to 256 KiB
             "csr" :             0x00040000,
             "usb_host":         0x00080000, # OHCI registers are here, not in CSR
             #"usb_shared_mem":   0x00090000, # unused ATM
@@ -295,6 +306,7 @@ class SBusFPGA(SoCCore):
             #"cg6_tec":          0x00701000, # required for compatibility
             "cg3_pixels":       0x00800000, # required for compatibility, 1/2/4/8 MiB for now (up to 0x00FFFFFF inclusive) (bw2, cg3 and cg6 idem)
             "goblin_pixels":    0x01000000, # base address for 16 MiB Goblin Framebuffer
+#            "spiflash":         0x04000000, # base address for up to 64 MiB Flash
             "main_ram":         0x80000000, # not directly reachable from SBus mapping (only 0x0 - 0x10000000 is accessible),
             "video_framebuffer":0x80000000 + 0x10000000 - cg3_fb_size, # Updated later
             "dvma_bridge":      0xf0000000, # required to match DVMA virtual addresses
@@ -348,24 +360,36 @@ class SBusFPGA(SoCCore):
         #self.comb += pad_SBUS_DATA_OE_LED_2.eq(SBUS_DATA_OE_LED_2_o)
         #self.comb += SBUS_DATA_OE_LED_o.eq(~SBUS_3V3_INT1s_o)
 
-        prom_file = "prom_{}.fc".format(version.replace(".", "_"))
-        #prom_file = "SUNW,501-2325.bin" # real TGX
-        #prom_file = "SUNW,501-1415.bin" # real cg3
-        #prom_file = "SUNW,501-2253.bin" # real TGX+
-        prom_data = soc_core.get_mem_data(filename_or_regions=prom_file, endianness="big")
-        # prom = Array(prom_data)
-        #print("\n****************************************\n")
-        #for i in range(len(prom)):
-        #    print(hex(prom[i]))
-        #print("\n****************************************\n")
-        prom_len = 4*len(prom_data);
-        rounded_prom_len = 2**log2_int(prom_len, False)
-        print(f"ROM is {prom_len} bytes, using {rounded_prom_len}")
-        assert(rounded_prom_len <= 2**16)
-        self.add_ram("prom", origin=self.mem_map["prom"], size=rounded_prom_len, contents=prom_data, mode="r")
-        #getattr(self,"prom").mem.init = prom_data
-        #getattr(self,"prom").mem.depth = 2**15
+        # PROM
+        # in the bitstream if no Flash available
+        if (not flash):
+            prom_file = "prom_{}.fc".format(version.replace(".", "_"))
+            #prom_file = "SUNW,501-2325.bin" # real TGX
+            #prom_file = "SUNW,501-1415.bin" # real cg3
+            #prom_file = "SUNW,501-2253.bin" # real TGX+
+            prom_data = soc_core.get_mem_data(filename_or_regions=prom_file, endianness="big")
+            # prom = Array(prom_data)
+            #print("\n****************************************\n")
+            #for i in range(len(prom)):
+            #    print(hex(prom[i]))
+            #print("\n****************************************\n")
+            prom_len = 4*len(prom_data);
+            rounded_prom_len = 2**log2_int(prom_len, False)
+            print(f"ROM is {prom_len} bytes, using {rounded_prom_len}")
+            assert(rounded_prom_len <= 2**16)
+            self.add_ram("prom", origin=self.mem_map["prom"], size=rounded_prom_len, contents=prom_data, mode="r")
+            
+        # SPI Flash
+        if (flash):
+            from litespi.modules.generated_modules import W25Q128JV
+            from litespi.opcodes import SpiNorFlashOpCodes as Codes
+            self.add_spi_flash(mode="4x",
+                               clk_freq = sys_clk_freq/4, # Fixme; PHY freq ?
+                               module=W25Q128JV(Codes.READ_1_1_4),
+                               region_size = 0x00040000,
+                               with_mmap=True, with_master=False)
 
+        # DDR3
         self.submodules.ddrphy = s7ddrphy.A7DDRPHY(platform.request("ddram"),
                                                    memtype        = "DDR3",
                                                    nphases        = 4,
@@ -596,7 +620,7 @@ def main():
     parser.add_argument("--sdram", action="store_true", help="expose the sdram to the host [all]")
     parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
     parser.add_argument("--engine", action="store_true", help="add a Engine crypto core [all]")
-    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [V1.2+custom temp. pmod]")
+    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [V1.2+TEMPI2C or FLASHTEMP pmod]")
     parser.add_argument("--bw2", action="store_true", help="add a BW2 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--cg3-res", default="1152x900@76Hz", help="Specify the CG3/CG6 resolution")
@@ -604,6 +628,7 @@ def main():
     parser.add_argument("--goblin", action="store_true", help="add a Goblin framebuffer [V1.2+VGA_RGB222 pmod]")
     parser.add_argument("--sdcard", action="store_true", help="add a sdcard controller [all]")
     parser.add_argument("--jareth", action="store_true", help="add a Jareth vector core [all]")
+    parser.add_argument("--flash", action="store_true", help="add a Flash device [V1.2+FLASHTEMP pmod]")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
@@ -612,11 +637,15 @@ def main():
         print(" ***** WARNING ***** : not enabling the SDRAM still adds a controller, but doesn't add the DMA engines\n")
     if (args.usb and (args.version == "V1.0")):
         print(" ***** WARNING ***** : USB on V1.0 is an ugly hack \n");
-    if (args.i2c):
-        print(" ***** WARNING ***** : I2C on V1.x is for testing the core \n");
+    if (args.i2c and (args.version == "V1.0")):
+        print(" ***** WARNING ***** : I2C on V1.0 is for testing the core \n");
     if ((args.bw2 or args.cg3 or args.cg6 or args.goblin) and (args.version == "V1.0")):
         print(" ***** ERROR ***** : VGA not supported on V1.0\n")
         assert(False)
+    if (args.flash and (args.version == "V1.0")):
+        print(" ***** ERROR ***** : Flash not supported on V1.0\n");
+        assert(False)
+        
     fbcount = 0
     if (args.bw2):
         fbcount = fbcount + 1
@@ -648,7 +677,8 @@ def main():
                    goblin=args.goblin,
                    cg3_res=args.cg3_res,
                    sdcard=args.sdcard,
-                   jareth=args.jareth)
+                   jareth=args.jareth,
+                   flash=args.flash)
     #soc.add_uart(name="uart", baudrate=115200, fifo_depth=16)
 
     version_for_filename = args.version.replace(".", "_")

@@ -183,7 +183,8 @@ _usb_io_v1_0 = [
 _connectors_v1_0 = [
 ]
 _connectors_v1_2 = [
-    ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"), # swapped line?
+    ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"), # swapped line? & columns?
+    # PMOD- 11  9  7  5 12 10  8  6
 ]
 
 # I2C ----------------------------------------------------------------------------------------------
@@ -212,6 +213,17 @@ def tempi2c_pmod_io(pmod):
         ),
 ]
 _tempi2c_pmod_io_v1_2 = tempi2c_pmod_io("P1")
+
+def flashtemp_pmod_io(pmod):
+    return [
+        ("spiflash4x", 0,
+         Subsignal("cs_n", Pins(f"{pmod}:2")),
+         Subsignal("clk",  Pins(f"{pmod}:5")),
+         Subsignal("dq",   Pins(f"{pmod}:4 {pmod}:1 {pmod}:0 {pmod}:6")),
+         IOStandard("LVCMOS33")
+        ),
+]
+_flashtemp_pmod_io_v1_2 = flashtemp_pmod_io("P1")
 
 # VGA ----------------------------------------------------------------------------------------------
 
@@ -284,6 +296,10 @@ class Platform(XilinxPlatform):
             "V1.0" : _i2c_v1_0,
             "V1.2" : _tempi2c_pmod_io_v1_2,
         }[version]
+        flashrom = {
+            "V1.0": None,
+            "V1.2": _flashtemp_pmod_io_v1_2,
+        }
         self.avail_irqs = {
             "V1.0" : { 1 }, # don't add 7 here, too risky
             "V1.2" : { 1, 2, 3, 4, 5, 6 },
@@ -297,7 +313,6 @@ class Platform(XilinxPlatform):
         XilinxPlatform.__init__(self, device, _io, connectors, toolchain="vivado")
         self.add_extension(sbus_io)
         self.add_extension(sbus_sbus)
-        self.add_extension(i2c)
 
         self.toolchain.opt_directive = "Explore"
         #self.toolchain.vivado_place_directive = "Explore"

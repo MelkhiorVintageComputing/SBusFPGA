@@ -115,16 +115,16 @@
 : dphy_rst_wr ( value -- )
 	ddrphy-virt h# 0000 + l!
 ;
-: dphy_half_sys8x_taps_wr ( value -- )
+: dphy_dly_sel_wr ( value -- )
 	ddrphy-virt h# 0004 + l!
 ;
-: dphy_wlevel_en_wr ( value -- )
+: dphy_half_sys8x_taps_wr ( value -- )
 	ddrphy-virt h# 0008 + l!
 ;
-: dphy_wlevel_strobe_wr ( value -- )
+: dphy_wlevel_en_wr ( value -- )
 	ddrphy-virt h# 000c + l!
 ;
-: dphy_dly_sel_wr ( value -- )
+: dphy_wlevel_strobe_wr ( value -- )
 	ddrphy-virt h# 0010 + l!
 ;
 : dphy_rdly_dq_rst_wr ( value -- )
@@ -151,6 +151,8 @@
 : dphy_wrphase_wr ( value -- )
 	ddrphy-virt h# 0030 + l!
 ;
+
+
 : sdr_dfii_control_wr ( value -- )
 	sdram-virt h# 0000 + l!
 ;

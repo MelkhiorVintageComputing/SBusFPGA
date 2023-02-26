@@ -25,21 +25,27 @@ ADDR_PHYS_LOW = 0
 ADDR_PFX_HIGH = ADDR_PHYS_HIGH
 ADDR_PFX_LOW = 16 ## 64 KiB per prefix
 ADDR_PFX_LENGTH = 12 #(1 + ADDR_PFX_HIGH - ADDR_PFX_LOW)
-ROM_ADDR_PFX =           Signal(12, reset = 0x000) # read only
-WISHBONE_CSR_ADDR_PFX =  Signal(12, reset = 0x004)
-USBOHCI_ADDR_PFX =       Signal(12, reset = 0x008)
-SRAM_ADDR_PFX =          Signal(12, reset = 0x009) # unmapped ; LE
-ENGINE_ADDR_PFXA =       Signal(12, reset = 0x00a)
-ENGINE_ADDR_PFXB =       Signal(12, reset = 0x00b)
-JARETH_ADDR_PFXA =       Signal(12, reset = 0x00c)
-JARETH_ADDR_PFXB =       Signal(12, reset = 0x00d)
-CG6_BT_ADDR_PFX =        Signal(12, reset = 0x020)
-CG6_ALT_ADDR_PFX =       Signal(12, reset = 0x028)
-CG6_FHC_ADDR_PFX =       Signal(12, reset = 0x030)
-CG3_BT_ADDR_PFX =        Signal(12, reset = 0x040)
-FBC_ROM_ADDR_PFX =       Signal(12, reset = 0x041)
-#FBC_RAM_ADDR_PFX =       Signal(12, reset = 0x042)
-CG6_FBC_ADDR_PFX =       Signal(12, reset = 0x070)
+ROM_ADDR_PFX =           Signal(ADDR_PFX_LENGTH, reset = 0x000) # read only
+WISHBONE_CSR_ADDR_PFX =  Signal(ADDR_PFX_LENGTH, reset = 0x004) # 0x00040000
+USBOHCI_ADDR_PFX =       Signal(ADDR_PFX_LENGTH, reset = 0x008)
+SRAM_ADDR_PFX =          Signal(ADDR_PFX_LENGTH, reset = 0x009) # unmapped ; LE
+ENGINE_ADDR_PFXA =       Signal(ADDR_PFX_LENGTH, reset = 0x00a)
+ENGINE_ADDR_PFXB =       Signal(ADDR_PFX_LENGTH, reset = 0x00b)
+JARETH_ADDR_PFXA =       Signal(ADDR_PFX_LENGTH, reset = 0x00c)
+JARETH_ADDR_PFXB =       Signal(ADDR_PFX_LENGTH, reset = 0x00d)
+CG6_BT_ADDR_PFX =        Signal(ADDR_PFX_LENGTH, reset = 0x020)
+CG6_ALT_ADDR_PFX =       Signal(ADDR_PFX_LENGTH, reset = 0x028)
+CG6_FHC_ADDR_PFX =       Signal(ADDR_PFX_LENGTH, reset = 0x030)
+CG3_BT_ADDR_PFX =        Signal(ADDR_PFX_LENGTH, reset = 0x040)
+FBC_ROM_ADDR_PFX =       Signal(ADDR_PFX_LENGTH, reset = 0x041) # read only
+#FBC_RAM_ADDR_PFX =       Signal(ADDR_PFX_LENGTH, reset = 0x042) #
+CG6_FBC_ADDR_PFX =       Signal(ADDR_PFX_LENGTH, reset = 0x070)
+
+
+ADDR_LONG_PFX_HIGH = ADDR_PHYS_HIGH
+ADDR_LONG_PFX_LOW  = 26 ## 64 MiB per prefix
+ADDR_LONG_PFX_LENGTH = 2 #(1 + ADDR_LONG_PFX_HIGH - ADDR_LONG_PFX_LOW)
+SPIFLASH_ADDR_LONG_PFX  = Signal(ADDR_LONG_PFX_LENGTH, reset = 0x1) # 0x04000000
 
 wishbone_default_timeout = 120 ##
 sbus_default_timeout = 50 ## must be below 255/2 (two waits)
@@ -541,6 +547,7 @@ class SBusFPGABus(Module):
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_ALT_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_FHC_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_BT_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_LONG_PFX_LOW:ADDR_LONG_PFX_LOW+ADDR_LONG_PFX_LENGTH] == SPIFLASH_ADDR_LONG_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
@@ -598,6 +605,7 @@ class SBusFPGABus(Module):
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_BT_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_LONG_PFX_LOW:ADDR_LONG_PFX_LOW+ADDR_LONG_PFX_LENGTH] == SPIFLASH_ADDR_LONG_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
@@ -663,6 +671,7 @@ class SBusFPGABus(Module):
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_FHC_ADDR_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG3_BT_ADDR_PFX) |
+                                 (SBUS_3V3_PA_i[ADDR_LONG_PFX_LOW:ADDR_LONG_PFX_LOW+ADDR_LONG_PFX_LENGTH] == SPIFLASH_ADDR_LONG_PFX) |
                                  (SBUS_3V3_PA_i[ADDR_BIGPFX_LOW:ADDR_BIGPFX_LOW+ADDR_BIGPFX_LENGTH] == CG3_PIXELS_ADDR_BIGPFX)),
                                 NextValue(SBUS_3V3_ACKs_o, ACK_IDLE), # need to wait for data, don't ACK yet
                                 NextValue(SBUS_3V3_ERRs_o, 1),
@@ -732,7 +741,6 @@ class SBusFPGABus(Module):
                                 #NextValue(sbus_master_error_virtual, Cat(SBUS_3V3_PA_i, SBUS_3V3_SIZ_i, Signal(1, reset=0))),
                                 NextState("Slave_Error")
                              ).Elif(((SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == WISHBONE_CSR_ADDR_PFX) |
-                                     (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == FBC_ROM_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == CG6_FBC_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == USBOHCI_ADDR_PFX) |
                                      (SBUS_3V3_PA_i[ADDR_PFX_LOW:ADDR_PFX_LOW+ADDR_PFX_LENGTH] == SRAM_ADDR_PFX) |
