@@ -4,3 +4,6 @@
 [submodule "sbus-to-ztex-gateware-migen/deps/gateware"]
 	path = sbus-to-ztex-gateware-migen/deps/gateware
 	url = https://github.com/betrusted-io/gateware
+[submodule "sbus-to-ztex-gateware-migen/openfirmware"]
+	path = sbus-to-ztex-gateware-migen/openfirmware
+	url = https://github.com/openbios/openfirmware

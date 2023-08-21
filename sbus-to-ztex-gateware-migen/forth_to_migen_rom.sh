@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for V in "V1_2"; do
+V="V1_3"
 
 	PFX=prom_${V}
 
@@ -27,5 +27,3 @@ for V in "V1_2"; do
 
 		hexdump -v -e '1/4 "%08x"' -e '"\n"' ${PFX}.fc | xxd -r -p > ${PFX}_flash_little.fc
 	fi
-
-done

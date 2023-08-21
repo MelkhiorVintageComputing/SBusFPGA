@@ -4,7 +4,7 @@ HRES=${1:-1280}
 VRES=${2:-1024}
 BASE_FB=${3:-0x8FE00000}
 
-GCCDIR=~/LITEX/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14
+GCCDIR=~dolbeau/LITEX/riscv64-unknown-elf-gcc-10.1.0-2020.08.2-x86_64-linux-ubuntu14
 GCCPFX=riscv64-unknown-elf-
 GCCLINK=${GCCDIR}/bin/${GCCPFX}gcc
 

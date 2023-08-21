@@ -1,0 +1,16 @@
+(
+source /opt/Xilinx/Vivado/2020.1/settings64.sh
+export LD_LIBRARY_PATH=/opt/Xilinx/Vivado/2020.1/lib/lnx64.o/SuSE
+export PYTHONPATH=deps/gateware:$PYTHONPATH
+
+python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.3 --sys-clk-freq 100e6 --trng --usb --sdram --i2c --goblin --cg3-res 1920x1080@60Hz
+
+) 2>&1 | tee build_V1_3.log
+# --trng
+# --sdram
+# --sdcard
+# --usb
+# --cg3 --cg3-res 1152x900@76Hz
+# --cg6 --cg3-res 1280x1024@60Hz
+
+grep -A10 'Design Timing Summary' build/ztex213_sbus_V1_3/gateware/ztex213_sbus_V1_3_timing.rpt

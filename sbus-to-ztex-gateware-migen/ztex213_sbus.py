@@ -202,9 +202,9 @@ _sbus_sbus_v1_2 = [
 _sbus_sbus_v1_3 = [
     ("SBUS_3V3_CLK",       0, Pins("H16"), IOStandard("lvttl")),
     ("SBUS_3V3_ASs",       0, Pins("J15"),  IOStandard("lvttl")),
-    ("SBUS_3V3_BGs",       0, Pins("K15"),  IOStandard("lvttl")), # moved
+    ("SBUS_3V3_BGs",       0, Pins("K15"),  IOStandard("lvttl")),
     ("SBUS_3V3_BRs",       0, Pins("K16"),  IOStandard("lvttl")),
-    ("SBUS_3V3_ERRs",      0, Pins("C15"),  IOStandard("lvttl")), # moved
+    ("SBUS_3V3_ERRs",      0, Pins("C15"),  IOStandard("lvttl")),
     ("SBUS_3V3_RSTs",      0, Pins("L1"),  IOStandard("lvttl")),
     ("SBUS_3V3_SELs",      0, Pins("H15"),  IOStandard("lvttl")),
     #("SBUS_3V3_INT1s",     0, Pins(""),  IOStandard("lvttl")), # removed
@@ -217,10 +217,10 @@ _sbus_sbus_v1_3 = [
     ("SBUS_3V3_PPRD",      0, Pins("E15"),  IOStandard("lvttl")),
     ("SBUS_OE",            0, Pins("K13"),  IOStandard("lvttl")),
     ("SBUS_3V3_ACKs",      0, Pins("D14 L4  A14 "),  IOStandard("lvttl")),
-    ("SBUS_3V3_SIZ",       0, Pins("E16 M6  L6  "),  IOStandard("lvttl")), # 0 moved
+    ("SBUS_3V3_SIZ",       0, Pins("E16 M6  L6  "),  IOStandard("lvttl")),
     ("SBUS_3V3_D",         0, Pins("J13 R8  J14 H14 R7  H17 G14 T6  "
                                    "G17 G16 R6  G18 R5  V1  F18 F16 "
-                                   "V2  E18 F15 U1  D18 E17 U2  G16 "
+                                   "V2  E18 F15 U1  D18 E17 U2  G13 "
                                    "D17 T3  K6  R3  N6  P5  F13 F14 "),  IOStandard("lvttl")),
     ("SBUS_3V3_PA",        0, Pins("C16 C17 A18 L5  N4  B18 M4  D15 "
                                    "B16 B17 C14 M3  D13 M2  K5  D12 "
@@ -244,7 +244,7 @@ _connectors_v1_2 = [
     ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"), # swapped line? & columns?
     # PMOD- 11  9  7  5 12 10  8  6
 ]
-_connectors_v1_2 = [
+_connectors_v1_3 = [
     ("P1", "P3 T1 R2 N1 P4 R1 P2 N2"), # swapped line? & columns?
     # PMOD- 11  9  7  5 12 10  8  6
 ]

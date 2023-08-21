@@ -72,7 +72,11 @@ class _CRG(Module):
             self.clock_domains.cd_clk200    = ClockDomain() # 200 MHz (gated) for curve25519engine -> rf_clk
         self.clock_domains.cd_clk100_gated = ClockDomain() # 100 MHz (gated) for curve25519engine -> mul_clk # aways created, along sysclk
         if (framebuffer):
-            self.clock_domains.cd_vga       = ClockDomain(reset_less=True)
+            if (version == "V1.2"):
+                self.clock_domains.cd_vga       = ClockDomain(reset_less=True)
+            elif (version == "V1.3"):
+                self.clock_domains.cd_hdmi      = ClockDomain()
+                self.clock_domains.cd_hdmi5x    = ClockDomain()
 
         # # #
         clk48 = platform.request("clk48")
@@ -422,7 +426,7 @@ class SBusFPGA(SoCCore):
             self.add_spi_flash(mode="4x",
                                clk_freq = sys_clk_freq/4, # Fixme; PHY freq ?
                                module=W25Q128JV(Codes.READ_1_1_4),
-                               region_size = 0x00040000,
+                               region_size = 0x00040000, # 256 KiB
                                with_mmap=True, with_master=False)
 
         # DDR3
@@ -699,9 +703,9 @@ def main():
     if (fbcount > 1):
         print(" ***** ERROR ***** : can't have more than one of BW2, CG3, CG6 and Goblin\n")
         assert(False)
-    if ((fbcount > 0) and args.i2c and version == "V1.2"):
+    if ((fbcount > 0) and args.i2c and args.version == "V1.2"):
         print(" ***** ERROR ***** : Framebuffers and I2C are incompatible in V1.2\n")
-    if ((fbcount > 0) and args.flash and version == "V1.2"):
+    if ((fbcount > 0) and args.flash and args.version == "V1.2"):
         print(" ***** ERROR ***** : Framebuffers and Flash are incompatible in V1.2\n")
     
     soc = SBusFPGA(**soc_core_argdict(args),

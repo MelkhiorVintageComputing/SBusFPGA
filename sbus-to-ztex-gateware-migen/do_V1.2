@@ -1,0 +1,24 @@
+(
+source /opt/Xilinx/Vivado/2020.1/settings64.sh
+export LD_LIBRARY_PATH=/opt/Xilinx/Vivado/2020.1/lib/lnx64.o/SuSE
+export PYTHONPATH=deps/gateware:$PYTHONPATH
+
+python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.2 --sys-clk-freq 100e6 --trng --usb --sdram --sdcard --i2c --flash ## --stat
+
+##python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.2 --sys-clk-freq 100e6 --sdram --jareth
+
+#python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.2 --sys-clk-freq 100e6 --sdram --goblin --cg3-res 1920x1080@60Hz --jareth --sdcard ## --usb
+
+##python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.2 --sys-clk-freq 100e6 --sdram --sdcard --cg3 --cg3-res 1280x1024@60Hz --jareth
+
+##python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.2 --sys-clk-freq 100e6 --usb --sdram --cg6 --cg3-res 1280x1024@60Hz ## --sdcard
+
+) 2>&1 | tee build_V1_2.log
+# --trng
+# --sdram
+# --sdcard
+# --usb
+# --cg3 --cg3-res 1152x900@76Hz
+# --cg6 --cg3-res 1280x1024@60Hz
+
+grep -A10 'Design Timing Summary' build/ztex213_sbus_V1_2/gateware/ztex213_sbus_V1_2_timing.rpt
