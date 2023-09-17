@@ -1,10 +1,9 @@
 EESchema Schematic File Version 4
-LIBS:sbus-to-ztex-cache
-EELAYER 26 0
+EELAYER 30 0
 EELAYER END
 $Descr A4 11693 8268
 encoding utf-8
-Sheet 4 6
+Sheet 4 9
 Title "sbus-to-ztex blinkey stuff"
 Date ""
 Rev ""
@@ -14,67 +13,6 @@ Comment2 ""
 Comment3 ""
 Comment4 ""
 $EndDescr
-$Comp
-L Connector_Generic:Conn_02x06_Odd_Even J5
-U 1 1 60D925D5
-P 5600 1750
-F 0 "J5" H 5650 2167 50  0000 C CNN
-F 1 "Conn_02x06_Odd_Even" H 5650 2076 50  0000 C CNN
-F 2 "For_SeeedStudio:PinSocket_2x06_P2.54mm_Horizontal_For_SeeedStudio" H 5600 1750 50  0001 C CNN
-F 3 "~" H 5600 1750 50  0001 C CNN
-F 4 "A2541HWR-2x6P" H 5600 1750 50  0001 C CNN "MPN"
-F 5 "https://lcsc.com/product-detail/Pin-Header-Female-Header_Changjiang-Connectors-A2541HWR-2x6P_C239357.html" H 5600 1750 50  0001 C CNN "URL"
-	1    5600 1750
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	5400 1550 5900 1550
-Wire Wire Line
-	5900 1550 6200 1550
-Connection ~ 5900 1550
-Wire Wire Line
-	5400 1650 5900 1650
-Wire Wire Line
-	5900 1650 6400 1650
-Connection ~ 5900 1650
-$Comp
-L power:GND #PWR0116
-U 1 1 60D93843
-P 6400 1650
-F 0 "#PWR0116" H 6400 1400 50  0001 C CNN
-F 1 "GND" H 6405 1477 50  0000 C CNN
-F 2 "" H 6400 1650 50  0001 C CNN
-F 3 "" H 6400 1650 50  0001 C CNN
-	1    6400 1650
-	1    0    0    -1  
-$EndComp
-$Comp
-L power:+3V3 #PWR0120
-U 1 1 60D938E0
-P 6200 1550
-F 0 "#PWR0120" H 6200 1400 50  0001 C CNN
-F 1 "+3V3" H 6215 1723 50  0000 C CNN
-F 2 "" H 6200 1550 50  0001 C CNN
-F 3 "" H 6200 1550 50  0001 C CNN
-	1    6200 1550
-	1    0    0    -1  
-$EndComp
-Text GLabel 5900 2050 2    50   Input ~ 0
-PMOD-12
-Text GLabel 5400 1750 0    50   Input ~ 0
-PMOD-5
-Text GLabel 5900 1750 2    50   Input ~ 0
-PMOD-6
-Text GLabel 5400 1850 0    50   Input ~ 0
-PMOD-7
-Text GLabel 5900 1850 2    50   Input ~ 0
-PMOD-8
-Text GLabel 5400 1950 0    50   Input ~ 0
-PMOD-9
-Text GLabel 5900 1950 2    50   Input ~ 0
-PMOD-10
-Text GLabel 5400 2050 0    50   Input ~ 0
-PMOD-11
 $Comp
 L Connector:Conn_01x03_Male J6
 U 1 1 60E1E49E
@@ -88,6 +26,7 @@ F 5 "Molex" H 4400 4750 50  0001 C CNN "Manufacturer-ALT"
 F 6 "https://www.mouser.fr/ProductDetail/Molex/22-27-2031?qs=%2Fha2pyFadugXOaGYK9vaczm7nZ04txhJn3OGcnGWT3U=" H 4400 4750 50  0001 C CNN "URL-ALT"
 F 7 "640456-3" H 4400 4750 50  0001 C CNN "MPN"
 F 8 "TE Connectivity" H 4400 4750 50  0001 C CNN "Manufacturer"
+F 9 "DNP" H 4400 4750 50  0001 C CNN "DNP"
 	1    4400 4750
 	1    0    0    -1  
 $EndComp
@@ -129,12 +68,12 @@ L Device:C C?
 U 1 1 60E24715
 P 5150 4800
 AR Path="/5F69F4EF/60E24715" Ref="C?"  Part="1" 
-AR Path="/5F6B165A/60E24715" Ref="C6"  Part="1" 
-F 0 "C6" H 5175 4900 50  0000 L CNN
-F 1 "47uF" H 5175 4700 50  0000 L CNN
+AR Path="/5F6B165A/60E24715" Ref="C9"  Part="1" 
+F 0 "C9" H 5175 4900 50  0000 L CNN
+F 1 "47uF 0805" H 5175 4700 50  0000 L CNN
 F 2 "Capacitor_SMD:C_0805_2012Metric" H 5188 4650 50  0001 C CNN
 F 3 "" H 5150 4800 50  0000 C CNN
-F 4 "GRM21BR60J476ME15L" H 5150 4800 50  0001 C CNN "MPN"
+F 4 "CL21A476MQYNNNE" H 5150 4800 50  0001 C CNN "MPN"
 	1    5150 4800
 	1    0    0    -1  
 $EndComp
@@ -148,32 +87,4 @@ Wire Wire Line
 Wire Wire Line
 	5150 4850 5150 4950
 Connection ~ 4600 4850
-$Comp
-L Device:C C?
-U 1 1 612C3C5C
-P 6400 1500
-AR Path="/5F679B53/612C3C5C" Ref="C?"  Part="1" 
-AR Path="/5F6B165A/612C3C5C" Ref="C9"  Part="1" 
-F 0 "C9" H 6425 1600 50  0000 L CNN
-F 1 "100nF" H 6425 1400 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 6438 1350 50  0001 C CNN
-F 3 "" H 6400 1500 50  0000 C CNN
-F 4 "www.yageo.com" H 6400 1500 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 6400 1500 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 6400 1500 50  0001 C CNN "Mouser"
-F 7 "?" H 6400 1500 50  0001 C CNN "Digikey"
-F 8 "?" H 6400 1500 50  0001 C CNN "LCSC"
-F 9 "?" H 6400 1500 50  0001 C CNN "Koncar"
-F 10 "TB" H 6400 1500 50  0001 C CNN "Side"
-	1    6400 1500
-	1    0    0    -1  
-$EndComp
-Connection ~ 6400 1650
-Wire Wire Line
-	6200 1550 6300 1550
-Wire Wire Line
-	6300 1550 6300 1350
-Wire Wire Line
-	6300 1350 6400 1350
-Connection ~ 6200 1550
 $EndSCHEMATC

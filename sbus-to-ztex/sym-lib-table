@@ -11,4 +11,6 @@
   (lib (name ul_SN74CB3T16211DGGR)(type Legacy)(uri ${KIPRJMOD}/SBus/ul_SN74CB3T16211DGGR.lib)(options "")(descr ""))
   (lib (name ul_SN74CB3T16210DGGR)(type Legacy)(uri ${KIPRJMOD}/SBus/ul_SN74CB3T16210DGGR.lib)(options "")(descr ""))
   (lib (name ul_SN74CB3T3125PW)(type Legacy)(uri ${KIPRJMOD}/SBus/ul_SN74CB3T3125PW.lib)(options "")(descr ""))
+  (lib (name DM3CS-SF)(type Legacy)(uri ${KIPRJMOD}/DM3CS-SF.lib)(options "")(descr ""))
+  (lib (name TPD12S016PWR)(type Legacy)(uri ${KIPRJMOD}/TPD12S016PWR.lib)(options "")(descr ""))
 )

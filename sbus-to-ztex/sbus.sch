@@ -1,10 +1,9 @@
 EESchema Schematic File Version 4
-LIBS:sbus-to-ztex-cache
-EELAYER 26 0
+EELAYER 30 0
 EELAYER END
 $Descr A2 23386 16535
 encoding utf-8
-Sheet 2 6
+Sheet 2 9
 Title "sbus-to-ztex SBus connection & level shifting"
 Date ""
 Rev ""
@@ -221,299 +220,295 @@ F 7 "https://www2.mouser.com/ProductDetail/Fujitsu/FCN-234P096-G-Y?qs=%2Fha2pyFa
 	1    18450 3300
 	1    0    0    -1  
 $EndComp
-Text GLabel 19000 6450 2    60   Input ~ 0
+Text GLabel 18425 5825 2    60   Input ~ 0
 SBUS_5V_INT[7]*
 Text GLabel 18900 9650 2    60   Input ~ 0
 SBUS_5V_INT[6]*
 Text GLabel 18900 10000 2    60   Input ~ 0
 SBUS_5V_INT[5]*
-Text GLabel 19000 7750 2    60   Input ~ 0
-SBUS_5V_INT[4]*
 Text GLabel 19000 7400 2    60   Input ~ 0
+SBUS_5V_INT[4]*
+Text GLabel 19000 7750 2    60   Input ~ 0
 SBUS_5V_INT[3]*
 Text GLabel 18900 8500 2    60   Input ~ 0
 SBUS_5V_INT[2]*
 Text GLabel 18900 8850 2    60   Input ~ 0
 SBUS_5V_INT[1]*
-Text GLabel 17850 6250 0    60   Input ~ 0
+Text GLabel 19275 5650 0    60   Input ~ 0
 SBUS_3V3_INT[7]*
 Text GLabel 17950 9650 0    60   Input ~ 0
 SBUS_3V3_INT[6]*
 Text GLabel 17950 10000 0    60   Input ~ 0
 SBUS_3V3_INT[5]*
-Text GLabel 18050 7750 0    60   Input ~ 0
-SBUS_3V3_INT[4]*
 Text GLabel 18050 7400 0    60   Input ~ 0
+SBUS_3V3_INT[4]*
+Text GLabel 18050 7750 0    60   Input ~ 0
 SBUS_3V3_INT[3]*
 Text GLabel 17950 8500 0    60   Input ~ 0
 SBUS_3V3_INT[2]*
-Text GLabel 11150 3100 2    60   Input ~ 0
-SBUS_5V_D[00]
-Text GLabel 11150 3000 2    60   Input ~ 0
-SBUS_5V_D[01]
-Text GLabel 11150 3300 2    60   Input ~ 0
-SBUS_5V_D[02]
-Text GLabel 11150 3200 2    60   Input ~ 0
-SBUS_5V_D[03]
-Text GLabel 11150 3500 2    60   Input ~ 0
-SBUS_5V_D[04]
-Text GLabel 11150 3400 2    60   Input ~ 0
-SBUS_5V_D[05]
-Text GLabel 11150 3600 2    60   Input ~ 0
-SBUS_5V_D[06]
-Text GLabel 11150 3700 2    60   Input ~ 0
-SBUS_5V_D[07]
-Text GLabel 9550 3100 0    60   Input ~ 0
-SBUS_3V3_D[00]
-Text GLabel 9550 3000 0    60   Input ~ 0
-SBUS_3V3_D[01]
-Text GLabel 9550 3300 0    60   Input ~ 0
-SBUS_3V3_D[02]
-Text GLabel 9550 3200 0    60   Input ~ 0
-SBUS_3V3_D[03]
-Text GLabel 9550 3500 0    60   Input ~ 0
-SBUS_3V3_D[04]
-Text GLabel 9550 3400 0    60   Input ~ 0
-SBUS_3V3_D[05]
-Text GLabel 9550 3600 0    60   Input ~ 0
-SBUS_3V3_D[06]
-Text GLabel 9550 3700 0    60   Input ~ 0
-SBUS_3V3_D[07]
-Text GLabel 11150 2900 2    60   Input ~ 0
-SBUS_5V_CLK
-Text GLabel 7350 3900 2    60   Input ~ 0
-SBUS_5V_SIZ[0]
-Text GLabel 7350 4000 2    60   Input ~ 0
-SBUS_5V_SIZ[1]
-Text GLabel 7350 4100 2    60   Input ~ 0
-SBUS_5V_SIZ[2]
-Text GLabel 5750 7400 0    60   Input ~ 0
-SBUS_5V_BR*
-Text GLabel 11150 2700 2    60   Input ~ 0
-SBUS_5V_SEL*
-Text GLabel 5750 7600 0    60   Input ~ 0
-SBUS_5V_BG*
-Text GLabel 11150 2800 2    60   Input ~ 0
-SBUS_5V_AS*
-Text GLabel 9550 2900 0    60   Input ~ 0
-SBUS_3V3_CLK
-Text GLabel 5750 3900 0    60   Input ~ 0
-SBUS_3V3_SIZ[0]
-Text GLabel 5750 4000 0    60   Input ~ 0
-SBUS_3V3_SIZ[1]
-Text GLabel 5750 4100 0    60   Input ~ 0
-SBUS_3V3_SIZ[2]
-Text GLabel 7350 7400 2    60   Input ~ 0
-SBUS_3V3_BR*
-Text GLabel 9550 2700 0    60   Input ~ 0
-SBUS_3V3_SEL*
-Text GLabel 7350 7600 2    60   Input ~ 0
-SBUS_3V3_BG*
-Text GLabel 9550 2800 0    60   Input ~ 0
-SBUS_3V3_AS*
-Text GLabel 11150 4600 2    60   Input ~ 0
-SBUS_5V_D[15]
-Text GLabel 11150 4500 2    60   Input ~ 0
-SBUS_5V_D[14]
-Text GLabel 11150 4400 2    60   Input ~ 0
-SBUS_5V_D[13]
-Text GLabel 11150 4300 2    60   Input ~ 0
-SBUS_5V_D[12]
-Text GLabel 11150 4200 2    60   Input ~ 0
-SBUS_5V_D[11]
-Text GLabel 11150 4100 2    60   Input ~ 0
-SBUS_5V_D[10]
-Text GLabel 11150 4000 2    60   Input ~ 0
-SBUS_5V_D[09]
-Text GLabel 11150 3900 2    60   Input ~ 0
-SBUS_5V_D[08]
-Text GLabel 9550 4600 0    60   Input ~ 0
-SBUS_3V3_D[15]
-Text GLabel 9550 4500 0    60   Input ~ 0
-SBUS_3V3_D[14]
-Text GLabel 9550 4400 0    60   Input ~ 0
-SBUS_3V3_D[13]
-Text GLabel 9550 4300 0    60   Input ~ 0
-SBUS_3V3_D[12]
-Text GLabel 9550 4200 0    60   Input ~ 0
-SBUS_3V3_D[11]
-Text GLabel 9550 4100 0    60   Input ~ 0
-SBUS_3V3_D[10]
-Text GLabel 9550 4000 0    60   Input ~ 0
-SBUS_3V3_D[09]
-Text GLabel 9550 3900 0    60   Input ~ 0
-SBUS_3V3_D[08]
-Text GLabel 11150 4700 2    60   Input ~ 0
-SBUS_5V_D[16]
-Text GLabel 11150 4800 2    60   Input ~ 0
-SBUS_5V_D[17]
-Text GLabel 11150 4900 2    60   Input ~ 0
-SBUS_5V_D[18]
-Text GLabel 11150 5000 2    60   Input ~ 0
-SBUS_5V_D[19]
-Text GLabel 7350 2600 2    60   Input ~ 0
-SBUS_5V_D[20]
-Text GLabel 7350 2700 2    60   Input ~ 0
-SBUS_5V_D[21]
-Text GLabel 7350 2800 2    60   Input ~ 0
-SBUS_5V_D[22]
-Text GLabel 7350 2900 2    60   Input ~ 0
-SBUS_5V_D[23]
 Text GLabel 9550 4700 0    60   Input ~ 0
-SBUS_3V3_D[16]
-Text GLabel 9550 4800 0    60   Input ~ 0
-SBUS_3V3_D[17]
-Text GLabel 9550 4900 0    60   Input ~ 0
-SBUS_3V3_D[18]
+SBUS_5V_D[00]
+Text GLabel 9550 4600 0    60   Input ~ 0
+SBUS_5V_D[01]
+Text GLabel 9550 4500 0    60   Input ~ 0
+SBUS_5V_D[02]
+Text GLabel 9550 4400 0    60   Input ~ 0
+SBUS_5V_D[03]
+Text GLabel 9550 4300 0    60   Input ~ 0
+SBUS_5V_D[04]
+Text GLabel 9550 4200 0    60   Input ~ 0
+SBUS_5V_D[05]
+Text GLabel 9550 4100 0    60   Input ~ 0
+SBUS_5V_D[06]
+Text GLabel 9550 4000 0    60   Input ~ 0
+SBUS_5V_D[07]
+Text GLabel 11150 4700 2    60   Input ~ 0
+SBUS_3V3_D[00]
+Text GLabel 11150 4600 2    60   Input ~ 0
+SBUS_3V3_D[01]
+Text GLabel 11150 4500 2    60   Input ~ 0
+SBUS_3V3_D[02]
+Text GLabel 11150 4400 2    60   Input ~ 0
+SBUS_3V3_D[03]
+Text GLabel 11150 4300 2    60   Input ~ 0
+SBUS_3V3_D[04]
+Text GLabel 11150 4200 2    60   Input ~ 0
+SBUS_3V3_D[05]
+Text GLabel 11150 4100 2    60   Input ~ 0
+SBUS_3V3_D[06]
+Text GLabel 11150 4000 2    60   Input ~ 0
+SBUS_3V3_D[07]
 Text GLabel 9550 5000 0    60   Input ~ 0
-SBUS_3V3_D[19]
-Text GLabel 5750 2600 0    60   Input ~ 0
-SBUS_3V3_D[20]
-Text GLabel 5750 2700 0    60   Input ~ 0
-SBUS_3V3_D[21]
-Text GLabel 5750 2800 0    60   Input ~ 0
-SBUS_3V3_D[22]
-Text GLabel 5750 2900 0    60   Input ~ 0
-SBUS_3V3_D[23]
-Text GLabel 7350 3700 2    60   Input ~ 0
-SBUS_5V_D[31]
-Text GLabel 7350 3600 2    60   Input ~ 0
-SBUS_5V_D[30]
-Text GLabel 7350 3500 2    60   Input ~ 0
-SBUS_5V_D[29]
-Text GLabel 7350 3400 2    60   Input ~ 0
-SBUS_5V_D[28]
-Text GLabel 7350 3300 2    60   Input ~ 0
-SBUS_5V_D[27]
-Text GLabel 7350 3200 2    60   Input ~ 0
-SBUS_5V_D[26]
-Text GLabel 7350 3100 2    60   Input ~ 0
-SBUS_5V_D[25]
-Text GLabel 7350 3000 2    60   Input ~ 0
-SBUS_5V_D[24]
+SBUS_5V_CLK
 Text GLabel 5750 3700 0    60   Input ~ 0
-SBUS_3V3_D[31]
-Text GLabel 5750 3600 0    60   Input ~ 0
-SBUS_3V3_D[30]
+SBUS_5V_SIZ[0]
+Text GLabel 5750 3900 0    60   Input ~ 0
+SBUS_5V_SIZ[1]
 Text GLabel 5750 3500 0    60   Input ~ 0
-SBUS_3V3_D[29]
-Text GLabel 5750 3400 0    60   Input ~ 0
-SBUS_3V3_D[28]
-Text GLabel 5750 3300 0    60   Input ~ 0
-SBUS_3V3_D[27]
-Text GLabel 5750 3200 0    60   Input ~ 0
-SBUS_3V3_D[26]
-Text GLabel 5750 3100 0    60   Input ~ 0
-SBUS_3V3_D[25]
-Text GLabel 5750 3000 0    60   Input ~ 0
-SBUS_3V3_D[24]
-Text GLabel 7350 4300 2    60   Input ~ 0
-SBUS_5V_PA[00]
-Text GLabel 7350 4400 2    60   Input ~ 0
-SBUS_5V_PA[01]
-Text GLabel 7350 4500 2    60   Input ~ 0
-SBUS_5V_PA[02]
-Text GLabel 7350 4600 2    60   Input ~ 0
-SBUS_5V_PA[03]
-Text GLabel 7350 4700 2    60   Input ~ 0
-SBUS_5V_PA[04]
-Text GLabel 7350 4800 2    60   Input ~ 0
-SBUS_5V_PA[05]
-Text GLabel 7350 4900 2    60   Input ~ 0
-SBUS_5V_PA[06]
-Text GLabel 7350 5000 2    60   Input ~ 0
-SBUS_5V_PA[07]
-Text GLabel 5750 4300 0    60   Input ~ 0
-SBUS_3V3_PA[00]
-Text GLabel 5750 4400 0    60   Input ~ 0
-SBUS_3V3_PA[01]
-Text GLabel 5750 4500 0    60   Input ~ 0
-SBUS_3V3_PA[02]
-Text GLabel 5750 4600 0    60   Input ~ 0
-SBUS_3V3_PA[03]
-Text GLabel 5750 4700 0    60   Input ~ 0
-SBUS_3V3_PA[04]
-Text GLabel 5750 4800 0    60   Input ~ 0
-SBUS_3V3_PA[05]
-Text GLabel 5750 4900 0    60   Input ~ 0
-SBUS_3V3_PA[06]
-Text GLabel 5750 5000 0    60   Input ~ 0
-SBUS_3V3_PA[07]
-Text GLabel 3550 3600 2    60   Input ~ 0
-SBUS_5V_PA[15]
-Text GLabel 3550 3500 2    60   Input ~ 0
-SBUS_5V_PA[14]
-Text GLabel 3550 3400 2    60   Input ~ 0
-SBUS_5V_PA[13]
-Text GLabel 3550 3200 2    60   Input ~ 0
-SBUS_5V_PA[12]
-Text GLabel 3550 3100 2    60   Input ~ 0
-SBUS_5V_PA[11]
-Text GLabel 3550 3000 2    60   Input ~ 0
-SBUS_5V_PA[10]
-Text GLabel 3550 2800 2    60   Input ~ 0
-SBUS_5V_PA[09]
-Text GLabel 3550 2700 2    60   Input ~ 0
-SBUS_5V_PA[08]
-Text GLabel 1950 3600 0    60   Input ~ 0
-SBUS_3V3_PA[15]
-Text GLabel 1950 3500 0    60   Input ~ 0
-SBUS_3V3_PA[14]
-Text GLabel 1950 3400 0    60   Input ~ 0
-SBUS_3V3_PA[13]
-Text GLabel 1950 3200 0    60   Input ~ 0
-SBUS_3V3_PA[12]
-Text GLabel 1950 3100 0    60   Input ~ 0
-SBUS_3V3_PA[11]
-Text GLabel 1950 3000 0    60   Input ~ 0
-SBUS_3V3_PA[10]
-Text GLabel 1950 2800 0    60   Input ~ 0
-SBUS_3V3_PA[09]
-Text GLabel 1950 2700 0    60   Input ~ 0
-SBUS_3V3_PA[08]
-Text GLabel 11150 2600 2    60   Input ~ 0
-SBUS_5V_RST*
-Text GLabel 3550 3700 2    60   Input ~ 0
-SBUS_5V_ACK[2]*
-Text GLabel 3550 3300 2    60   Input ~ 0
-SBUS_5V_ACK[1]*
-Text GLabel 3550 2900 2    60   Input ~ 0
-SBUS_5V_ACK[0]*
-Text GLabel 3550 4900 2    60   Input ~ 0
-SBUS_5V_PA[27]
-Text GLabel 3550 5000 2    60   Input ~ 0
-SBUS_5V_PA[26]
-Text GLabel 3550 4800 2    60   Input ~ 0
-SBUS_5V_PA[25]
-Text GLabel 3550 4700 2    60   Input ~ 0
-SBUS_5V_PA[24]
+SBUS_5V_SIZ[2]
+Text GLabel 7825 9350 0    60   Input ~ 0
+SBUS_5V_BR*
+Text GLabel 9550 4800 0    60   Input ~ 0
+SBUS_5V_SEL*
+Text GLabel 9550 4900 0    60   Input ~ 0
+SBUS_5V_AS*
+Text GLabel 11150 5000 2    60   Input ~ 0
+SBUS_3V3_CLK
+Text GLabel 7350 3700 2    60   Input ~ 0
+SBUS_3V3_SIZ[0]
+Text GLabel 7350 3900 2    60   Input ~ 0
+SBUS_3V3_SIZ[1]
+Text GLabel 7350 3500 2    60   Input ~ 0
+SBUS_3V3_SIZ[2]
+Text GLabel 8325 9350 2    60   Input ~ 0
+SBUS_3V3_BR*
+Text GLabel 11150 4800 2    60   Input ~ 0
+SBUS_3V3_SEL*
+Text GLabel 6250 9350 2    60   Input ~ 0
+SBUS_3V3_BG*
+Text GLabel 11150 4900 2    60   Input ~ 0
+SBUS_3V3_AS*
+Text GLabel 9550 3100 0    60   Input ~ 0
+SBUS_5V_D[15]
+Text GLabel 9550 3200 0    60   Input ~ 0
+SBUS_5V_D[14]
+Text GLabel 9550 3300 0    60   Input ~ 0
+SBUS_5V_D[13]
+Text GLabel 9550 3400 0    60   Input ~ 0
+SBUS_5V_D[12]
+Text GLabel 9550 3500 0    60   Input ~ 0
+SBUS_5V_D[11]
+Text GLabel 9550 3600 0    60   Input ~ 0
+SBUS_5V_D[10]
+Text GLabel 9550 3700 0    60   Input ~ 0
+SBUS_5V_D[09]
+Text GLabel 9550 3900 0    60   Input ~ 0
+SBUS_5V_D[08]
+Text GLabel 11150 3100 2    60   Input ~ 0
+SBUS_3V3_D[15]
+Text GLabel 11150 3200 2    60   Input ~ 0
+SBUS_3V3_D[14]
+Text GLabel 11150 3300 2    60   Input ~ 0
+SBUS_3V3_D[13]
+Text GLabel 11150 3400 2    60   Input ~ 0
+SBUS_3V3_D[12]
+Text GLabel 11150 3500 2    60   Input ~ 0
+SBUS_3V3_D[11]
+Text GLabel 11150 3600 2    60   Input ~ 0
+SBUS_3V3_D[10]
+Text GLabel 11150 3700 2    60   Input ~ 0
+SBUS_3V3_D[09]
+Text GLabel 11150 3900 2    60   Input ~ 0
+SBUS_3V3_D[08]
+Text GLabel 9550 3000 0    60   Input ~ 0
+SBUS_5V_D[16]
+Text GLabel 9550 2900 0    60   Input ~ 0
+SBUS_5V_D[17]
+Text GLabel 9550 2800 0    60   Input ~ 0
+SBUS_5V_D[18]
+Text GLabel 9550 2700 0    60   Input ~ 0
+SBUS_5V_D[19]
 Text GLabel 9550 2600 0    60   Input ~ 0
-SBUS_3V3_RST*
-Text GLabel 1950 3700 0    60   Input ~ 0
-SBUS_3V3_ACK[2]*
-Text GLabel 1950 3300 0    60   Input ~ 0
-SBUS_3V3_ACK[1]*
-Text GLabel 1950 2900 0    60   Input ~ 0
-SBUS_3V3_ACK[0]*
-Text GLabel 1950 4900 0    60   Input ~ 0
-SBUS_3V3_PA[27]
-Text GLabel 1950 5000 0    60   Input ~ 0
-SBUS_3V3_PA[26]
-Text GLabel 1950 4800 0    60   Input ~ 0
-SBUS_3V3_PA[25]
-Text GLabel 1950 4700 0    60   Input ~ 0
-SBUS_3V3_PA[24]
-Text GLabel 8800 7900 0    60   Input ~ 0
-SBUS_5V_DP
-Text GLabel 7350 4200 2    60   Input ~ 0
-SBUS_5V_PPRD
-Text GLabel 3550 2600 2    60   Input ~ 0
-SBUS_5V_EER*
-Text GLabel 9000 7850 2    60   Input ~ 0
-SBUS_3V3_DP
+SBUS_5V_D[20]
+Text GLabel 5750 5000 0    60   Input ~ 0
+SBUS_5V_D[21]
+Text GLabel 5750 4900 0    60   Input ~ 0
+SBUS_5V_D[22]
+Text GLabel 5750 4800 0    60   Input ~ 0
+SBUS_5V_D[23]
+Text GLabel 11150 3000 2    60   Input ~ 0
+SBUS_3V3_D[16]
+Text GLabel 11150 2900 2    60   Input ~ 0
+SBUS_3V3_D[17]
+Text GLabel 11150 2800 2    60   Input ~ 0
+SBUS_3V3_D[18]
+Text GLabel 11150 2700 2    60   Input ~ 0
+SBUS_3V3_D[19]
+Text GLabel 11150 2600 2    60   Input ~ 0
+SBUS_3V3_D[20]
+Text GLabel 7350 5000 2    60   Input ~ 0
+SBUS_3V3_D[21]
+Text GLabel 7350 4900 2    60   Input ~ 0
+SBUS_3V3_D[22]
+Text GLabel 7350 4800 2    60   Input ~ 0
+SBUS_3V3_D[23]
+Text GLabel 5750 4000 0    60   Input ~ 0
+SBUS_5V_D[31]
+Text GLabel 5750 4100 0    60   Input ~ 0
+SBUS_5V_D[30]
 Text GLabel 5750 4200 0    60   Input ~ 0
-SBUS_3V3_PPRD
+SBUS_5V_D[29]
+Text GLabel 5750 4300 0    60   Input ~ 0
+SBUS_5V_D[28]
+Text GLabel 5750 4400 0    60   Input ~ 0
+SBUS_5V_D[27]
+Text GLabel 5750 4500 0    60   Input ~ 0
+SBUS_5V_D[26]
+Text GLabel 5750 4600 0    60   Input ~ 0
+SBUS_5V_D[25]
+Text GLabel 5750 4700 0    60   Input ~ 0
+SBUS_5V_D[24]
+Text GLabel 7350 4000 2    60   Input ~ 0
+SBUS_3V3_D[31]
+Text GLabel 7350 4100 2    60   Input ~ 0
+SBUS_3V3_D[30]
+Text GLabel 7350 4200 2    60   Input ~ 0
+SBUS_3V3_D[29]
+Text GLabel 7350 4300 2    60   Input ~ 0
+SBUS_3V3_D[28]
+Text GLabel 7350 4400 2    60   Input ~ 0
+SBUS_3V3_D[27]
+Text GLabel 7350 4500 2    60   Input ~ 0
+SBUS_3V3_D[26]
+Text GLabel 7350 4600 2    60   Input ~ 0
+SBUS_3V3_D[25]
+Text GLabel 7350 4700 2    60   Input ~ 0
+SBUS_3V3_D[24]
+Text GLabel 5750 3300 0    60   Input ~ 0
+SBUS_5V_PA[00]
+Text GLabel 5750 3400 0    60   Input ~ 0
+SBUS_5V_PA[01]
+Text GLabel 5750 3100 0    60   Input ~ 0
+SBUS_5V_PA[02]
+Text GLabel 5750 3200 0    60   Input ~ 0
+SBUS_5V_PA[03]
+Text GLabel 5750 2900 0    60   Input ~ 0
+SBUS_5V_PA[04]
+Text GLabel 5750 3000 0    60   Input ~ 0
+SBUS_5V_PA[05]
+Text GLabel 5750 2600 0    60   Input ~ 0
+SBUS_5V_PA[06]
+Text GLabel 5750 2700 0    60   Input ~ 0
+SBUS_5V_PA[07]
+Text GLabel 7350 3300 2    60   Input ~ 0
+SBUS_3V3_PA[00]
+Text GLabel 7350 3400 2    60   Input ~ 0
+SBUS_3V3_PA[01]
+Text GLabel 7350 3100 2    60   Input ~ 0
+SBUS_3V3_PA[02]
+Text GLabel 7350 3200 2    60   Input ~ 0
+SBUS_3V3_PA[03]
+Text GLabel 7350 2900 2    60   Input ~ 0
+SBUS_3V3_PA[04]
+Text GLabel 7350 3000 2    60   Input ~ 0
+SBUS_3V3_PA[05]
+Text GLabel 7350 2600 2    60   Input ~ 0
+SBUS_3V3_PA[06]
+Text GLabel 7350 2700 2    60   Input ~ 0
+SBUS_3V3_PA[07]
+Text GLabel 1950 4200 0    60   Input ~ 0
+SBUS_5V_PA[14]
+Text GLabel 1950 4500 0    60   Input ~ 0
+SBUS_5V_PA[13]
+Text GLabel 1950 4400 0    60   Input ~ 0
+SBUS_5V_PA[12]
+Text GLabel 1950 4800 0    60   Input ~ 0
+SBUS_5V_PA[11]
+Text GLabel 1950 4700 0    60   Input ~ 0
+SBUS_5V_PA[10]
+Text GLabel 1950 5000 0    60   Input ~ 0
+SBUS_5V_PA[09]
+Text GLabel 1950 4900 0    60   Input ~ 0
+SBUS_5V_PA[08]
+Text GLabel 3550 4300 2    60   Input ~ 0
+SBUS_3V3_PA[15]
+Text GLabel 3550 4200 2    60   Input ~ 0
+SBUS_3V3_PA[14]
+Text GLabel 3550 4500 2    60   Input ~ 0
+SBUS_3V3_PA[13]
+Text GLabel 3550 4400 2    60   Input ~ 0
+SBUS_3V3_PA[12]
+Text GLabel 3550 4800 2    60   Input ~ 0
+SBUS_3V3_PA[11]
+Text GLabel 3550 4700 2    60   Input ~ 0
+SBUS_3V3_PA[10]
+Text GLabel 3550 5000 2    60   Input ~ 0
+SBUS_3V3_PA[09]
+Text GLabel 3550 4900 2    60   Input ~ 0
+SBUS_3V3_PA[08]
 Text GLabel 1950 2600 0    60   Input ~ 0
+SBUS_5V_RST*
+Text GLabel 1950 3100 0    60   Input ~ 0
+SBUS_5V_ACK[2]*
+Text GLabel 1950 3900 0    60   Input ~ 0
+SBUS_5V_ACK[1]*
+Text GLabel 1950 4600 0    60   Input ~ 0
+SBUS_5V_ACK[0]*
+Text GLabel 1950 2800 0    60   Input ~ 0
+SBUS_5V_PA[27]
+Text GLabel 1950 2700 0    60   Input ~ 0
+SBUS_5V_PA[26]
+Text GLabel 1950 3000 0    60   Input ~ 0
+SBUS_5V_PA[25]
+Text GLabel 1950 2900 0    60   Input ~ 0
+SBUS_5V_PA[24]
+Text GLabel 3550 2600 2    60   Input ~ 0
+SBUS_3V3_RST*
+Text GLabel 3550 3100 2    60   Input ~ 0
+SBUS_3V3_ACK[2]*
+Text GLabel 3550 3900 2    60   Input ~ 0
+SBUS_3V3_ACK[1]*
+Text GLabel 3550 4600 2    60   Input ~ 0
+SBUS_3V3_ACK[0]*
+Text GLabel 3550 2800 2    60   Input ~ 0
+SBUS_3V3_PA[27]
+Text GLabel 3550 2700 2    60   Input ~ 0
+SBUS_3V3_PA[26]
+Text GLabel 3550 3000 2    60   Input ~ 0
+SBUS_3V3_PA[25]
+Text GLabel 3550 2900 2    60   Input ~ 0
+SBUS_3V3_PA[24]
+Text GLabel 17450 5950 0    60   Input ~ 0
+SBUS_5V_DP
+Text GLabel 5750 3600 0    60   Input ~ 0
+SBUS_5V_PPRD
+Text GLabel 5750 2800 0    60   Input ~ 0
+SBUS_5V_EER*
+Text GLabel 16850 6075 2    60   Input ~ 0
+SBUS_3V3_DP
+Text GLabel 7350 3600 2    60   Input ~ 0
+SBUS_3V3_PPRD
+Text GLabel 7350 2800 2    60   Input ~ 0
 SBUS_3V3_EER*
 $Comp
 L power:+5V #PWR0124
@@ -587,41 +582,35 @@ Wire Wire Line
 	20500 2100 20500 2500
 Connection ~ 20500 2500
 Connection ~ 20500 4100
-Text Notes 8150 7650 0    50   ~ 0
-BR, BG: Master only\n(one-way each, of opposite direction)\nDP: not really used
-Text GLabel 3550 3900 2    60   Input ~ 0
-SBUS_5V_PA[16]
-Text GLabel 3550 4000 2    60   Input ~ 0
-SBUS_5V_PA[17]
-Text GLabel 3550 4100 2    60   Input ~ 0
+Text GLabel 1950 3600 0    60   Input ~ 0
 SBUS_5V_PA[18]
-Text GLabel 3550 4200 2    60   Input ~ 0
+Text GLabel 1950 3700 0    60   Input ~ 0
 SBUS_5V_PA[19]
-Text GLabel 3550 4300 2    60   Input ~ 0
+Text GLabel 1950 3400 0    60   Input ~ 0
 SBUS_5V_PA[20]
-Text GLabel 3550 4400 2    60   Input ~ 0
+Text GLabel 1950 3500 0    60   Input ~ 0
 SBUS_5V_PA[21]
-Text GLabel 3550 4500 2    60   Input ~ 0
+Text GLabel 1950 3200 0    60   Input ~ 0
 SBUS_5V_PA[22]
-Text GLabel 3550 4600 2    60   Input ~ 0
+Text GLabel 1950 3300 0    60   Input ~ 0
 SBUS_5V_PA[23]
-Text GLabel 1950 3900 0    60   Input ~ 0
+Text GLabel 3550 4000 2    60   Input ~ 0
 SBUS_3V3_PA[16]
-Text GLabel 1950 4000 0    60   Input ~ 0
+Text GLabel 3550 4100 2    60   Input ~ 0
 SBUS_3V3_PA[17]
-Text GLabel 1950 4100 0    60   Input ~ 0
+Text GLabel 3550 3600 2    60   Input ~ 0
 SBUS_3V3_PA[18]
-Text GLabel 1950 4200 0    60   Input ~ 0
+Text GLabel 3550 3700 2    60   Input ~ 0
 SBUS_3V3_PA[19]
-Text GLabel 1950 4300 0    60   Input ~ 0
+Text GLabel 3550 3400 2    60   Input ~ 0
 SBUS_3V3_PA[20]
-Text GLabel 1950 4400 0    60   Input ~ 0
+Text GLabel 3550 3500 2    60   Input ~ 0
 SBUS_3V3_PA[21]
-Text GLabel 1950 4500 0    60   Input ~ 0
+Text GLabel 3550 3200 2    60   Input ~ 0
 SBUS_3V3_PA[22]
-Text GLabel 1950 4600 0    60   Input ~ 0
+Text GLabel 3550 3300 2    60   Input ~ 0
 SBUS_3V3_PA[23]
-Text Notes 8550 8100 0    50   ~ 0
+Text Notes 16825 5800 0    50   ~ 0
 can be ignored
 Text Notes 18550 5500 0    50   ~ 0
 Not mandatory\n(and definitely not the 7)
@@ -665,14 +654,14 @@ L Device:C C31
 U 1 1 5F78E71D
 P 16700 7650
 F 0 "C31" H 16725 7750 50  0000 L CNN
-F 1 "100nF" H 16725 7550 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 16738 7500 50  0001 C CNN
+F 1 "100nF 0402" H 16725 7550 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 16738 7500 50  0001 C CNN
 F 3 "" H 16700 7650 50  0000 C CNN
-F 4 "www.yageo.com" H 16700 7650 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 16700 7650 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 16700 7650 50  0001 C CNN "Mouser"
+F 4 "" H 16700 7650 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 16700 7650 50  0001 C CNN "MPN"
+F 6 "" H 16700 7650 50  0001 C CNN "Mouser"
 F 7 "?" H 16700 7650 50  0001 C CNN "Digikey"
-F 8 "?" H 16700 7650 50  0001 C CNN "LCSC"
+F 8 "" H 16700 7650 50  0001 C CNN "LCSC"
 F 9 "?" H 16700 7650 50  0001 C CNN "Koncar"
 F 10 "TB" H 16700 7650 50  0001 C CNN "Side"
 	1    16700 7650
@@ -687,9 +676,9 @@ AR Path="/5F6B165A/5F741B09" Ref="R?"  Part="1"
 AR Path="/5F679B53/5F741B09" Ref="R30"  Part="1" 
 F 0 "R30" V 18380 7300 50  0000 C CNN
 F 1 "10k" V 18300 7300 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 18230 7300 50  0001 C CNN
+F 2 "Resistor_SMD:R_0402_1005Metric" V 18230 7300 50  0001 C CNN
 F 3 "" H 18300 7300 50  0000 C CNN
-F 4 "0603WAF1002T5E" V 18300 6700 50  0001 C CNN "MPN"
+F 4 "0402WGF1002TCE" V 18300 6700 50  0001 C CNN "MPN"
 	1    18300 7300
 	0    1    1    0   
 $EndComp
@@ -701,9 +690,9 @@ AR Path="/5F6B165A/5F74D6C5" Ref="R?"  Part="1"
 AR Path="/5F679B53/5F74D6C5" Ref="R31"  Part="1" 
 F 0 "R31" V 18380 7650 50  0000 C CNN
 F 1 "10k" V 18300 7650 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 18230 7650 50  0001 C CNN
+F 2 "Resistor_SMD:R_0402_1005Metric" V 18230 7650 50  0001 C CNN
 F 3 "" H 18300 7650 50  0000 C CNN
-F 4 "0603WAF1002T5E" V 18300 7050 50  0001 C CNN "MPN"
+F 4 "0402WGF1002TCE" V 18300 7050 50  0001 C CNN "MPN"
 	1    18300 7650
 	0    1    1    0   
 $EndComp
@@ -740,9 +729,9 @@ U 1 1 5F74F1CF
 P 18750 7400
 F 0 "U_INT1" H 18725 7667 50  0000 C CNN
 F 1 "74LVC2G07" H 18725 7576 50  0000 C CNN
-F 2 "Package_TO_SOT_SMD:SOT-23-6" H 18750 7400 50  0001 C CNN
+F 2 "For_SeeedStudio:SOT65P210X110-6N" H 18750 7400 50  0001 C CNN
 F 3 "https://www.diodes.com/assets/Datasheets/74LVC2G07.pdf" H 18750 7400 50  0001 C CNN
-F 4 "SN74LVC2G07DBVR" H 18750 7400 50  0001 C CNN "MPN"
+F 4 "SN74LVC2G07DCKR" H 18750 7400 50  0001 C CNN "MPN"
 	1    18750 7400
 	1    0    0    -1  
 $EndComp
@@ -752,26 +741,25 @@ U 2 1 5F74F263
 P 18750 7750
 F 0 "U_INT1" H 18725 8017 50  0000 C CNN
 F 1 "74LVC2G07" H 18725 7926 50  0000 C CNN
-F 2 "" H 18750 7750 50  0001 C CNN
-F 3 "http://www.ti.com/lit/sg/scyt129e/scyt129e.pdf" H 18750 7750 50  0001 C CNN
+F 2 "For_SeeedStudio:SOT65P210X110-6N" H 18750 7750 50  0001 C CNN
+F 3 "https://www.diodes.com/assets/Datasheets/74LVC2G07.pdf" H 18750 7750 50  0001 C CNN
+F 4 "SN74LVC2G07DCKR" H 18750 7750 50  0001 C CNN "MPN"
 	2    18750 7750
 	1    0    0    -1  
 $EndComp
-Text Notes 12150 2750 0    50   ~ 0
-Inputs only
 $Comp
 L Device:C C10
 U 1 1 5F815217
 P 1950 5450
 F 0 "C10" H 1975 5550 50  0000 L CNN
-F 1 "100nF" H 1975 5350 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 1988 5300 50  0001 C CNN
+F 1 "100nF 0402" H 1975 5350 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 1988 5300 50  0001 C CNN
 F 3 "" H 1950 5450 50  0000 C CNN
-F 4 "www.yageo.com" H 1950 5450 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 1950 5450 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 1950 5450 50  0001 C CNN "Mouser"
+F 4 "" H 1950 5450 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 1950 5450 50  0001 C CNN "MPN"
+F 6 "" H 1950 5450 50  0001 C CNN "Mouser"
 F 7 "?" H 1950 5450 50  0001 C CNN "Digikey"
-F 8 "?" H 1950 5450 50  0001 C CNN "LCSC"
+F 8 "" H 1950 5450 50  0001 C CNN "LCSC"
 F 9 "?" H 1950 5450 50  0001 C CNN "Koncar"
 F 10 "TB" H 1950 5450 50  0001 C CNN "Side"
 	1    1950 5450
@@ -829,7 +817,7 @@ P 1950 2200
 F 0 "U1" H 2750 2587 60  0000 C CNN
 F 1 "SN74CB3T16211DGGR" H 2750 2481 60  0000 C CNN
 F 2 "For_SeeedStudio:TSSOP-56_6.1x14mm_P0.5mm_For_SeeedStudio" H 2750 2440 60  0001 C CNN
-F 3 "https://www.ti.com/lit/ds/symlink/sn74cb3t16211.pdf" H 1950 2200 60  0000 C CNN
+F 3 "https://www.ti.com/lit/ds/symlink/sn74cb3t16211.pdf" H 1825 3100 60  0000 C CNN
 F 4 "SN74CB3T16211DGGR" H 1950 2200 50  0001 C CNN "MPN"
 	1    1950 2200
 	1    0    0    -1  
@@ -839,14 +827,14 @@ L Device:C C11
 U 1 1 5F8CA5C6
 P 5750 5450
 F 0 "C11" H 5775 5550 50  0000 L CNN
-F 1 "100nF" H 5775 5350 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 5788 5300 50  0001 C CNN
+F 1 "100nF 0402" H 5775 5350 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 5788 5300 50  0001 C CNN
 F 3 "" H 5750 5450 50  0000 C CNN
-F 4 "www.yageo.com" H 5750 5450 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 5750 5450 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 5750 5450 50  0001 C CNN "Mouser"
+F 4 "" H 5750 5450 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 5750 5450 50  0001 C CNN "MPN"
+F 6 "" H 5750 5450 50  0001 C CNN "Mouser"
 F 7 "?" H 5750 5450 50  0001 C CNN "Digikey"
-F 8 "?" H 5750 5450 50  0001 C CNN "LCSC"
+F 8 "" H 5750 5450 50  0001 C CNN "LCSC"
 F 9 "?" H 5750 5450 50  0001 C CNN "Koncar"
 F 10 "TB" H 5750 5450 50  0001 C CNN "Side"
 	1    5750 5450
@@ -914,14 +902,14 @@ L Device:C C12
 U 1 1 5F8F42D1
 P 9550 5450
 F 0 "C12" H 9575 5550 50  0000 L CNN
-F 1 "100nF" H 9575 5350 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 9588 5300 50  0001 C CNN
+F 1 "100nF 0402" H 9575 5350 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 9588 5300 50  0001 C CNN
 F 3 "" H 9550 5450 50  0000 C CNN
-F 4 "www.yageo.com" H 9550 5450 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 9550 5450 50  0001 C CNN "MPN"
-F 6 "603-CC60KRX7R8BB104" H 9550 5450 50  0001 C CNN "Mouser"
+F 4 "" H 9550 5450 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 9550 5450 50  0001 C CNN "MPN"
+F 6 "" H 9550 5450 50  0001 C CNN "Mouser"
 F 7 "?" H 9550 5450 50  0001 C CNN "Digikey"
-F 8 "?" H 9550 5450 50  0001 C CNN "LCSC"
+F 8 "" H 9550 5450 50  0001 C CNN "LCSC"
 F 9 "?" H 9550 5450 50  0001 C CNN "Koncar"
 F 10 "TB" H 9550 5450 50  0001 C CNN "Side"
 	1    9550 5450
@@ -986,61 +974,35 @@ F 6 "https://lcsc.com/product-detail/Signal-Switches-Encoders-Decoders-Multiplex
 	1    9550 2200
 	1    0    0    -1  
 $EndComp
-Text Notes 250  3000 0    50   ~ 0
-outputs only\n(inputs on master)
-$Comp
-L power:GND #PWR0107
-U 1 1 5F91A3C6
-P 7350 7200
-F 0 "#PWR0107" H 7350 6950 50  0001 C CNN
-F 1 "GND" H 7355 7027 50  0000 C CNN
-F 2 "" H 7350 7200 50  0001 C CNN
-F 3 "" H 7350 7200 50  0001 C CNN
-	1    7350 7200
-	-1   0    0    1   
-$EndComp
 $Comp
 L Device:C C13
 U 1 1 5F91A4F0
-P 5750 8550
-F 0 "C13" H 5775 8650 50  0000 L CNN
-F 1 "100nF" H 5775 8450 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 5788 8400 50  0001 C CNN
-F 3 "" H 5750 8550 50  0000 C CNN
-F 4 "www.yageo.com" H 5750 8550 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 5750 8550 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 5750 8550 50  0001 C CNN "Mouser"
-F 7 "?" H 5750 8550 50  0001 C CNN "Digikey"
-F 8 "?" H 5750 8550 50  0001 C CNN "LCSC"
-F 9 "?" H 5750 8550 50  0001 C CNN "Koncar"
-F 10 "TB" H 5750 8550 50  0001 C CNN "Side"
-	1    5750 8550
-	1    0    0    -1  
-$EndComp
-$Comp
-L power:GND #PWR0110
-U 1 1 5F91AEBF
-P 5750 8700
-F 0 "#PWR0110" H 5750 8450 50  0001 C CNN
-F 1 "GND" H 5755 8527 50  0000 C CNN
-F 2 "" H 5750 8700 50  0001 C CNN
-F 3 "" H 5750 8700 50  0001 C CNN
-	1    5750 8700
+P 6350 9900
+F 0 "C13" H 6375 10000 50  0000 L CNN
+F 1 "100nF 0402" H 6375 9800 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 6388 9750 50  0001 C CNN
+F 3 "" H 6350 9900 50  0000 C CNN
+F 4 "" H 6350 9900 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 6350 9900 50  0001 C CNN "MPN"
+F 6 "" H 6350 9900 50  0001 C CNN "Mouser"
+F 7 "?" H 6350 9900 50  0001 C CNN "Digikey"
+F 8 "" H 6350 9900 50  0001 C CNN "LCSC"
+F 9 "?" H 6350 9900 50  0001 C CNN "Koncar"
+F 10 "TB" H 6350 9900 50  0001 C CNN "Side"
+	1    6350 9900
 	1    0    0    -1  
 $EndComp
 $Comp
 L power:+3.3V #PWR0111
 U 1 1 5F91B88F
-P 5550 8400
-F 0 "#PWR0111" H 5550 8250 50  0001 C CNN
-F 1 "+3.3V" H 5565 8573 50  0000 C CNN
-F 2 "" H 5550 8400 50  0001 C CNN
-F 3 "" H 5550 8400 50  0001 C CNN
-	1    5550 8400
+P 4575 8925
+F 0 "#PWR0111" H 4575 8775 50  0001 C CNN
+F 1 "+3.3V" H 4590 9098 50  0000 C CNN
+F 2 "" H 4575 8925 50  0001 C CNN
+F 3 "" H 4575 8925 50  0001 C CNN
+	1    4575 8925
 	1    0    0    -1  
 $EndComp
-Wire Wire Line
-	5550 8400 5750 8400
 Wire Wire Line
 	1950 2200 1950 2300
 Text GLabel 1950 2200 0    60   Input ~ 12
@@ -1049,100 +1011,12 @@ Text GLabel 5750 2200 0    60   Input ~ 12
 SBUS_OE
 Text GLabel 9550 2200 0    60   Input ~ 12
 SBUS_OE
-Text GLabel 4800 8400 0    60   Input ~ 12
+Text GLabel 4275 8925 0    60   Input ~ 12
 SBUS_OE
 Wire Wire Line
 	9550 2300 9550 2200
 Wire Wire Line
 	5750 2300 5750 2200
-$Comp
-L Device:R R?
-U 1 1 5F93CF72
-P 5200 8400
-AR Path="/5F6B165A/5F93CF72" Ref="R?"  Part="1" 
-AR Path="/5F679B53/5F93CF72" Ref="R13"  Part="1" 
-F 0 "R13" V 5280 8400 50  0000 C CNN
-F 1 "10k" V 5200 8400 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 5130 8400 50  0001 C CNN
-F 3 "" H 5200 8400 50  0000 C CNN
-F 4 "0603WAF1002T5E" V 5200 7800 50  0001 C CNN "MPN"
-	1    5200 8400
-	0    1    1    0   
-$EndComp
-Wire Wire Line
-	5550 8400 5450 8400
-Connection ~ 5550 8400
-Wire Wire Line
-	5050 8400 4800 8400
-Wire Wire Line
-	5750 6900 4800 6900
-Wire Wire Line
-	5750 7100 4800 7100
-Connection ~ 4800 7100
-Wire Wire Line
-	4800 7100 4800 8400
-Text Notes 11950 3350 0    50   ~ 0
-BEWARE\nthe order\n(for routing)
-Wire Wire Line
-	5650 7250 7350 7250
-Wire Wire Line
-	7350 7250 7350 7200
-Connection ~ 7350 7200
-Wire Wire Line
-	8150 7200 7350 7200
-Wire Wire Line
-	8150 7700 7350 7700
-Wire Wire Line
-	5750 7700 5650 7700
-Connection ~ 5450 8400
-Wire Wire Line
-	5450 8400 5350 8400
-Wire Wire Line
-	5750 7200 5450 7200
-Wire Wire Line
-	5450 7200 5450 8400
-Wire Wire Line
-	8150 7200 8150 7500
-Connection ~ 5750 8400
-$Comp
-L ul_SN74CB3T3125PW:SN74CB3T3125PW U4
-U 1 1 5F9151C4
-P 5750 6900
-F 0 "U4" H 6550 7287 60  0000 C CNN
-F 1 "SN74CB3T3125PW" H 6550 7181 60  0000 C CNN
-F 2 "Package_SO:TSSOP-14_4.4x5mm_P0.65mm" H 6550 7140 60  0001 C CNN
-F 3 "https://www.ti.com/lit/ds/symlink/sn74cb3t3125.pdf" H 5750 6900 60  0000 C CNN
-F 4 "SN74CB3T3125PW" H 5750 6900 50  0001 C CNN "MPN"
-	1    5750 6900
-	1    0    0    -1  
-$EndComp
-Wire Wire Line
-	5650 7250 5650 7700
-Text Notes 450  2700 0    50   ~ 0
-BEWARE\nthe order\n(for routing)
-Wire Wire Line
-	7350 7500 8150 7500
-Connection ~ 8150 7500
-Wire Wire Line
-	8150 7500 8150 7700
-Wire Wire Line
-	5750 7500 6500 7500
-Wire Wire Line
-	6500 7500 6500 7750
-Wire Wire Line
-	6500 7750 8150 7750
-Wire Wire Line
-	8150 7750 8150 7700
-Connection ~ 8150 7700
-Wire Wire Line
-	4800 6900 4800 7100
-Wire Wire Line
-	5450 7200 5450 7000
-Wire Wire Line
-	5450 7000 5750 7000
-Connection ~ 5450 7200
-Text Notes 500  5100 0    50   ~ 0
-BEWARE\nthe order\n(for routing)
 $Comp
 L power:VCC #PWR0131
 U 1 1 60DE3981
@@ -1183,14 +1057,14 @@ L Device:C C4
 U 1 1 60DE399B
 P 16600 8750
 F 0 "C4" H 16625 8850 50  0000 L CNN
-F 1 "100nF" H 16625 8650 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 16638 8600 50  0001 C CNN
+F 1 "100nF 0402" H 16625 8650 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 16638 8600 50  0001 C CNN
 F 3 "" H 16600 8750 50  0000 C CNN
-F 4 "www.yageo.com" H 16600 8750 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 16600 8750 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 16600 8750 50  0001 C CNN "Mouser"
+F 4 "" H 16600 8750 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 16600 8750 50  0001 C CNN "MPN"
+F 6 "" H 16600 8750 50  0001 C CNN "Mouser"
 F 7 "?" H 16600 8750 50  0001 C CNN "Digikey"
-F 8 "?" H 16600 8750 50  0001 C CNN "LCSC"
+F 8 "" H 16600 8750 50  0001 C CNN "LCSC"
 F 9 "?" H 16600 8750 50  0001 C CNN "Koncar"
 F 10 "TB" H 16600 8750 50  0001 C CNN "Side"
 	1    16600 8750
@@ -1205,9 +1079,9 @@ AR Path="/5F6B165A/60DE39A4" Ref="R?"  Part="1"
 AR Path="/5F679B53/60DE39A4" Ref="R1"  Part="1" 
 F 0 "R1" V 18280 8400 50  0000 C CNN
 F 1 "10k" V 18200 8400 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 18130 8400 50  0001 C CNN
+F 2 "Resistor_SMD:R_0402_1005Metric" V 18130 8400 50  0001 C CNN
 F 3 "" H 18200 8400 50  0000 C CNN
-F 4 "0603WAF1002T5E" V 18200 7800 50  0001 C CNN "MPN"
+F 4 "0402WGF1002TCE" V 18200 7800 50  0001 C CNN "MPN"
 	1    18200 8400
 	0    1    1    0   
 $EndComp
@@ -1219,9 +1093,9 @@ AR Path="/5F6B165A/60DE39AC" Ref="R?"  Part="1"
 AR Path="/5F679B53/60DE39AC" Ref="R2"  Part="1" 
 F 0 "R2" V 18280 8750 50  0000 C CNN
 F 1 "10k" V 18200 8750 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 18130 8750 50  0001 C CNN
+F 2 "Resistor_SMD:R_0402_1005Metric" V 18130 8750 50  0001 C CNN
 F 3 "" H 18200 8750 50  0000 C CNN
-F 4 "0603WAF1002T5E" V 18200 8150 50  0001 C CNN "MPN"
+F 4 "0402WGF1002TCE" V 18200 8150 50  0001 C CNN "MPN"
 	1    18200 8750
 	0    1    1    0   
 $EndComp
@@ -1256,9 +1130,9 @@ U 1 1 60DE39C3
 P 18650 8500
 F 0 "U_INT2" H 18625 8767 50  0000 C CNN
 F 1 "74LVC2G07" H 18625 8676 50  0000 C CNN
-F 2 "Package_TO_SOT_SMD:SOT-23-6" H 18650 8500 50  0001 C CNN
+F 2 "For_SeeedStudio:SOT65P210X110-6N" H 18650 8500 50  0001 C CNN
 F 3 "https://www.diodes.com/assets/Datasheets/74LVC2G07.pdf" H 18650 8500 50  0001 C CNN
-F 4 "SN74LVC2G07DBVR" H 18650 8500 50  0001 C CNN "MPN"
+F 4 "SN74LVC2G07DCKR" H 18650 8500 50  0001 C CNN "MPN"
 	1    18650 8500
 	1    0    0    -1  
 $EndComp
@@ -1268,8 +1142,9 @@ U 2 1 60DE39CA
 P 18650 8850
 F 0 "U_INT2" H 18625 9117 50  0000 C CNN
 F 1 "74LVC2G07" H 18625 9026 50  0000 C CNN
-F 2 "" H 18650 8850 50  0001 C CNN
-F 3 "http://www.ti.com/lit/sg/scyt129e/scyt129e.pdf" H 18650 8850 50  0001 C CNN
+F 2 "For_SeeedStudio:SOT65P210X110-6N" H 18650 8850 50  0001 C CNN
+F 3 "https://www.diodes.com/assets/Datasheets/74LVC2G07.pdf" H 18650 8850 50  0001 C CNN
+F 4 "SN74LVC2G07DCKR" H 18650 8850 50  0001 C CNN "MPN"
 	2    18650 8850
 	1    0    0    -1  
 $EndComp
@@ -1315,14 +1190,14 @@ L Device:C C7
 U 1 1 612A6155
 P 16600 9900
 F 0 "C7" H 16625 10000 50  0000 L CNN
-F 1 "100nF" H 16625 9800 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 16638 9750 50  0001 C CNN
+F 1 "100nF 0402" H 16625 9800 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 16638 9750 50  0001 C CNN
 F 3 "" H 16600 9900 50  0000 C CNN
-F 4 "www.yageo.com" H 16600 9900 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 16600 9900 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 16600 9900 50  0001 C CNN "Mouser"
+F 4 "" H 16600 9900 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 16600 9900 50  0001 C CNN "MPN"
+F 6 "" H 16600 9900 50  0001 C CNN "Mouser"
 F 7 "?" H 16600 9900 50  0001 C CNN "Digikey"
-F 8 "?" H 16600 9900 50  0001 C CNN "LCSC"
+F 8 "" H 16600 9900 50  0001 C CNN "LCSC"
 F 9 "?" H 16600 9900 50  0001 C CNN "Koncar"
 F 10 "TB" H 16600 9900 50  0001 C CNN "Side"
 	1    16600 9900
@@ -1337,9 +1212,9 @@ AR Path="/5F6B165A/612A615E" Ref="R?"  Part="1"
 AR Path="/5F679B53/612A615E" Ref="R5"  Part="1" 
 F 0 "R5" V 18280 9550 50  0000 C CNN
 F 1 "10k" V 18200 9550 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 18130 9550 50  0001 C CNN
+F 2 "Resistor_SMD:R_0402_1005Metric" V 18130 9550 50  0001 C CNN
 F 3 "" H 18200 9550 50  0000 C CNN
-F 4 "0603WAF1002T5E" V 18200 8950 50  0001 C CNN "MPN"
+F 4 "0402WGF1002TCE" V 18200 8950 50  0001 C CNN "MPN"
 	1    18200 9550
 	0    1    1    0   
 $EndComp
@@ -1351,9 +1226,9 @@ AR Path="/5F6B165A/612A6166" Ref="R?"  Part="1"
 AR Path="/5F679B53/612A6166" Ref="R6"  Part="1" 
 F 0 "R6" V 18280 9900 50  0000 C CNN
 F 1 "10k" V 18200 9900 50  0000 C CNN
-F 2 "Resistor_SMD:R_0603_1608Metric" V 18130 9900 50  0001 C CNN
+F 2 "Resistor_SMD:R_0402_1005Metric" V 18130 9900 50  0001 C CNN
 F 3 "" H 18200 9900 50  0000 C CNN
-F 4 "0603WAF1002T5E" V 18200 9300 50  0001 C CNN "MPN"
+F 4 "0402WGF1002TCE" V 18200 9300 50  0001 C CNN "MPN"
 	1    18200 9900
 	0    1    1    0   
 $EndComp
@@ -1388,9 +1263,9 @@ U 1 1 612A617C
 P 18650 9650
 F 0 "U_INT3" H 18625 9917 50  0000 C CNN
 F 1 "74LVC2G07" H 18625 9826 50  0000 C CNN
-F 2 "Package_TO_SOT_SMD:SOT-23-6" H 18650 9650 50  0001 C CNN
+F 2 "For_SeeedStudio:SOT65P210X110-6N" H 18650 9650 50  0001 C CNN
 F 3 "https://www.diodes.com/assets/Datasheets/74LVC2G07.pdf" H 18650 9650 50  0001 C CNN
-F 4 "SN74LVC2G07DBVR" H 18650 9650 50  0001 C CNN "MPN"
+F 4 "SN74LVC2G07DCKR" H 18650 9650 50  0001 C CNN "MPN"
 	1    18650 9650
 	1    0    0    -1  
 $EndComp
@@ -1400,49 +1275,167 @@ U 2 1 612A6183
 P 18650 10000
 F 0 "U_INT3" H 18625 10267 50  0000 C CNN
 F 1 "74LVC2G07" H 18625 10176 50  0000 C CNN
-F 2 "" H 18650 10000 50  0001 C CNN
-F 3 "http://www.ti.com/lit/sg/scyt129e/scyt129e.pdf" H 18650 10000 50  0001 C CNN
+F 2 "For_SeeedStudio:SOT65P210X110-6N" H 18650 10000 50  0001 C CNN
+F 3 "https://www.diodes.com/assets/Datasheets/74LVC2G07.pdf" H 18650 10000 50  0001 C CNN
+F 4 "SN74LVC2G07DCKR" H 18650 10000 50  0001 C CNN "MPN"
 	2    18650 10000
 	1    0    0    -1  
 $EndComp
+Text GLabel 1950 4100 0    60   Input ~ 0
+SBUS_5V_PA[17]
+Text GLabel 1950 4000 0    60   Input ~ 0
+SBUS_5V_PA[16]
+Text GLabel 1950 4300 0    60   Input ~ 0
+SBUS_5V_PA[15]
+NoConn ~ 1950 5200
 $Comp
-L Device:C C8
-U 1 1 612BD908
-P 6600 9200
-F 0 "C8" H 6625 9300 50  0000 L CNN
-F 1 "100nF" H 6625 9100 50  0000 L CNN
-F 2 "Capacitor_SMD:C_0603_1608Metric" H 6638 9050 50  0001 C CNN
-F 3 "" H 6600 9200 50  0000 C CNN
-F 4 "www.yageo.com" H 6600 9200 50  0001 C CNN "MNF1_URL"
-F 5 "CC0603KRX7R8BB104" H 6600 9200 50  0001 C CNN "MPN"
-F 6 "603-CC603KRX7R8BB104" H 6600 9200 50  0001 C CNN "Mouser"
-F 7 "?" H 6600 9200 50  0001 C CNN "Digikey"
-F 8 "?" H 6600 9200 50  0001 C CNN "LCSC"
-F 9 "?" H 6600 9200 50  0001 C CNN "Koncar"
-F 10 "TB" H 6600 9200 50  0001 C CNN "Side"
-	1    6600 9200
+L 74xGxx:74CB3T1G125 U10
+U 1 1 6539E131
+P 6000 9450
+F 0 "U10" H 6000 9767 50  0000 C CNN
+F 1 "74CB3T1G125" H 6000 9676 50  0000 C CNN
+F 2 "Package_TO_SOT_SMD:SOT-23-5" H 6000 9450 50  0001 C CNN
+F 3 "http://www.ti.com/lit/sg/scyt129e/scyt129e.pdf" H 6000 9450 50  0001 C CNN
+F 4 "SN74CB3T1G125DBVR" H 6000 9450 50  0001 C CNN "MPN"
+	1    6000 9450
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:GND #PWR0142
-U 1 1 612BD90F
-P 6600 9350
-F 0 "#PWR0142" H 6600 9100 50  0001 C CNN
-F 1 "GND" H 6605 9177 50  0000 C CNN
-F 2 "" H 6600 9350 50  0001 C CNN
-F 3 "" H 6600 9350 50  0001 C CNN
-	1    6600 9350
+L Device:R R?
+U 1 1 5F93CF72
+P 4425 8925
+AR Path="/5F6B165A/5F93CF72" Ref="R?"  Part="1" 
+AR Path="/5F679B53/5F93CF72" Ref="R13"  Part="1" 
+F 0 "R13" V 4505 8925 50  0000 C CNN
+F 1 "10k" V 4425 8925 50  0000 C CNN
+F 2 "Resistor_SMD:R_0402_1005Metric" V 4355 8925 50  0001 C CNN
+F 3 "" H 4425 8925 50  0000 C CNN
+F 4 "0402WGF1002TCE" V 4425 8325 50  0001 C CNN "MPN"
+	1    4425 8925
+	0    1    1    0   
+$EndComp
+Text GLabel 5750 9350 0    60   Input ~ 0
+SBUS_5V_BG*
+Text GLabel 5750 9550 0    60   Input ~ 12
+SBUS_OE
+$Comp
+L power:GND #PWR0110
+U 1 1 5F91AEBF
+P 6350 10050
+F 0 "#PWR0110" H 6350 9800 50  0001 C CNN
+F 1 "GND" H 6355 9877 50  0000 C CNN
+F 2 "" H 6350 10050 50  0001 C CNN
+F 3 "" H 6350 10050 50  0001 C CNN
+	1    6350 10050
 	1    0    0    -1  
 $EndComp
 $Comp
-L power:+3.3V #PWR0143
-U 1 1 612C0425
-P 6600 9050
-F 0 "#PWR0143" H 6600 8900 50  0001 C CNN
-F 1 "+3.3V" H 6615 9223 50  0000 C CNN
-F 2 "" H 6600 9050 50  0001 C CNN
-F 3 "" H 6600 9050 50  0001 C CNN
-	1    6600 9050
+L power:+3.3V #PWR0107
+U 1 1 653A8EB4
+P 6350 9750
+F 0 "#PWR0107" H 6350 9600 50  0001 C CNN
+F 1 "+3.3V" H 6365 9923 50  0000 C CNN
+F 2 "" H 6350 9750 50  0001 C CNN
+F 3 "" H 6350 9750 50  0001 C CNN
+	1    6350 9750
 	1    0    0    -1  
 $EndComp
+$Comp
+L power:+3.3V #PWR0166
+U 1 1 653A9329
+P 5975 9300
+F 0 "#PWR0166" H 5975 9150 50  0001 C CNN
+F 1 "+3.3V" H 5990 9473 50  0000 C CNN
+F 2 "" H 5975 9300 50  0001 C CNN
+F 3 "" H 5975 9300 50  0001 C CNN
+	1    5975 9300
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:GND #PWR0167
+U 1 1 653A9574
+P 6000 9600
+F 0 "#PWR0167" H 6000 9350 50  0001 C CNN
+F 1 "GND" H 6005 9427 50  0000 C CNN
+F 2 "" H 6000 9600 50  0001 C CNN
+F 3 "" H 6000 9600 50  0001 C CNN
+	1    6000 9600
+	1    0    0    -1  
+$EndComp
+$Comp
+L 74xGxx:74CB3T1G125 U4
+U 1 1 653AD462
+P 8075 9450
+F 0 "U4" H 8075 9767 50  0000 C CNN
+F 1 "74CB3T1G125" H 8075 9676 50  0000 C CNN
+F 2 "Package_TO_SOT_SMD:SOT-23-5" H 8075 9450 50  0001 C CNN
+F 3 "http://www.ti.com/lit/sg/scyt129e/scyt129e.pdf" H 8075 9450 50  0001 C CNN
+F 4 "SN74CB3T1G125DBVR" H 8075 9450 50  0001 C CNN "MPN"
+	1    8075 9450
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:GND #PWR0168
+U 1 1 653ADAA5
+P 8075 9600
+F 0 "#PWR0168" H 8075 9350 50  0001 C CNN
+F 1 "GND" H 8080 9427 50  0000 C CNN
+F 2 "" H 8075 9600 50  0001 C CNN
+F 3 "" H 8075 9600 50  0001 C CNN
+	1    8075 9600
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:+3.3V #PWR0169
+U 1 1 653ADDE1
+P 8075 9300
+F 0 "#PWR0169" H 8075 9150 50  0001 C CNN
+F 1 "+3.3V" H 8090 9473 50  0000 C CNN
+F 2 "" H 8075 9300 50  0001 C CNN
+F 3 "" H 8075 9300 50  0001 C CNN
+	1    8075 9300
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:C C27
+U 1 1 653AFCD6
+P 8500 9825
+F 0 "C27" H 8525 9925 50  0000 L CNN
+F 1 "100nF 0402" H 8525 9725 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 8538 9675 50  0001 C CNN
+F 3 "" H 8500 9825 50  0000 C CNN
+F 4 "" H 8500 9825 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 8500 9825 50  0001 C CNN "MPN"
+F 6 "" H 8500 9825 50  0001 C CNN "Mouser"
+F 7 "?" H 8500 9825 50  0001 C CNN "Digikey"
+F 8 "" H 8500 9825 50  0001 C CNN "LCSC"
+F 9 "?" H 8500 9825 50  0001 C CNN "Koncar"
+F 10 "TB" H 8500 9825 50  0001 C CNN "Side"
+	1    8500 9825
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:GND #PWR0170
+U 1 1 653AFCDC
+P 8500 9975
+F 0 "#PWR0170" H 8500 9725 50  0001 C CNN
+F 1 "GND" H 8505 9802 50  0000 C CNN
+F 2 "" H 8500 9975 50  0001 C CNN
+F 3 "" H 8500 9975 50  0001 C CNN
+	1    8500 9975
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:+3.3V #PWR0171
+U 1 1 653AFCE2
+P 8500 9675
+F 0 "#PWR0171" H 8500 9525 50  0001 C CNN
+F 1 "+3.3V" H 8515 9848 50  0000 C CNN
+F 2 "" H 8500 9675 50  0001 C CNN
+F 3 "" H 8500 9675 50  0001 C CNN
+	1    8500 9675
+	1    0    0    -1  
+$EndComp
+Text GLabel 7825 9550 0    60   Input ~ 12
+SBUS_OE
 $EndSCHEMATC
