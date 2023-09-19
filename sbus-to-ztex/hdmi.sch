@@ -1,0 +1,481 @@
+EESchema Schematic File Version 4
+EELAYER 30 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 6 9
+Title "nubus-to-ztex HDMI"
+Date ""
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+$Comp
+L TPD12S016PWR:TPD12S016PWR U7
+U 1 1 6148D344
+P 3300 2700
+F 0 "U7" H 3300 4067 50  0000 C CNN
+F 1 "TPD12S016PWR" H 3300 3976 50  0000 C CNN
+F 2 "For_SeeedStudio:SOP65P640X120-24N" H 3300 2700 50  0001 L BNN
+F 3 "" H 3300 2700 50  0001 L BNN
+F 4 "1.2 mm" H 3300 2700 50  0001 L BNN "MAXIMUM_PACKAGE_HEIGHT"
+F 5 "Texas Instruments" H 3300 2700 50  0001 L BNN "MANUFACTURER"
+F 6 "F" H 3300 2700 50  0001 L BNN "PARTREV"
+F 7 "IPC 7351B" H 3300 2700 50  0001 L BNN "STANDARD"
+F 8 "TPD12S016PWR" H 3300 2700 50  0001 C CNN "MPN"
+F 9 "https://lcsc.com/product-detail/Interface-Specialized_Texas-Instruments-TPD12S016PWR_C201665.html" H 3300 2700 50  0001 C CNN "URL"
+	1    3300 2700
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	4000 3600 4000 3650
+$Comp
+L power:GND #PWR0146
+U 1 1 60DDF342
+P 4000 3900
+F 0 "#PWR0146" H 4000 3650 50  0001 C CNN
+F 1 "GND" H 4005 3727 50  0000 C CNN
+F 2 "" H 4000 3900 50  0001 C CNN
+F 3 "" H 4000 3900 50  0001 C CNN
+	1    4000 3900
+	1    0    0    -1  
+$EndComp
+Text GLabel 4000 2100 2    50   Input ~ 0
+HDMI_CLK+
+Text GLabel 6250 2350 0    50   Input ~ 0
+HDMI_CLK+
+Text GLabel 4000 2200 2    50   Input ~ 0
+HDMI_CLK-
+Text GLabel 6250 2450 0    50   Input ~ 0
+HDMI_CLK-
+Text GLabel 6250 2150 0    50   Input ~ 0
+HDMI_D0+
+Text GLabel 6250 2250 0    50   Input ~ 0
+HDMI_D0-
+Text GLabel 6250 1950 0    50   Input ~ 0
+HDMI_D1+
+Text GLabel 6250 2050 0    50   Input ~ 0
+HDMI_D1-
+Text GLabel 6250 1750 0    50   Input ~ 0
+HDMI_D2+
+Text GLabel 6250 1850 0    50   Input ~ 0
+HDMI_D2-
+Text GLabel 4000 2300 2    50   Input ~ 0
+HDMI_D0+
+Text GLabel 4000 2400 2    50   Input ~ 0
+HDMI_D0-
+Text GLabel 4000 2500 2    50   Input ~ 0
+HDMI_D1+
+Text GLabel 4000 2600 2    50   Input ~ 0
+HDMI_D1-
+Text GLabel 4000 2700 2    50   Input ~ 0
+HDMI_D2+
+Text GLabel 4000 2800 2    50   Input ~ 0
+HDMI_D2-
+Wire Wire Line
+	6250 2850 5000 2850
+Wire Wire Line
+	5000 2850 5000 3200
+Wire Wire Line
+	5000 3200 4000 3200
+Wire Wire Line
+	6250 2950 5100 2950
+Wire Wire Line
+	5100 2950 5100 3300
+Wire Wire Line
+	5100 3300 4000 3300
+Wire Wire Line
+	6250 2650 4900 2650
+Wire Wire Line
+	4900 2650 4900 3100
+Wire Wire Line
+	4900 3100 4000 3100
+Wire Wire Line
+	4000 3000 5700 3000
+Wire Wire Line
+	5700 3000 5700 3250
+Wire Wire Line
+	5700 3250 6250 3250
+Wire Wire Line
+	7300 1450 7300 1550
+$Comp
+L Device:C C?
+U 1 1 6148D345
+P 7300 1700
+AR Path="/5F679B53/6148D345" Ref="C?"  Part="1" 
+AR Path="/5F6B165A/6148D345" Ref="C?"  Part="1" 
+AR Path="/612D28DD/6148D345" Ref="C?"  Part="1" 
+AR Path="/61B62C00/6148D345" Ref="C24"  Part="1" 
+AR Path="/64CBE795/6148D345" Ref="C19"  Part="1" 
+AR Path="/652243BA/6148D345" Ref="C20"  Part="1" 
+F 0 "C20" H 7325 1800 50  0000 L CNN
+F 1 "100nF 0402" H 7325 1600 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 7338 1550 50  0001 C CNN
+F 3 "" H 7300 1700 50  0000 C CNN
+F 4 "" H 7300 1700 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 7300 1700 50  0001 C CNN "MPN"
+F 6 "" H 7300 1700 50  0001 C CNN "Mouser"
+F 7 "?" H 7300 1700 50  0001 C CNN "Digikey"
+F 8 "" H 7300 1700 50  0001 C CNN "LCSC"
+F 9 "?" H 7300 1700 50  0001 C CNN "Koncar"
+F 10 "TB" H 7300 1700 50  0001 C CNN "Side"
+F 11 "" H 3000 6050 50  0001 C CNN "URL"
+	1    7300 1700
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:GND #PWR0147
+U 1 1 6148D346
+P 7300 1850
+F 0 "#PWR0147" H 7300 1600 50  0001 C CNN
+F 1 "GND" H 7305 1677 50  0000 C CNN
+F 2 "" H 7300 1850 50  0001 C CNN
+F 3 "" H 7300 1850 50  0001 C CNN
+	1    7300 1850
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:+3V3 #PWR0148
+U 1 1 6148D347
+P 2600 1600
+F 0 "#PWR0148" H 2600 1450 50  0001 C CNN
+F 1 "+3V3" H 2615 1773 50  0000 C CNN
+F 2 "" H 2600 1600 50  0001 C CNN
+F 3 "" H 2600 1600 50  0001 C CNN
+	1    2600 1600
+	1    0    0    -1  
+$EndComp
+$Comp
+L power:+5V #PWR0149
+U 1 1 6148D348
+P 2600 1900
+F 0 "#PWR0149" H 2600 1750 50  0001 C CNN
+F 1 "+5V" H 2615 2073 50  0000 C CNN
+F 2 "" H 2600 1900 50  0001 C CNN
+F 3 "" H 2600 1900 50  0001 C CNN
+	1    2600 1900
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	2600 2300 2400 2300
+Wire Wire Line
+	2400 2300 2400 2100
+Wire Wire Line
+	2400 2100 2600 2100
+Wire Wire Line
+	2600 1600 2400 1600
+Wire Wire Line
+	2400 1600 2400 2100
+Connection ~ 2400 2100
+$Comp
+L Device:C C?
+U 1 1 6148D349
+P 2250 1600
+AR Path="/5F679B53/6148D349" Ref="C?"  Part="1" 
+AR Path="/5F6B165A/6148D349" Ref="C?"  Part="1" 
+AR Path="/612D28DD/6148D349" Ref="C?"  Part="1" 
+AR Path="/61B62C00/6148D349" Ref="C22"  Part="1" 
+AR Path="/64CBE795/6148D349" Ref="C17"  Part="1" 
+AR Path="/652243BA/6148D349" Ref="C18"  Part="1" 
+F 0 "C18" H 2275 1700 50  0000 L CNN
+F 1 "100nF 0402" H 2275 1500 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 2288 1450 50  0001 C CNN
+F 3 "" H 2250 1600 50  0000 C CNN
+F 4 "" H 2250 1600 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 2250 1600 50  0001 C CNN "MPN"
+F 6 "" H 2250 1600 50  0001 C CNN "Mouser"
+F 7 "?" H 2250 1600 50  0001 C CNN "Digikey"
+F 8 "" H 2250 1600 50  0001 C CNN "LCSC"
+F 9 "?" H 2250 1600 50  0001 C CNN "Koncar"
+F 10 "TB" H 2250 1600 50  0001 C CNN "Side"
+F 11 "" H 2250 1600 50  0001 C CNN "URL"
+	1    2250 1600
+	0    1    1    0   
+$EndComp
+$Comp
+L power:GND #PWR0150
+U 1 1 6148D34A
+P 2100 1600
+F 0 "#PWR0150" H 2100 1350 50  0001 C CNN
+F 1 "GND" V 2105 1472 50  0000 R CNN
+F 2 "" H 2100 1600 50  0001 C CNN
+F 3 "" H 2100 1600 50  0001 C CNN
+	1    2100 1600
+	0    1    1    0   
+$EndComp
+$Comp
+L Device:C C?
+U 1 1 6148D34B
+P 2450 1900
+AR Path="/5F679B53/6148D34B" Ref="C?"  Part="1" 
+AR Path="/5F6B165A/6148D34B" Ref="C?"  Part="1" 
+AR Path="/612D28DD/6148D34B" Ref="C?"  Part="1" 
+AR Path="/61B62C00/6148D34B" Ref="C23"  Part="1" 
+AR Path="/64CBE795/6148D34B" Ref="C18"  Part="1" 
+AR Path="/652243BA/6148D34B" Ref="C19"  Part="1" 
+F 0 "C19" H 2475 2000 50  0000 L CNN
+F 1 "100nF 0402" H 2475 1800 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 2488 1750 50  0001 C CNN
+F 3 "" H 2450 1900 50  0000 C CNN
+F 4 "" H 2450 1900 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 2450 1900 50  0001 C CNN "MPN"
+F 6 "" H 2450 1900 50  0001 C CNN "Mouser"
+F 7 "?" H 2450 1900 50  0001 C CNN "Digikey"
+F 8 "" H 2450 1900 50  0001 C CNN "LCSC"
+F 9 "?" H 2450 1900 50  0001 C CNN "Koncar"
+F 10 "TB" H 2450 1900 50  0001 C CNN "Side"
+F 11 "" H 3000 6050 50  0001 C CNN "URL"
+	1    2450 1900
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	2300 1900 2100 1900
+Wire Wire Line
+	2100 1900 2100 1600
+Text GLabel 2600 3000 0    50   Input ~ 0
+HDMI_HPD_A
+Text GLabel 2600 3100 0    50   Input ~ 0
+HDMI_CEC_A
+Text GLabel 2600 3200 0    50   Input ~ 0
+HDMI_SCL_A
+Text GLabel 2600 3300 0    50   Input ~ 0
+HDMI_SDA_A
+$Comp
+L Connector:HDMI_A J4
+U 1 1 6148D34C
+P 6650 2550
+F 0 "J4" H 7079 2596 50  0000 L CNN
+F 1 "10029449-111RLF (HDMI A)" H 7079 2505 50  0000 L CNN
+F 2 "For_SeeedStudio:HDMI_A_Amphenol_10029449-111" H 6675 2550 50  0001 C CNN
+F 3 "https://en.wikipedia.org/wiki/HDMI" H 6675 2550 50  0001 C CNN
+F 4 "10029449-111RLF" H 6650 2550 50  0001 C CNN "MPN"
+F 5 "https://www2.mouser.com/ProductDetail/Amphenol-FCI/10029449-111RLF?qs=fmpTyLOWOey0HPdD9%2F%2FaXA%3D%3D" H 6650 2550 50  0001 C CNN "URL-ALT"
+F 6 "https://www.lcsc.com/product-detail/D-Sub-DVI-HDMI-Connectors_Amphenol-ICC-10029449-111RLF_C427307.html" H 6650 2550 50  0001 C CNN "URL"
+	1    6650 2550
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	6450 3650 6550 3650
+Connection ~ 6450 3650
+Wire Wire Line
+	6650 3650 6750 3650
+Connection ~ 6750 3650
+Wire Wire Line
+	6750 3650 6850 3650
+Wire Wire Line
+	6550 3650 6650 3650
+Connection ~ 6550 3650
+Connection ~ 6650 3650
+Text Label 4900 2650 0    50   ~ 0
+HDMI_CEC_B
+Text Label 5000 2850 0    50   ~ 0
+HDMI_SCL_B
+Text Label 5100 2950 0    50   ~ 0
+HDMI_SDA_B
+Text Label 5700 3000 0    50   ~ 0
+HDMI_HPD_B
+$Comp
+L Device:C C?
+U 1 1 6148D34D
+P 2250 1350
+AR Path="/5F69F4EF/6148D34D" Ref="C?"  Part="1" 
+AR Path="/5F6B165A/6148D34D" Ref="C?"  Part="1" 
+AR Path="/612D28DD/6148D34D" Ref="C?"  Part="1" 
+AR Path="/61B62C00/6148D34D" Ref="C21"  Part="1" 
+AR Path="/64CBE795/6148D34D" Ref="C16"  Part="1" 
+AR Path="/652243BA/6148D34D" Ref="C17"  Part="1" 
+F 0 "C17" H 2275 1450 50  0000 L CNN
+F 1 "47uF 10V 1206" H 2275 1250 50  0000 L CNN
+F 2 "Capacitor_SMD:C_1206_3216Metric" H 2288 1200 50  0001 C CNN
+F 3 "" H 2250 1350 50  0000 C CNN
+F 4 "GRM21BR61A476ME15L # 10V" H 2250 1350 50  0001 C CNN "MPN-ALT3"
+F 5 "GRM21BR60J476ME15L # 6V3 # delay" H 2250 1350 50  0001 C CNN "MPN-ALT2"
+F 6 "CC0805MRX5R5BB476 # obsolete" H 2250 1350 50  0001 C CNN "MPN-ALT"
+F 7 "GRM21BR60J476ME01L" H 2250 1350 50  0001 C CNN "MPN-PREV"
+F 8 "https://www2.mouser.com/ProductDetail/Murata/GRM21BR60J476ME15L?qs=Tw3AuTVwGeLlkNhaDtjM1w%3D%3D" H 2250 1350 50  0001 C CNN "URL-ALT2"
+F 9 "https://www2.mouser.com/ProductDetail/?qs=u16ybLDytRYYQtTToF3RWA%3D%3D" H 2250 1350 50  0001 C CNN "URL-PREV"
+F 10 "https://lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_TDK-C2012X5R1A476MTJ00E_C76636.html" H 2250 1350 50  0001 C CNN "URL-ALT"
+F 11 "CL31A476MPHNNNE" H 2250 1350 50  0001 C CNN "MPN"
+F 12 "https://www.lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_Samsung-Electro-Mechanics-CL31A476MPHNNNE_C96123.html" H 2250 1350 50  0001 C CNN "URL"
+	1    2250 1350
+	0    1    1    0   
+$EndComp
+Connection ~ 2400 1600
+Connection ~ 2100 1600
+Text GLabel 6950 3650 2    50   Input ~ 0
+SHIELD
+Text HLabel 4000 3000 2    50   Input ~ 0
+hpd_b
+Text HLabel 4000 3100 2    50   Input ~ 0
+cec_b
+Text HLabel 4000 3200 2    50   Input ~ 0
+scl_b
+Text HLabel 4000 3300 2    50   Input ~ 0
+sda_b
+Text HLabel 2600 2300 2    50   Input ~ 0
+ls_oe
+Text HLabel 2600 2100 2    50   Input ~ 0
+ct_hpd
+$Comp
+L Device:C C?
+U 1 1 61B9B186
+P 2250 1100
+AR Path="/5F679B53/61B9B186" Ref="C?"  Part="1" 
+AR Path="/5F6B165A/61B9B186" Ref="C?"  Part="1" 
+AR Path="/612D28DD/61B9B186" Ref="C?"  Part="1" 
+AR Path="/61B62C00/61B9B186" Ref="C20"  Part="1" 
+AR Path="/64CBE795/61B9B186" Ref="C15"  Part="1" 
+AR Path="/652243BA/61B9B186" Ref="C16"  Part="1" 
+F 0 "C16" H 2275 1200 50  0000 L CNN
+F 1 "10nF 0402" H 2275 1000 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 2288 950 50  0001 C CNN
+F 3 "" H 2250 1100 50  0000 C CNN
+F 4 "" H 2250 1100 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B103KB5NNNC" H 2250 1100 50  0001 C CNN "MPN"
+F 6 "" H 2250 1100 50  0001 C CNN "Mouser"
+F 7 "" H 2250 1100 50  0001 C CNN "URL"
+	1    2250 1100
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	2400 1100 2400 1350
+Wire Wire Line
+	2100 1100 2100 1350
+Connection ~ 2400 1350
+Wire Wire Line
+	2400 1350 2400 1600
+Connection ~ 2100 1350
+Wire Wire Line
+	2100 1350 2100 1600
+Wire Wire Line
+	4000 3650 6450 3650
+NoConn ~ 6250 3150
+Wire Wire Line
+	6650 1450 7300 1450
+Text HLabel 7300 1450 2    50   Input ~ 0
+HDMI_5V
+Text HLabel 4000 1900 2    50   Input ~ 0
+HDMI_5V
+Text GLabel 8200 4500 0    50   Input ~ 0
+SHIELD
+$Comp
+L power:GND #PWR?
+U 1 1 641A2752
+P 8500 4800
+AR Path="/61B62C00/641A0A1A/641A2752" Ref="#PWR?"  Part="1" 
+AR Path="/61B62C00/641A2752" Ref="#PWR0132"  Part="1" 
+AR Path="/64CBE795/641A2752" Ref="#PWR0181"  Part="1" 
+AR Path="/652243BA/641A2752" Ref="#PWR0151"  Part="1" 
+F 0 "#PWR0151" H 8500 4550 50  0001 C CNN
+F 1 "GND" H 8505 4627 50  0000 C CNN
+F 2 "" H 8500 4800 50  0001 C CNN
+F 3 "" H 8500 4800 50  0001 C CNN
+	1    8500 4800
+	1    0    0    -1  
+$EndComp
+$Comp
+L Device:C C?
+U 1 1 641A275A
+P 8200 4650
+AR Path="/61B62C00/641A0A1A/641A275A" Ref="C?"  Part="1" 
+AR Path="/61B62C00/641A275A" Ref="C7"  Part="1" 
+AR Path="/64CBE795/641A275A" Ref="C20"  Part="1" 
+AR Path="/652243BA/641A275A" Ref="C21"  Part="1" 
+F 0 "C21" H 8315 4696 50  0000 L CNN
+F 1 "10nF 1kV 0805" H 8315 4605 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0805_2012Metric" H 8238 4500 50  0001 C CNN
+F 3 "~" H 8200 4650 50  0001 C CNN
+F 4 "C0805V103KCRACTU" H 8200 4650 50  0001 C CNN "MPN-ALT"
+F 5 "https://www.lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_KEMET-C0805V103KCRACTU_C2170011.html" H 8200 4650 50  0001 C CNN "URL-ALT"
+F 6 "TCC0805X7R103K501FT" H 8200 4650 50  0001 C CNN "MPN-ALT2"
+F 7 "https://www.lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_CCTC-TCC0805X7R103K501FT_C282729.html" H 8200 4650 50  0001 C CNN "URL-ALT2"
+F 8 "C0805X103K501T" H 8200 4650 50  0001 C CNN "MPN"
+F 9 "https://www.lcsc.com/product-detail/Multilayer-Ceramic-Capacitors-MLCC-SMD-SMT_IHHEC-HOLY-STONE-ENTERPRISE-CO-LTD-C0805X103K501T_C105950.html" H 8200 4650 50  0001 C CNN "URL"
+	1    8200 4650
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8500 4800 8200 4800
+$Comp
+L Device:R R?
+U 1 1 641A2763
+P 8500 4650
+AR Path="/61B62C00/641A0A1A/641A2763" Ref="R?"  Part="1" 
+AR Path="/61B62C00/641A2763" Ref="R9"  Part="1" 
+AR Path="/64CBE795/641A2763" Ref="R2"  Part="1" 
+AR Path="/652243BA/641A2763" Ref="R9"  Part="1" 
+F 0 "R9" H 8570 4696 50  0000 L CNN
+F 1 "1M 500V 1206" H 8570 4605 50  0000 L CNN
+F 2 "Resistor_SMD:R_1206_3216Metric" V 8430 4650 50  0001 C CNN
+F 3 "~" H 8500 4650 50  0001 C CNN
+F 4 "1206W4F1004T5E" H 8500 4650 50  0001 C CNN "MPN"
+F 5 "https://www.lcsc.com/product-detail/Chip-Resistor-Surface-Mount_Ever-Ohms-Tech-HR1206J1M00P05Z_C175518.html" H 8500 4650 50  0001 C CNN "URL"
+F 6 "TR18EZPF1004" H 8500 4650 50  0001 C CNN "MPN-ALT"
+F 7 "https://www.lcsc.com/product-detail/Chip-Resistor-Surface-Mount_ROHM-Semicon-KTR18EZPF1004_C253347.html" H 8500 4650 50  0001 C CNN "URL-ALT"
+	1    8500 4650
+	1    0    0    -1  
+$EndComp
+Connection ~ 8500 4800
+Wire Wire Line
+	8200 4500 8500 4500
+$Comp
+L Device:C C?
+U 1 1 64993225
+P 2250 850
+AR Path="/5F679B53/64993225" Ref="C?"  Part="1" 
+AR Path="/5F6B165A/64993225" Ref="C?"  Part="1" 
+AR Path="/612D28DD/64993225" Ref="C?"  Part="1" 
+AR Path="/61B62C00/64993225" Ref="C?"  Part="1" 
+AR Path="/64CBE795/64993225" Ref="C24"  Part="1" 
+AR Path="/652243BA/64993225" Ref="C15"  Part="1" 
+F 0 "C15" H 2275 950 50  0000 L CNN
+F 1 "100nF 0402" H 2275 750 50  0000 L CNN
+F 2 "Capacitor_SMD:C_0402_1005Metric" H 2288 700 50  0001 C CNN
+F 3 "" H 2250 850 50  0000 C CNN
+F 4 "" H 2250 850 50  0001 C CNN "MNF1_URL"
+F 5 "CL05B104KO5NNNC" H 2250 850 50  0001 C CNN "MPN"
+F 6 "" H 2250 850 50  0001 C CNN "Mouser"
+F 7 "?" H 2250 850 50  0001 C CNN "Digikey"
+F 8 "" H 2250 850 50  0001 C CNN "LCSC"
+F 9 "?" H 2250 850 50  0001 C CNN "Koncar"
+F 10 "TB" H 2250 850 50  0001 C CNN "Side"
+F 11 "" H 2250 850 50  0001 C CNN "URL"
+	1    2250 850 
+	0    1    1    0   
+$EndComp
+Wire Wire Line
+	2400 1100 2400 850 
+Connection ~ 2400 1100
+Wire Wire Line
+	2100 1100 2100 850 
+Connection ~ 2100 1100
+Wire Wire Line
+	4000 3900 4000 3800
+Wire Wire Line
+	4000 3800 4000 3700
+Connection ~ 4000 3800
+Wire Wire Line
+	4000 3700 4000 3650
+Connection ~ 4000 3700
+Connection ~ 4000 3650
+Connection ~ 8500 4500
+$Comp
+L Mechanical:MountingHole_Pad H?
+U 1 1 63467FFE
+P 8500 4400
+AR Path="/6193AB43/63467FFE" Ref="H?"  Part="1" 
+AR Path="/61B62C00/63467FFE" Ref="H1"  Part="1" 
+AR Path="/64CBE795/63467FFE" Ref="H5"  Part="1" 
+AR Path="/652243BA/63467FFE" Ref="H1"  Part="1" 
+F 0 "H1" H 8600 4451 50  0000 L CNN
+F 1 "MountingHole_Pad" H 8600 4360 50  0000 L CNN
+F 2 "MountingHole:MountingHole_2.2mm_M2_Pad" H 8500 4400 50  0001 C CNN
+F 3 "~" H 8500 4400 50  0001 C CNN
+F 4 "DNP" H 8500 4400 50  0001 C CNN "DNP"
+	1    8500 4400
+	1    0    0    -1  
+$EndComp
+$EndSCHEMATC

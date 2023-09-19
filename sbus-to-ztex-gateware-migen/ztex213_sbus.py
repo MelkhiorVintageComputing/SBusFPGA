@@ -120,9 +120,38 @@ _sbus_io_v1_2 = [
     ),
     ## USB
     ("usb", 0,
-     Subsignal("dp", Pins("U8")), # Serial TX
-     Subsignal("dm", Pins("U7")), # Serial RX
+     Subsignal("dp", Pins("U8")),
+     Subsignal("dm", Pins("U7")),
      IOStandard("LVCMOS33"))
+]
+
+_sbus_io_v1_3 = [
+    ## USB
+    ("usb", 0,
+     Subsignal("dp", Pins("U9")),
+     Subsignal("dm", Pins("V9")),
+     IOStandard("LVCMOS33")),
+    # HDMI
+    ("hdmi", 0,
+        Subsignal("clk_p",   Pins("U4"), IOStandard("TMDS_33")),
+        Subsignal("clk_n",   Pins("U3"), IOStandard("TMDS_33")),
+        Subsignal("data0_p", Pins("T5"), IOStandard("TMDS_33")),
+        Subsignal("data0_n", Pins("T4"), IOStandard("TMDS_33")), 
+        Subsignal("data1_p", Pins("V5"), IOStandard("TMDS_33")),
+        Subsignal("data1_n", Pins("V4"), IOStandard("TMDS_33")),
+        Subsignal("data2_p", Pins("V7"), IOStandard("TMDS_33")),
+        Subsignal("data2_n", Pins("V6"), IOStandard("TMDS_33")),
+        #Subsignal("hpd",     Pins(""), IOStandard("LVCMOS33")),
+        #Subsignal("sda",     Pins(""), IOStandard("LVCMOS33")),
+        #Subsignal("scl",     Pins(""), IOStandard("LVCMOS33")),
+        #Subsignal("cec",     Pins(""), IOStandard("LVCMOS33")),
+    ),
+    ("i2c", 0,
+     Subsignal("scl", Pins("J17")),
+     Subsignal("sda", Pins("J18")),
+     IOStandard("LVCMOS33")),
+    ## extra 54 MHz clock reference
+    ("clk54", 0, Pins("N5"), IOStandard("LVCMOS33")),
 ]
 
 _sbus_sbus_v1_0 = [
@@ -170,6 +199,35 @@ _sbus_sbus_v1_2 = [
     ("SBUS_3V3_PA",        0, Pins("B16 B17 D14 C14 D12 A16 A15 B14 B13 B12 C12 A14 A13 B11 A11  M4  R2  M3  P2  M2  N2  K5  N1  L4  M1  L3  L1  K3"),  IOStandard("lvttl")),
 ]
 
+_sbus_sbus_v1_3 = [
+    ("SBUS_3V3_CLK",       0, Pins("H16"), IOStandard("lvttl")),
+    ("SBUS_3V3_ASs",       0, Pins("J15"),  IOStandard("lvttl")),
+    ("SBUS_3V3_BGs",       0, Pins("K15"),  IOStandard("lvttl")), # moved
+    ("SBUS_3V3_BRs",       0, Pins("K16"),  IOStandard("lvttl")),
+    ("SBUS_3V3_ERRs",      0, Pins("C15"),  IOStandard("lvttl")), # moved
+    ("SBUS_3V3_RSTs",      0, Pins("L1"),  IOStandard("lvttl")),
+    ("SBUS_3V3_SELs",      0, Pins("H15"),  IOStandard("lvttl")),
+    #("SBUS_3V3_INT1s",     0, Pins(""),  IOStandard("lvttl")), # removed
+    ("SBUS_3V3_INT2s",     0, Pins("U8"),  IOStandard("lvttl")), # 
+    ("SBUS_3V3_INT3s",     0, Pins("U7"),  IOStandard("lvttl")), # 
+    ("SBUS_3V3_INT4s",     0, Pins("U6"),  IOStandard("lvttl")), # 
+    ("SBUS_3V3_INT5s",     0, Pins("T8"),  IOStandard("lvttl")), # 
+    #("SBUS_3V3_INT6s",     0, Pins(""),  IOStandard("lvttl")), # removec
+    #("SBUS_3V3_INT7s",     0, Pins(""),  IOStandard("lvttl")), # removed
+    ("SBUS_3V3_PPRD",      0, Pins("E15"),  IOStandard("lvttl")),
+    ("SBUS_OE",            0, Pins("K13"),  IOStandard("lvttl")),
+    ("SBUS_3V3_ACKs",      0, Pins("D14 L4  A14 "),  IOStandard("lvttl")),
+    ("SBUS_3V3_SIZ",       0, Pins("E16 M6  L6  "),  IOStandard("lvttl")), # 0 moved
+    ("SBUS_3V3_D",         0, Pins("J13 R8  J14 H14 R7  H17 G14 T6  "
+                                   "G17 G16 R6  G18 R5  V1  F18 F16 "
+                                   "V2  E18 F15 U1  D18 E17 U2  G16 "
+                                   "D17 T3  K6  R3  N6  P5  F13 F14 "),  IOStandard("lvttl")),
+    ("SBUS_3V3_PA",        0, Pins("C16 C17 A18 L5  N4  B18 M4  D15 "
+                                   "B16 B17 C14 M3  D13 M2  K5  D12 "
+                                   "A15 A16 B13 B14 B12 L3  M1  C12 "
+                                   "K3  A13 A11 B11 "),  IOStandard("lvttl")),
+]
+
 # reusing the UART pins !!!
 _usb_io_v1_0 = [
     ("usb", 0,
@@ -186,6 +244,10 @@ _connectors_v1_2 = [
     ("P1", "T8 P3 T1 R1 U6 P4 U4 T3"), # swapped line? & columns?
     # PMOD- 11  9  7  5 12 10  8  6
 ]
+_connectors_v1_2 = [
+    ("P1", "P3 T1 R2 N1 P4 R1 P2 N2"), # swapped line? & columns?
+    # PMOD- 11  9  7  5 12 10  8  6
+]
 
 # I2C ----------------------------------------------------------------------------------------------
 
@@ -196,12 +258,11 @@ _i2c_v1_0 = [
     Subsignal("sda", Pins("U9")),
     IOStandard("LVCMOS33"))
 ]
-# reusing the UART pins !!!
 #_i2c_v1_2 = [
-#    ("i2c", 0,
-#    Subsignal("scl", Pins("V9")),
-#    Subsignal("sda", Pins("U9")),
-#    IOStandard("LVCMOS33"))
+# # on PMod only
+#]
+#_i2c_v1_3 = [
+# # builtin
 #]
 
 def tempi2c_pmod_io(pmod):
@@ -224,6 +285,7 @@ def flashtemp_pmod_io(pmod):
         ),
 ]
 _flashtemp_pmod_io_v1_2 = flashtemp_pmod_io("P1")
+_flashtemp_pmod_io_v1_3 = flashtemp_pmod_io("P1")
 
 # VGA ----------------------------------------------------------------------------------------------
 
@@ -283,26 +345,32 @@ class Platform(XilinxPlatform):
         sbus_io = {
             "V1.0" : _sbus_io_v1_0,
             "V1.2" : _sbus_io_v1_2,
+            "V1.3" : _sbus_io_v1_3,
         }[version]
         sbus_sbus = {
             "V1.0" : _sbus_sbus_v1_0,
             "V1.2" : _sbus_sbus_v1_2,
+            "V1.3" : _sbus_sbus_v1_3,
         }[version]
         connectors = {
             "V1.0" : _connectors_v1_0,
             "V1.2" : _connectors_v1_2,
+            "V1.3" : _connectors_v1_3,
         }[version]
         i2c = {
             "V1.0" : _i2c_v1_0,
             "V1.2" : _tempi2c_pmod_io_v1_2,
+            "V1.3" : None, # builtin
         }[version]
         flashrom = {
             "V1.0": None,
             "V1.2": _flashtemp_pmod_io_v1_2,
+            "V1.3": _flashtemp_pmod_io_v1_3,
         }
         self.avail_irqs = {
             "V1.0" : { 1 }, # don't add 7 here, too risky
             "V1.2" : { 1, 2, 3, 4, 5, 6 },
+            "V1.3" : {    2, 3, 4, 5 },
         }[version]
         self.irq_device_map = dict()
         self.device_irq_map = dict()

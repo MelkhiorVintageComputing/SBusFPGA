@@ -32,12 +32,6 @@ F0 "blinkey" 50
 F1 "blinkey.sch" 50
 $EndSheet
 $Sheet
-S 900  1800 1200 600 
-U 5F69F4EF
-F0 "sdcard.sch" 50
-F1 "sdcard.sch" 50
-$EndSheet
-$Sheet
 S 900  2700 1200 550 
 U 60D72F2C
 F0 "USB" 50
@@ -61,4 +55,34 @@ U 65374E5B
 F0 "clock" 50
 F1 "clock.sch" 50
 $EndSheet
+$Sheet
+S 900  1800 1200 600 
+U 65499504
+F0 "pmod" 50
+F1 "pmod.sch" 50
+$EndSheet
+$Comp
+L logo:LogoLitex GRAPHIC1
+U 1 1 654C91E8
+P 4250 1275
+F 0 "GRAPHIC1" H 4478 1271 50  0000 L CNN
+F 1 "LogoLitex" H 4478 1180 50  0000 L CNN
+F 2 "For_SeeedStudio:litex_logo" H 4250 1275 50  0001 C CNN
+F 3 "" H 4250 1275 50  0001 C CNN
+F 4 "DNP" H 4250 1275 50  0001 C CNN "DNP"
+	1    4250 1275
+	1    0    0    -1  
+$EndComp
+$Comp
+L logo:LogoNetBSD GRAPHIC2
+U 1 1 654C967D
+P 4300 1625
+F 0 "GRAPHIC2" H 4578 1721 50  0000 L CNN
+F 1 "LogoNetBSD" H 4578 1630 50  0000 L CNN
+F 2 "For_SeeedStudio:netbsd_logo" H 4300 1625 50  0001 C CNN
+F 3 "" H 4300 1625 50  0001 C CNN
+F 4 "DNP" H 4300 1625 50  0001 C CNN "DNP"
+	1    4300 1625
+	1    0    0    -1  
+$EndComp
 $EndSCHEMATC

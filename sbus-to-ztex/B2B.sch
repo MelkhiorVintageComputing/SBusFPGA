@@ -25,6 +25,7 @@ F 2 "For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio" H 1800 265
 F 3 "" H 1800 2650 50  0001 C CNN
 F 4 "10-89-7642" H 1800 2650 50  0001 C CNN "MPN"
 F 5 "https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D" H 1800 2650 50  0001 C CNN "URL"
+F 6 "DNP" H 1800 2650 50  0001 C CNN "DNP"
 	1    1800 2650
 	1    0    0    -1  
 $EndComp
@@ -41,80 +42,38 @@ F 3 "" H 2400 1000 50  0001 C CNN
 $EndComp
 Text Notes 9950 6500 0    50   ~ 0
 Clock capable inputs (MRCC and SRCC, MRCC are multi-domain)\nFor 2.13:\nB9 G16~IO_L13N_T2_MRCC_15 G16\nB10 H16~IO_L13P_T2_MRCC_15 H16\nB11 F16~IO_L14N_T2_SRCC_15 F16\nB12 F15~IO_L14P_T2_SRCC_15 F15\nA19 E16~IO_L11N_T1_SRCC_15 E16\nB19 E15~IO_L11P_T1_SRCC_15 E15\nA22 C15~IO_L12N_T1_MRCC_15 C15\nB22 D15~IO_L12P_T1_MRCC_15 D15\nD8 T5~IO_L12P_T1_MRCC_34 T5\nD9 T4~IO_L12N_T1_MRCC_34 T4\nD14 T3~IO_L11N_T1_SRCC_34 T3\nD15 R3~IO_L11P_T1_SRCC_34 R3\nD19 P5~IO_L13N_T2_MRCC_34 P5\nD20 N5~IO_L13P_T2_MRCC_34 N5\nD21 P4~IO_L14P_T2_SRCC_34 P4\nD22 P3~IO_L14N_T2_SRCC_34 P3\n\nUnfortunately various 2.1x modules have different clock assignment. B22 hsould be a P-side MRCC for 2.14 (perhaps 2.18), but is a n-side SRCC on 2.16 so not usable there.
-Text GLabel 4100 2050 2    60   Input ~ 0
-SBUS_3V3_CLK
 Wire Wire Line
 	1450 2550 1450 2750
 Wire Wire Line
 	7150 2650 7150 2850
 Wire Wire Line
 	7150 2850 6700 2850
-Text GLabel 7400 1950 0    60   Input ~ 0
-SBUS_3V3_D[00]
-Text GLabel 1600 1750 0    60   Input ~ 0
-SBUS_3V3_D[01]
-Text GLabel 4100 1750 2    60   Input ~ 0
-SBUS_3V3_D[02]
-Text GLabel 7400 2050 0    60   Input ~ 0
-SBUS_3V3_D[03]
-Text GLabel 1600 1850 0    60   Input ~ 0
-SBUS_3V3_D[04]
-Text GLabel 4100 1850 2    60   Input ~ 0
-SBUS_3V3_D[05]
-Text GLabel 7400 2150 0    60   Input ~ 0
-SBUS_3V3_D[06]
-Text GLabel 1600 1950 0    60   Input ~ 0
-SBUS_3V3_D[07]
-Text GLabel 1600 2250 0    60   Input ~ 0
-SBUS_3V3_D[15]
-Text GLabel 7400 2350 0    60   Input ~ 0
-SBUS_3V3_D[14]
-Text GLabel 4100 2150 2    60   Input ~ 0
-SBUS_3V3_D[13]
 Text GLabel 1600 2150 0    60   Input ~ 0
-SBUS_3V3_D[12]
-Text GLabel 7400 2250 0    60   Input ~ 0
-SBUS_3V3_D[09]
+SBUS_3V3_D[14]
 Text GLabel 4100 1950 2    60   Input ~ 0
-SBUS_3V3_D[08]
-Text GLabel 9900 2250 2    60   Input ~ 0
-SBUS_3V3_D[11]
+SBUS_3V3_D[09]
 Text GLabel 1600 2050 0    60   Input ~ 0
-SBUS_3V3_D[10]
-Text GLabel 4100 2250 2    60   Input ~ 0
-SBUS_3V3_D[16]
-Text GLabel 9900 2350 2    60   Input ~ 0
+SBUS_3V3_D[11]
+Text GLabel 1600 2250 0    60   Input ~ 0
 SBUS_3V3_D[17]
 Text GLabel 1600 2350 0    60   Input ~ 0
-SBUS_3V3_D[18]
-Text GLabel 4100 2350 2    60   Input ~ 0
-SBUS_3V3_D[19]
-Text GLabel 7400 2450 0    60   Input ~ 0
 SBUS_3V3_D[20]
 Text GLabel 1600 2450 0    60   Input ~ 0
-SBUS_3V3_D[21]
-Text GLabel 4100 2450 2    60   Input ~ 0
-SBUS_3V3_D[22]
-Text GLabel 9900 2450 2    60   Input ~ 0
 SBUS_3V3_D[23]
 Text GLabel 4100 2850 2    60   Input ~ 0
 SBUS_3V3_D[31]
 Text GLabel 1600 2850 0    60   Input ~ 0
 SBUS_3V3_D[30]
-Text GLabel 7400 3150 0    60   Input ~ 0
-SBUS_3V3_D[29]
-Text GLabel 7400 3050 0    60   Input ~ 0
-SBUS_3V3_D[28]
-Text GLabel 7400 2950 0    60   Input ~ 0
-SBUS_3V3_D[27]
 Text GLabel 9900 2950 2    60   Input ~ 0
-SBUS_3V3_D[26]
+SBUS_3V3_D[29]
 Text GLabel 9900 2550 2    60   Input ~ 0
-SBUS_3V3_D[25]
+SBUS_3V3_D[27]
 Text GLabel 7400 2550 0    60   Input ~ 0
+SBUS_3V3_D[26]
+Text GLabel 9900 2450 2    60   Input ~ 0
+SBUS_3V3_D[25]
+Text GLabel 4100 2450 2    60   Input ~ 0
 SBUS_3V3_D[24]
-Text GLabel 7400 1850 0    60   Input ~ 0
-SBUS_3V3_INT[6]*
 Text GLabel 7400 1750 0    60   Input ~ 0
 SBUS_3V3_INT[5]*
 Text GLabel 7400 1650 0    60   Input ~ 0
@@ -123,31 +82,29 @@ Text GLabel 7400 1550 0    60   Input ~ 0
 SBUS_3V3_INT[3]*
 Text GLabel 7400 1450 0    60   Input ~ 0
 SBUS_3V3_INT[2]*
-Text GLabel 1600 1550 0    60   Input ~ 0
-SBUS_3V3_INT[1]*
 Text GLabel 4100 3050 2    60   Input ~ 0
 SBUS_3V3_PA[00]
 Text GLabel 1600 3050 0    60   Input ~ 0
 SBUS_3V3_PA[01]
 Text GLabel 1600 3150 0    60   Input ~ 0
 SBUS_3V3_PA[02]
-Text GLabel 7400 3450 0    60   Input ~ 0
+Text GLabel 7400 3250 0    60   Input ~ 0
 SBUS_3V3_PA[03]
-Text GLabel 7400 3550 0    60   Input ~ 0
+Text GLabel 7400 3350 0    60   Input ~ 0
 SBUS_3V3_PA[04]
-Text GLabel 7400 3650 0    60   Input ~ 0
+Text GLabel 7400 3450 0    60   Input ~ 0
 SBUS_3V3_PA[06]
 Text GLabel 4100 3250 2    60   Input ~ 0
 SBUS_3V3_PA[07]
 Text GLabel 4100 3550 2    60   Input ~ 0
 SBUS_3V3_PA[15]
-Text GLabel 7400 3850 0    60   Input ~ 0
+Text GLabel 7400 3750 0    60   Input ~ 0
 SBUS_3V3_PA[14]
-Text GLabel 9900 3750 2    60   Input ~ 0
+Text GLabel 7400 3650 0    60   Input ~ 0
 SBUS_3V3_PA[13]
 Text GLabel 1600 3550 0    60   Input ~ 0
 SBUS_3V3_PA[12]
-Text GLabel 7400 3750 0    60   Input ~ 0
+Text GLabel 7400 3550 0    60   Input ~ 0
 SBUS_3V3_PA[11]
 Text GLabel 1600 3450 0    60   Input ~ 0
 SBUS_3V3_PA[10]
@@ -183,21 +140,17 @@ Text GLabel 7400 4050 0    60   Input ~ 0
 SBUS_3V3_PA[24]
 Text GLabel 1600 2950 0    60   Input ~ 0
 SBUS_3V3_SIZ[0]
-Text GLabel 7400 3250 0    60   Input ~ 0
+Text GLabel 7400 3050 0    60   Input ~ 0
 SBUS_3V3_SIZ[1]
-Text GLabel 7400 3350 0    60   Input ~ 0
+Text GLabel 7400 3150 0    60   Input ~ 0
 SBUS_3V3_SIZ[2]
 Text GLabel 1600 1350 0    60   Input ~ 0
 SBUS_3V3_BR*
-Text GLabel 4100 1650 2    60   Input ~ 0
-SBUS_3V3_SEL*
 Text GLabel 1600 1450 0    60   Input ~ 0
 SBUS_3V3_BG*
-Text GLabel 1600 1650 0    60   Input ~ 0
-SBUS_3V3_AS*
 Text GLabel 1600 3950 0    60   Input ~ 0
 SBUS_3V3_ACK[2]*
-Text GLabel 9900 3850 2    60   Input ~ 0
+Text GLabel 7400 3850 0    60   Input ~ 0
 SBUS_3V3_ACK[1]*
 Text GLabel 4100 3450 2    60   Input ~ 0
 SBUS_3V3_ACK[0]*
@@ -205,17 +158,17 @@ Text GLabel 4100 2950 2    60   Input ~ 0
 SBUS_3V3_PPRD
 Text GLabel 1600 3250 0    60   Input ~ 0
 SBUS_3V3_EER*
-Text GLabel 9900 3150 2    60   Input ~ 0
+Text GLabel 12225 3225 2    60   Input ~ 0
 SD_D2
-Text GLabel 9900 3250 2    60   Input ~ 0
+Text GLabel 12225 3325 2    60   Input ~ 0
 SD_D3
-Text GLabel 9900 3350 2    60   Input ~ 0
+Text GLabel 12225 3425 2    60   Input ~ 0
 SD_CMD
-Text GLabel 9900 3450 2    60   Input ~ 0
+Text GLabel 12225 3525 2    60   Input ~ 0
 SD_CLK
-Text GLabel 9900 3550 2    60   Input ~ 0
+Text GLabel 12225 3625 2    60   Input ~ 0
 SD_D0
-Text GLabel 9900 3650 2    60   Input ~ 0
+Text GLabel 12225 3725 2    60   Input ~ 0
 SD_D1
 $Comp
 L ztex_CD:ZTEX_CD JCD1
@@ -229,6 +182,7 @@ F 2 "For_SeeedStudio:PinHeader_2x32_P2.54mm_Vertical_For_SeeedStudio" H 7600 265
 F 3 "" H 7600 2650 50  0001 C CNN
 F 4 "10-89-7642" H 7600 2650 50  0001 C CNN "MPN"
 F 5 "https://www2.mouser.com/ProductDetail/Molex/10-89-7642?qs=%2Fha2pyFadugCxzQFZUdvioDcljDVidgd4vXrOFuSRYM%3D" H 7600 2650 50  0001 C CNN "URL"
+F 6 "DNP" H 7600 2650 50  0001 C CNN "DNP"
 	1    7600 2650
 	1    0    0    -1  
 $EndComp
@@ -315,10 +269,6 @@ Wire Wire Line
 	1450 2750 1600 2750
 Wire Wire Line
 	500  2650 1600 2650
-Wire Wire Line
-	1600 1250 4100 1250
-Wire Wire Line
-	1600 1250 500  1250
 Wire Wire Line
 	500  1250 500  2650
 Connection ~ 1600 1250
@@ -625,4 +575,68 @@ F 3 "" H 3800 5400 50  0001 C CNN
 $EndComp
 Text GLabel 9900 3050 2    50   Input Italic 0
 CLK_54_000
+Wire Wire Line
+	1600 1250 550  1250
+Wire Wire Line
+	1600 1250 4100 1250
+Text GLabel 1600 1550 0    60   Input ~ 0
+SBUS_3V3_AS*
+Text GLabel 4100 2350 2    60   Input ~ 0
+SBUS_3V3_D[21]
+Text GLabel 4100 2250 2    60   Input ~ 0
+SBUS_3V3_D[18]
+Text GLabel 7400 2150 0    60   Input ~ 0
+SBUS_3V3_D[10]
+Text GLabel 7400 2250 0    60   Input ~ 0
+SBUS_3V3_D[12]
+Text GLabel 4100 2150 2    60   Input ~ 0
+SBUS_3V3_D[15]
+Text GLabel 7400 2050 0    60   Input ~ 0
+SBUS_3V3_D[07]
+Text GLabel 7400 1950 0    60   Input ~ 0
+SBUS_3V3_D[04]
+Text GLabel 7400 1850 0    60   Input ~ 0
+SBUS_3V3_D[01]
+Text GLabel 7400 2950 0    60   Input ~ 0
+SBUS_3V3_D[28]
+Text GLabel 1600 1650 0    60   Input ~ 0
+SBUS_3V3_SEL*
+Text GLabel 7400 2450 0    60   Input ~ 0
+SBUS_3V3_D[22]
+Text GLabel 9900 2350 2    60   Input ~ 0
+SBUS_3V3_D[19]
+Text GLabel 7400 2350 0    60   Input ~ 0
+SBUS_3V3_D[16]
+Text GLabel 9900 2250 2    60   Input ~ 0
+SBUS_3V3_D[13]
+Text GLabel 1600 1850 0    60   Input ~ 0
+SBUS_3V3_D[05]
+Text GLabel 1600 1750 0    60   Input ~ 0
+SBUS_3V3_D[02]
+Text GLabel 4100 2050 2    60   Input ~ 0
+SBUS_3V3_CLK
+Text GLabel 1600 1950 0    60   Input ~ 0
+SBUS_3V3_D[08]
+Text GLabel 4100 1850 2    60   Input ~ 0
+SBUS_3V3_D[06]
+Text GLabel 4100 1750 2    60   Input ~ 0
+SBUS_3V3_D[03]
+Text GLabel 4100 1650 2    60   Input ~ 0
+SBUS_3V3_D[00]
+Text GLabel 9900 3850 2    50   Input ~ 0
+PMOD-56-
+Text GLabel 9900 3550 2    50   Input ~ 0
+PMOD-78-
+Text GLabel 9900 3350 2    50   Input ~ 0
+PMOD-910-
+Text GLabel 9900 3250 2    50   Input ~ 0
+PMOD-1112-
+Text GLabel 9900 3150 2    50   Input ~ 0
+PMOD-1112+
+Text GLabel 9900 3750 2    50   Input ~ 0
+PMOD-56+
+Text GLabel 9900 3650 2    50   Input ~ 0
+PMOD-78+
+Text GLabel 9900 3450 2    50   Input ~ 0
+PMOD-910+
 $EndSCHEMATC

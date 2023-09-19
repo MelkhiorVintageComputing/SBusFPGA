@@ -1,0 +1,27 @@
+EESchema-LIBRARY Version 2.3
+#encoding utf-8
+#(c) SnapEDA 2016 (snapeda.com)
+#This work is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License (CC BY-SA) with Design Exception 1.0
+#
+# DM3CS-SF
+#
+DEF DM3CS-SF P 0 40 Y Y 1 L N
+F0 "P" -100 651 50 H V L BNN
+F1 "DM3CS-SF" -100 -751 50 H V L BNN
+F2 "HRS_DM3CS-SF" 0 0 50 H I L BNN
+F3 "" 0 0 50 H I L BNN
+F4 "Hirose Electric Co Ltd" 0 0 50 H I L BNN "MANUFACTURER"
+DRAW
+S -100 -600 300 600 0 0 10 f
+X DAT0 7 -300 0 200 R 40 40 0 0 B 
+X DAT1 8 -300 -100 200 R 40 40 0 0 B 
+X DAT2 1 -300 -200 200 R 40 40 0 0 B 
+X DAT3 2 -300 -300 200 R 40 40 0 0 B 
+X CMD 3 -300 300 200 R 40 40 0 0 I 
+X CLK 5 -300 200 200 R 40 40 0 0 I C
+X VDD 4 -300 500 200 R 40 40 0 0 W 
+X VSS 6 -300 -500 200 R 40 40 0 0 P 
+ENDDRAW
+ENDDEF
+#
+# End Library

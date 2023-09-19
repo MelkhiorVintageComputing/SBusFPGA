@@ -34,6 +34,7 @@ from gateware.i2c import *
 import sbus_to_fpga_export
 import sbus_to_fpga_prom
 
+from litex.soc.cores.video import VideoS7HDMIPHY
 from litex.soc.cores.video import VideoVGAPHY
 import bw2_fb
 import cg3_fb
@@ -48,7 +49,7 @@ from VintageBusFPGA_Common.cdc_wb import WishboneDomainCrossingMaster
 # CRG ----------------------------------------------------------------------------------------------
 
 class _CRG(Module):
-    def __init__(self, platform, sys_clk_freq,
+    def __init__(self, platform, version, sys_clk_freq,
                  usb=False,
                  usb_clk_freq=48e6,
                  engine=False,
@@ -86,6 +87,17 @@ class _CRG(Module):
         self.specials += Instance("BUFG", i_I=clk48, o_O=self.clk48_bufg)
         self.comb += self.cd_native.clk.eq(self.clk48_bufg)                
         #self.cd_native.clk = clk48
+
+        ##### V1.3 extra clock
+        if (version == "V1.3"):
+            self.clock_domains.cd_bank34      = ClockDomain()
+            clk54 = platform.request("clk54")
+            platform.add_platform_command("create_clock -name clk54 -period 18.51851851851851851 [get_nets clk54]")
+            self.clk54_bufg = Signal()
+            self.specials += Instance("BUFG", i_I=clk54, o_O=self.clk54_bufg)
+            self.comb += self.cd_bank34.clk.eq(self.clk54_bufg)     
+        else:
+            clk54 = None        
         
         clk_sbus = platform.request("SBUS_3V3_CLK")
         if (clk_sbus is None):
@@ -187,10 +199,26 @@ class _CRG(Module):
         
         if (framebuffer):
             self.submodules.video_pll = video_pll = S7MMCM(speedgrade=platform.speedgrade)
-            video_pll.register_clkin(self.clk48_bufg, 48e6)
-            video_pll.create_clkout(self.cd_vga, pix_clk, margin = 0.0005)
-            platform.add_platform_command("create_generated_clock -name vga_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
-            num_clk = num_clk + 1
+            if (clk54 is None):
+                # no 54 MHz clock, drive hdmi from the main clock
+                video_pll.register_clkin(self.clk48_bufg, 48e6)
+            else:
+                # drive hdmi from the 54 MHz clock, easier to generate e.g. 148.5 MHz
+                video_pll.register_clkin(self.clk54_bufg, 54e6)
+                platform.add_false_path_constraints(self.cd_bank34.clk, self.cd_sbus.clk) # FIXME?
+                platform.add_false_path_constraints(self.cd_bank34.clk, clk48) # FIXME?
+            if (version == "V1.2"):
+                video_pll.create_clkout(self.cd_vga, pix_clk, margin = 0.0005)
+                platform.add_platform_command("create_generated_clock -name vga_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
+                num_clk = num_clk + 1
+            elif (version == "V1.3"):
+                video_pll.create_clkout(self.cd_hdmi,   pix_clk, margin = 0.005)
+                video_pll.create_clkout(self.cd_hdmi5x, 5*pix_clk, margin = 0.005)
+                platform.add_platform_command("create_generated_clock -name hdmi_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
+                num_clk = num_clk + 1
+                platform.add_platform_command("create_generated_clock -name hdmi5x_clk [get_pins {{{{MMCME2_ADV_{}/CLKOUT{}}}}}]".format(num_adv, num_clk))
+                num_clk = num_clk + 1
+                
             self.comb += video_pll.reset.eq(~rst_sbus)
             #platform.add_false_path_constraints(self.cd_sys.clk, self.cd_vga.clk)
             platform.add_false_path_constraints(self.cd_sys.clk, video_pll.clkin)
@@ -227,16 +255,22 @@ class SBusFPGA(SoCCore):
     
         self.platform = platform = ztex213_sbus.Platform(variant = variant, version = version)
 
+        # no FB option on V1.0
         if (framebuffer and (version == "V1.2")):
             platform.add_extension(ztex213_sbus._vga_pmod_io_v1_2)
+        # V1.3 has HDMI builtin
             
         if (i2c and (version == "V1.0")):
             platform.add_extension(ztex213_sbus._tempi2c_pmod_io_v1_0)
         if (i2c and (version == "V1.2")):
             platform.add_extension(ztex213_sbus._tempi2c_pmod_io_v1_2)
-            
+        # V1.3 has I2C builtin
+
+        # no flash option on V1.0
         if (flash and (version == "V1.2")):
             platform.add_extension(ztex213_sbus._flashtemp_pmod_io_v1_2)
+        if (flash and (version == "V1.3")):
+            platform.add_extension(ztex213_sbus._flashtemp_pmod_io_v1_3)
 
         if (framebuffer):
             hres = int(cg3_res.split("@")[0].split("x")[0])
@@ -312,7 +346,7 @@ class SBusFPGA(SoCCore):
             "dvma_bridge":      0xf0000000, # required to match DVMA virtual addresses
         }
         self.mem_map.update(wb_mem_map)
-        self.submodules.crg = _CRG(platform=platform, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=engine, framebuffer=framebuffer, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
+        self.submodules.crg = _CRG(platform=platform, version=version, sys_clk_freq=sys_clk_freq, usb=usb, usb_clk_freq=48e6, engine=engine, framebuffer=framebuffer, pix_clk=litex.soc.cores.video.video_timings[cg3_res]["pix_clk"])
             
         
         #self.platform.add_period_constraint(self.platform.lookup_request("SBUS_3V3_CLK", loose=True), 1e9/25e6) # SBus max
@@ -324,6 +358,8 @@ class SBusFPGA(SoCCore):
             self.platform.add_extension(ztex213_sbus._usb_io_v1_0)
         elif (version == "V1.2"):
             xdc_timings_filename = "/home/dolbeau/SBusFPGA/sbus-to-ztex-gateware/sbus-to-ztex-timings-V1_2.xdc"
+        elif (version == "V1.3"):
+            xdc_timings_filename = None
 
         if (xdc_timings_filename != None):
             xdc_timings_file = open(xdc_timings_filename)
@@ -546,18 +582,23 @@ class SBusFPGA(SoCCore):
             self.submodules.i2c = RTLI2C(platform, pads=platform.request("i2c"))
 
         if (framebuffer):
-            self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
+            if (version == "V1.2"):
+                self.submodules.videophy = VideoVGAPHY(platform.request("vga"), clock_domain="vga")
+                fb_clock_domain = "vga"
+            elif (version == "V1.3"):
+                self.submodules.videophy = VideoS7HDMIPHY(platform.request("hdmi"), clock_domain="hdmi")
+                fb_clock_domain = "hdmi"
             if (bw2):
-                self.submodules.bw2 = bw2_fb.bw2(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, bw2 is running in cd_sys
+                self.submodules.bw2 = bw2_fb.bw2(soc=self, phy=self.videophy, timings=cg3_res, clock_domain=fb_clock_domain) # clock_domain for the VGA side, bw2 is running in cd_sys
                 self.bus.add_slave("bw2_bt", self.bw2.bus, SoCRegion(origin=self.mem_map.get("cg3_bt", None), size=0x1000, cached=False)) # bw2 uses cg3_bt
             elif (cg3):
-                self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg3 is running in cd_sys
+                self.submodules.cg3 = cg3_fb.cg3(soc=self, phy=self.videophy, timings=cg3_res, clock_domain=fb_clock_domain) # clock_domain for the VGA side, cg3 is running in cd_sys
                 self.bus.add_slave("cg3_bt", self.cg3.bus, SoCRegion(origin=self.mem_map.get("cg3_bt", None), size=0x1000, cached=False))
             elif (cg6):
-                self.submodules.cg6 = cg6_fb.cg6(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga") # clock_domain for the VGA side, cg6 is running in cd_sys
+                self.submodules.cg6 = cg6_fb.cg6(soc=self, phy=self.videophy, timings=cg3_res, clock_domain=fb_clock_domain) # clock_domain for the VGA side, cg6 is running in cd_sys
                 self.bus.add_slave("cg6_bt", self.cg6.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
             elif (goblin):
-                self.submodules.goblin = Goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain="vga", irq_line=Signal(), endian="big", hwcursor=True, truecolor=True) # clock_domain for the VGA side, goblin is running in cd_sys
+                self.submodules.goblin = Goblin(soc=self, phy=self.videophy, timings=cg3_res, clock_domain=fb_clock_domain, irq_line=Signal(), endian="big", hwcursor=True, truecolor=True) # clock_domain for the VGA/HDMI side, goblin is running in cd_sys
                 self.bus.add_slave("goblin_bt", self.goblin.bus, SoCRegion(origin=self.mem_map.get("cg6_bt", None), size=0x1000, cached=False))
                 #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
                 #SBUS_DATA_OE_LED_o = Signal()
@@ -618,17 +659,17 @@ def main():
     parser.add_argument("--sys-clk-freq", default=100e6, help="SBusFPGA system clock (default 100e6 = 100 MHz)")
     parser.add_argument("--trng", action="store_true", help="add true random number generator [all]")
     parser.add_argument("--sdram", action="store_true", help="expose the sdram to the host [all]")
-    parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2]")
+    parser.add_argument("--usb", action="store_true", help="add a USB OHCI controller [V1.2, V1.3]")
     parser.add_argument("--engine", action="store_true", help="add a Engine crypto core [all]")
-    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [V1.2+TEMPI2C or FLASHTEMP pmod]")
-    parser.add_argument("--bw2", action="store_true", help="add a BW2 framebuffer [V1.2+VGA_RGB222 pmod]")
-    parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod]")
+    parser.add_argument("--i2c", action="store_true", help="add an I2C bus [V1.2+TEMPI2C or FLASHTEMP pmod, V1.3]")
+    parser.add_argument("--bw2", action="store_true", help="add a BW2 framebuffer [V1.2+VGA_RGB222 pmod, V1.3]")
+    parser.add_argument("--cg3", action="store_true", help="add a CG3 framebuffer [V1.2+VGA_RGB222 pmod, V1.3]")
     parser.add_argument("--cg3-res", default="1152x900@76Hz", help="Specify the CG3/CG6 resolution")
-    parser.add_argument("--cg6", action="store_true", help="add a CG6 framebuffer [V1.2+VGA_RGB222 pmod]")
-    parser.add_argument("--goblin", action="store_true", help="add a Goblin framebuffer [V1.2+VGA_RGB222 pmod]")
-    parser.add_argument("--sdcard", action="store_true", help="add a sdcard controller [all]")
+    parser.add_argument("--cg6", action="store_true", help="add a CG6 framebuffer [V1.2+VGA_RGB222 pmod, V1.3]")
+    parser.add_argument("--goblin", action="store_true", help="add a Goblin framebuffer [V1.2+VGA_RGB222 pmod, V1.3]")
+    parser.add_argument("--sdcard", action="store_true", help="add a sdcard controller [V1.0, V1.2, V1.3+pmod]")
     parser.add_argument("--jareth", action="store_true", help="add a Jareth vector core [all]")
-    parser.add_argument("--flash", action="store_true", help="add a Flash device [V1.2+FLASHTEMP pmod]")
+    parser.add_argument("--flash", action="store_true", help="add a Flash device [V1.2+FLASHTEMP pmod, V1.3+FLASHTEMP pmod,]")
     builder_args(parser)
     vivado_build_args(parser)
     args = parser.parse_args()
@@ -640,7 +681,7 @@ def main():
     if (args.i2c and (args.version == "V1.0")):
         print(" ***** WARNING ***** : I2C on V1.0 is for testing the core \n");
     if ((args.bw2 or args.cg3 or args.cg6 or args.goblin) and (args.version == "V1.0")):
-        print(" ***** ERROR ***** : VGA not supported on V1.0\n")
+        print(" ***** ERROR ***** : VGA/HDMI not supported on V1.0\n")
         assert(False)
     if (args.flash and (args.version == "V1.0")):
         print(" ***** ERROR ***** : Flash not supported on V1.0\n");
@@ -658,8 +699,10 @@ def main():
     if (fbcount > 1):
         print(" ***** ERROR ***** : can't have more than one of BW2, CG3, CG6 and Goblin\n")
         assert(False)
-    if ((fbcount > 0) and args.i2c):
+    if ((fbcount > 0) and args.i2c and version == "V1.2"):
         print(" ***** ERROR ***** : Framebuffers and I2C are incompatible in V1.2\n")
+    if ((fbcount > 0) and args.flash and version == "V1.2"):
+        print(" ***** ERROR ***** : Framebuffers and Flash are incompatible in V1.2\n")
     
     soc = SBusFPGA(**soc_core_argdict(args),
                    variant=args.variant,
