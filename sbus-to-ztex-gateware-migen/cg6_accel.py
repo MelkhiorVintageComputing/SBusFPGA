@@ -267,8 +267,8 @@ class CG6Accel(Module): # AutoCSR ?
         #timeout_rst = 0xFFFFFFF
         #timeout = Signal(28, reset = timeout_rst)
 
-        pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
-        self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset)
+        #pad_SBUS_DATA_OE_LED = platform.request("SBUS_DATA_OE_LED")
+        #self.comb += pad_SBUS_DATA_OE_LED.eq(~local_reset)
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_r5_cmd[1]) # blitting
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fbc_pm != 0) # planemasking
         #self.comb += pad_SBUS_DATA_OE_LED.eq(fifo_overflow)

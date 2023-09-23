@@ -3,7 +3,7 @@ source /opt/Xilinx/Vivado/2020.1/settings64.sh
 export LD_LIBRARY_PATH=/opt/Xilinx/Vivado/2020.1/lib/lnx64.o/SuSE
 export PYTHONPATH=deps/gateware:$PYTHONPATH
 
-python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.3 --sys-clk-freq 100e6 --trng --usb --sdram --i2c --goblin --cg3-res 1920x1080@60Hz
+python3 sbus_to_fpga_soc.py --build --csr-csv csr.csv --csr-json csr.json --variant=ztex2.13a --version=V1.3 --sys-clk-freq 100e6 --trng --usb --sdram --i2c --goblin --cg3-res 1920x1080@60Hz --jareth
 
 ) 2>&1 | tee build_V1_3.log
 # --trng

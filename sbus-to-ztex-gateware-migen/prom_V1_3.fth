@@ -103,8 +103,21 @@ h# 61a80 encode-int " bus-speed" property
   finish-device
 finish-device
 new-device
-h# -1 constant sfra_jareth-regs
-h# 0 constant goblin-has-jareth
+headers
+-1 instance value goblin_accel-virt
+my-address constant my-sbus-address
+my-space constant my-sbus-space
+: map-in ( adr space size -- virt ) " map-in" $call-parent ;
+: map-out ( virt size -- ) " map-out" $call-parent ;
+: map-in-jareth ( -- )
+my-sbus-address sfra_goblin_accel + my-sbus-space h# 1000 map-in to goblin_accel-virt
+;
+: map-out-jareth ( -- )
+goblin_accel-virt h# 1000 map-out
+;
+h# 1 constant goblin-has-jareth
+fload goblin_jareth_define.fth
+fload goblin_jareth_init.fth
 : openbios-video-width
     h# 780
 ;
