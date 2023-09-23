@@ -2,7 +2,7 @@
 <export version="D">
   <design>
     <source>/home/dolbeau/SPARC/SBusFPGA.V1_X/sbus-to-ztex/sbus-to-ztex.sch</source>
-    <date>Tue Sep 19 10:23:17 2023</date>
+    <date>Sat Sep 23 08:27:57 2023</date>
     <tool>Eeschema 5.1.9+dfsg1-1~bpo10+1</tool>
     <sheet number="1" name="/" tstamps="/">
       <title_block>

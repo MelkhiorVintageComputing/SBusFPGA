@@ -13,8 +13,6 @@ Comment2 ""
 Comment3 ""
 Comment4 ""
 $EndDescr
-Text Notes 7300 2850 0    50   ~ 0
-Dual-row "extended" Pmod\nExternal, in line w/ the carrier
 Text GLabel 7150 3500 0    50   Input ~ 0
 PMOD-56-
 Text GLabel 7150 3600 0    50   Input ~ 0
