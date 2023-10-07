@@ -8,9 +8,11 @@ So unless you're a retrocomputing enthusiast with such a machine, this is useles
 
 I'm a software guy and know next to nothing about hardware design, so this is very much a work-in-progress and is likely full of rookie mistakes.
 
-To save on PCB cost, the board is smaller than a 'true' SBus board; the hardware directory includes an OpenSCAD 3D-printable extension to make the board compliant to the form factor (visible in the pictures in 'Pictures').
+To save on PCB cost, the board is smaller than a 'true' SBus board; the hardware directory includes an OpenSCAD 3D-printable extension to make the board compliant to the form factor (visible in the pictures in 'Pictures') (need to be updated for V1.3).
 
 ## Current status
+
+2023-10-07: V1.3 in testing.
 
 2022-11-18: V1.2 seems stable, with various subsets of the peripherals described below. It only lacks a proper video output, such as the one available in the [NuBusFPGA](https://github.com/rdolbeau/NuBusFPGA). Unfortunately the FPGA board used in V1.0/V1.2 (ZTex 2.13) doesn't have enough available I/O to add it in addition to the already existing I/Os.
 
@@ -20,7 +22,9 @@ Directory 'sbus-to-ztex'
 
 The V1.2 custom board is a SBus-compliant (I hope...) board, designed to receive a [ZTex USB-FPGA Module 2.13](https://www.ztex.de/usb-fpga-2/usb-fpga-2.13.e.html) as a daughterboard. The ZTex module contains the actual FPGA (Artix-7), some RAM, programming hardware, etc. The SBus board contains level-shifters ICs to interface between the SBus signals and the FPGA, a serial header, a Led, a JTAG header, a micro-sd card slot, a USB micro-B connector, and a (Pmod)[https://digilent.com/shop/boards-and-components/system-board-expansion-modules/pmods/] connector. It supports every SBus feature except the optional parity (i.e. it can do both slave and master modes) and interrupt level 1 to 6 are connected.
 
-The PCB was designed with Kicad 5.0
+The V1.3 custom board is similar to V1.2 but reorganized & redesigned to have all components on the top side and cleaner routing. It also loose the led, setial header & micro-sd to gain a HDMI connector. The USB micro-B is still present, and the PMod was rewired to carry 8 length-matched differential pairs.
+
+The PCB was designed with Kicad 5.0 for V1.2, 5.1 for V1.3.
 
 ## The gateware (Migen)
 
@@ -51,9 +55,9 @@ The Curve25519 Engine currently exposes an IOCTL to do the computation, which ha
 
 The I2C bus currently uses a custom Pmod to plug an AT30TS74 temperature sensor (LM75-compatible, usable with 'envstat' in NetBSD), but should support most/all I2C devices supported by NetBSD.
 
-The bw2/cg3/cg6 emulation requires the custom Pmod, and colors are vert limited at 2 bits per channel, so it's for testing mostly. bw2/cg3 can work as a PROM console, a NetBSD console, and with X11, all as an non-accelerated framebuffer. Resolution can be arbitrary but is fixed in the bitstream at synthesis time, the current design can go up to 1920x1080@60Hz. cg6 emulation is similar but uses a micro-coded VexRiscv core to emulate some of the cg6 hardware acceleration, enough to accelerate the PROM console, the NetBSD console and X11 EXA acceleration in NetBSD 9.0. The cg3/cg6 emulation was also tested with the original PROM code for cg3 (501-1415) and TGX+ (501-2253), but this requires hardware-based initialization (instead of PROM-based) and prevent exposing other devices in the PROM code.
+The bw2/cg3/cg6 emulation requires the custom Pmod on V1.2, and colors are vert limited at 2 bits per channel, so it's for testing mostly. V1.3 has a HDMI connector using DVI signaling and so support the full color range. bw2/cg3 can work as a PROM console, a NetBSD console, and with X11, all as an non-accelerated framebuffer. Resolution can be arbitrary but is fixed in the bitstream at synthesis time, the current design can go up to 1920x1080@60Hz. cg6 emulation is similar but uses a micro-coded VexRiscv core to emulate some of the cg6 hardware acceleration, enough to accelerate the PROM console, the NetBSD console and X11 EXA acceleration in NetBSD 9.0. The cg3/cg6 emulation was also tested with the original PROM code for cg3 (501-1415) and TGX+ (501-2253), but this requires hardware-based initialization (instead of PROM-based) and prevent exposing other devices in the PROM code.
 
-The 'Goblin' framebuffer works similarly to the cg6 emulation (from which it has grown for the NuBusFPGA), but is using 24-bits in X11 (switching in a way similar to the cg14) and has some Xrender acceleration. Using the same 2-bits-per-channel VGA Pmod, it also suffers from color limitations.
+The 'Goblin' framebuffer works similarly to the cg6 emulation (from which it has grown for the NuBusFPGA), but is using 24-bits in X11 (switching in a way similar to the cg14) and has some Xrender acceleration. Using the same 2-bits-per-channel VGA Pmod, it also suffers from color limitations ob V1.2. It also uses tje HDMI connector on V1.3.
 
 ### Special Notes
 
