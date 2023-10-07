@@ -576,8 +576,6 @@ $EndComp
 Text GLabel 9900 3050 2    50   Input Italic 0
 CLK_54_000
 Wire Wire Line
-	1600 1250 550  1250
-Wire Wire Line
 	1600 1250 4100 1250
 Text GLabel 1600 1550 0    60   Input ~ 0
 SBUS_3V3_AS*
@@ -639,4 +637,6 @@ Text GLabel 9900 3650 2    50   Input ~ 0
 PMOD-78+
 Text GLabel 9900 3450 2    50   Input ~ 0
 PMOD-910+
+Wire Wire Line
+	500  1250 1600 1250
 $EndSCHEMATC
